@@ -413,17 +413,23 @@ public class Bootstrapper implements CommandLineRunner {
                     book8.get(), book9.get(), book10.get()});
         }
 
-        final var readerDetails1 = readerRepository.findByReaderNumber("2024/1");
-        final var readerDetails2 = readerRepository.findByReaderNumber("2024/2");
-        final var readerDetails3 = readerRepository.findByReaderNumber("2024/3");
-        final var readerDetails4 = readerRepository.findByReaderNumber("2024/4");
-        final var readerDetails5 = readerRepository.findByReaderNumber("2024/5");
-        final var readerDetails6 = readerRepository.findByReaderNumber("2024/6");
+        final int currentYear = LocalDate.now().getYear();
+        final var readerDetails1 = readerRepository.findByReaderNumber(currentYear + "/1").or(() -> readerRepository.findByReaderNumber("2024/1"));
+        final var readerDetails2 = readerRepository.findByReaderNumber(currentYear + "/2").or(() -> readerRepository.findByReaderNumber("2024/2"));
+        final var readerDetails3 = readerRepository.findByReaderNumber(currentYear + "/3").or(() -> readerRepository.findByReaderNumber("2024/3"));
+        final var readerDetails4 = readerRepository.findByReaderNumber(currentYear + "/4").or(() -> readerRepository.findByReaderNumber("2024/4"));
+        final var readerDetails5 = readerRepository.findByReaderNumber(currentYear + "/5").or(() -> readerRepository.findByReaderNumber("2024/5"));
+        final var readerDetails6 = readerRepository.findByReaderNumber(currentYear + "/6").or(() -> readerRepository.findByReaderNumber("2024/6"));
 
         List<ReaderDetails> readers = new ArrayList<>();
-        if(readerDetails1.isPresent() && readerDetails2.isPresent() && readerDetails3.isPresent()){
-            readers = List.of(new ReaderDetails[]{readerDetails1.get(), readerDetails2.get(), readerDetails3.get(),
-                            readerDetails4.get(), readerDetails5.get(), readerDetails6.get()});
+        if(readerDetails1.isPresent() && readerDetails2.isPresent() && readerDetails3.isPresent()
+                && readerDetails4.isPresent() && readerDetails5.isPresent() && readerDetails6.isPresent()){
+            readers = List.of(readerDetails1.get(), readerDetails2.get(), readerDetails3.get(),
+                            readerDetails4.get(), readerDetails5.get(), readerDetails6.get());
+        }
+
+        if (books.isEmpty() || readers.size() < 6) {
+            return;
         }
 
         LocalDate startDate;
