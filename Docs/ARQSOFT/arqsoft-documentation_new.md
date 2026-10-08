@@ -1,162 +1,233 @@
 # ARQSOFT — Documentação de Arquitetura (P1)
 
-> Manutenção/Correção de um sistema — LMS (Library Management System), base de código `psoft-g1`.
+> **Projeto Base:** `psoft-g1` — Sistema de Gestão de Biblioteca (LMS — *Library Management System*).  
+> **Unidade Curricular:** Arquitetura de Software (ARQSOFT), Mestrado em Engenharia Informática, ISEP.  
+> **Âmbito:** Engenharia Reversa do *System-as-is*, Levantamento de Vistas Arquiteturais segundo o modelo **C4 + 4+1 Views** (Kruchten / Brown), Especificação de ASRs e Táticas ADD.
 
-Este documento segue o mesmo formato e notação (diagramas de componentes/pacotes UML e diagramas de sequência, à semelhança do trabalho de referência de um colega de um ano anterior) para descrever o *system-as-is* do LMS: vistas de Implementação, Lógica, Física e de Processos, cada uma decomposta em níveis de granularidade crescente (N1 → N4, quando aplicável).
-
-Todas as vistas abaixo foram construídas por engenharia reversa do código-fonte real (`psoft-project-2024-g1`), não são especulativas.
-
----
-
-## System-as-is
-
-### Vista de Implementação
-
-A vista de implementação de nível 1 é semelhante à vista lógica correspondente ao mesmo nível (ver secção seguinte) — o sistema é, hoje, uma única unidade implantável, pelo que não se repete o diagrama.
-
-#### Nível 2
-
-![VI_N2.jpg](System-as-is\VI-N2.png)
-
-*VI N2 — LibraryManagementSystem decomposto em Backend e BD (pacotes).*
-
-#### Nível 3
-
-![VI_N3.jpg](System-as-is\VI-N3.png)
-
-*VI N3 — pacotes Java reais dentro de Backend. As setas tracejadas mostram as dependências confirmadas nos imports: `bootstrapping` depende de todos os módulos de domínio; `auth`, `exceptions`, `configuration`, `external.service` e `shared` não são alvo de bootstrap.*
-
-#### Nível 4
-
-![VI_N4.jpg](System-as-is\VI-N4.png)
-
-*VI N4 — decomposição do pacote `bookmanagement`: `API → Services → Repositories → Model`, com `Infrastructure.Repositories.Impl` a realizar `Repositories` e a depender de `Model` (confirmado pela árvore de pastas real do módulo).*
-
-#### Mapeamento VI ↔ VL
-
-![VI_to_VL.jpg](System-as-is\VI_to_VL.png)
-
-*Manifest entre a Vista Lógica (camadas Onion/Clean, instanciadas para o módulo `BookManagement`) e a Vista de Implementação N4 (`bookmanagement`). `Routing`/`Drivers` (VL N3) não têm pacote próprio por módulo — manifestam-se antes na configuração global (`configuration`, driver JDBC), por isso não entram neste mapeamento.*
+Este documento consolida a descrição arquitetural completa do *system-as-is* do LMS, obtida por análise e engenharia reversa do código-fonte real. Segue a abordagem combinada de **4+1 Vistas de Kruchten** com os níveis de granularidade do **Modelo C4** (Nível 1 a Nível 4):
+* **Vista Arquitetural / Lógica (VA / VL)**: organização funcional, subsistemas, módulos de domínio e camadas internas.
+* **Vista de Implementação (VI)**: estrutura física do código-fonte, módulos de subdomínio, infraestrutura de persistência e pacotes Java.
+* **Mapeamento entre Vistas (*Manifestation*)**: rastreabilidade formal (`<<manifest>>`) entre conceitos lógicos e artefactos de implementação.
+* **Vista Física / Implantação (VF)**: topologia de nós e processos em execução.
+* **Vista de Processos (VP)**: realização dinâmica dos principais casos de uso através de diagramas de sequência.
+* **ASRs (*Architecturally Significant Requirements*) & ADD**: especificação de requisitos arquiteturais e mapeamento para táticas de desenho.
 
 ---
 
-### Vista Lógica
+## 1. System-as-is: Vista Arquitetural / Lógica (VA)
 
-#### Nível 1
+A Vista Arquitetural descreve a decomposição funcional e concetual do sistema, evidenciando as responsabilidades de negócio, os contratos de interface pública (*ball-and-socket*) e os limites de contexto segundo os princípios do *Domain-Driven Design* (DDD) e da *Clean Architecture*.
 
-![VL_N1.jpg](System-as-is\VL-N1.png)
+### 1.1 Nível 1 — Sistema Global (C4 Context)
 
-*VL N1 — o LMS como um único componente lógico, expondo REST API e consumindo API Ninjas.*
+No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
-#### Nível 2
+![VA_N1.png](System-as-is/VA_N1.png)
 
-![VL_N2.jpg](System-as-is\VL-N2.png)
-
-*VL N2 — decomposição em Backend e BD, ligados pela interface BD API.*
-
-#### Nível 3
-
-![VL_N3.jpg](System-as-is\VL-N3.png)
-
-*VL N3 — Backend decomposto nas camadas de arquitetura em uso no código (Frameworks & Drivers, Interface Adapters, Application Services, Enterprise Business Rules — um padrão Onion/Clean Architecture, confirmado pelos pacotes `api`, `services`, `model`, `repositories`, `infrastructure.repositories.impl` de cada módulo).*
+* **Interfaces Externas:**
+  * **`REST API` (Provided `()`):** Interface HTTP/JSON exposta aos clientes externos (leitores, bibliotecários, administradores) para todas as operações da biblioteca.
+  * **`NINJA API` (Required `)-`):** Interface externa consumida pelo LMS para obtenção de factos históricos e citações culturais.
 
 ---
 
-### Vista Física
+### 1.2 Nível 2 — Decomposição em Subsistemas (C4 Container)
 
-#### Nível 1
+No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
-![VF_N1.jpg](System-as-is\VF-N1.png)
+![VA_N2.png](System-as-is/VA_N2.png)
 
-*VF N1 — um único nó físico (posto local) a correr o LMS.*
-
-#### Nível 2
-
-![VF_N2.jpg](System-as-is\VF-N2.png)
-
-*VF N2 — o mesmo nó, agora com Backend e BD como componentes distintos (BD corre como servidor H2 TCP separado, não embutido).*
-
-Não há ainda `Dockerfile`, `docker-compose` nem múltiplos ambientes — pelo que aprofundar esta vista além de N2 não acrescenta informação nova neste momento.
+* **Componentes:**
+  * **`Backend`:** Núcleo aplicacional responsável por toda a lógica de negócio, controlo de acessos, orquestração de serviços e disponibilização dos endpoints REST.
+  * **`DB`:** Repositório relacional persistente do sistema (servidor de base de dados H2).
+* **Conexões e Portas:**
+  * As portas na fronteira do `LMS` delegam o tráfego de entrada da `REST API` e a dependência de saída da `NINJA API` diretamente no componente `Backend`.
+  * A comunicação entre `Backend` e `DB` realiza-se através da interface **`BD API`** (o `Backend` consome os serviços de dados fornecidos pelo container `DB`).
 
 ---
 
-### Vista de Processos
+### 1.3 Nível 3 — Módulos de Domínio (Modular Monolith)
 
-Organizada por cenário (caso de uso), à semelhança do documento de referência.
+No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais, adotando o padrão arquitetural **Modular Monolith** orientado por domínios (DDD).
 
-#### Criar Empréstimo — Nível 1
+![VA_N3.png](System-as-is/VA_N3.png)
 
-![VP_N1.jpg](System-as-is\VP-N1.png)
+* **Módulos de Domínio:**
+  * **`UserManagement Module`:** Gestão da identidade dos utilizadores, credenciais, palavras-passe e atribuição de perfis/autorizações (`ADMIN`, `LIBRARIAN`, `READER`).
+  * **`ReaderManagement Module`:** Gestão do ciclo de vida cadastral dos leitores, números de leitor, dados pessoais e preferências.
+  * **`BookManagement Module`:** Gestão do catálogo bibliográfico, títulos, ISBN, exemplares e associação a autores e géneros.
+  * **`AuthorManagement Module`:** Gestão dos autores, biografias e relacionamento com as respetivas obras.
+  * **`GenreManagement Module`:** Gestão da taxonomia de géneros literários e geração de estatísticas associadas.
+  * **`LendingManagement Module`:** Gestão de operações de empréstimo, devoluções, cálculo de prazos e apuramento de multas (*fines*).
 
-*VP N1 — Bibliotecário e o LMS como um todo.*
-
-#### Criar Empréstimo — Nível 2
-
-![VP_N2.jpg](System-as-is\VP-N2.png)
-
-*VP N2 — Backend e BD já distintos.*
-
-#### Criar Empréstimo — Nível 3
-
-![VP_N3.jpg](System-as-is\VP-N3.png)
-
-*VP N3 — sequência real, reconstruída a partir de `LendingController`/`LendingServiceImpl`: verificação de empréstimos em atraso e do limite de 3 empréstimos ativos (`LendingForbiddenException` → 403), procura de livro/leitor (`NotFoundException` → 404 se ausentes), criação e persistência do `Lending`.*
-
-#### Registar Livro — Nível 1
-
-![VP_2_N1.jpg](System-as-is\VP-N1.png)
-
-*VP N1 — Bibliotecário e o LMS como um todo.*
-
-#### Registar Livro — Nível 2
-
-![VP_2_N2.jpg](System-as-is\VP-N2.png)
-
-*VP N2 — Backend e BD já distintos.*
-
-#### Registar Livro — Nível 3
-
-![VP_2_N3.jpg](System-as-is\VP-N3.png)
-
-*VP N3 — sequência real, reconstruída a partir de `BookController`/`BookServiceImpl`: deteção de ISBN duplicado (`ConflictException` → 409), procura de autor e de género (`NotFoundException` → 404 se o género não existir), criação e persistência do `Book`. Simplificado para um único autor — o código real itera a mesma chamada `findByAuthorNumber` por cada autor pedido, ignorando os que não existem.*
-
-#### Top 5 Géneros — Nível 1
-
-![VP_3_N1.jpg](System-as-is\VP-N1.png)
-
-*VP N1 — Bibliotecário e o LMS como um todo (endpoint só de leitura).*
-
-#### Top 5 Géneros — Nível 2
-
-![VP_3_N2.jpg](System-as-is\VP-N2.png)
-
-*VP N2 — Backend e BD já distintos.*
-
-#### Top 5 Géneros — Nível 3
-
-![VP_3_N3.jpg](System-as-is\VP-N3.png)
-
-*VP N3 — sequência real, reconstruída a partir de `GenreController`/`GenreServiceImpl`: consulta paginada (top 5 por nº de livros) e o caso de lista vazia (`NotFoundException` → 404), contrastando com os dois cenários anteriores por ser uma operação puramente de leitura, sem alterações de estado nem criação de objetos de domínio.*
+* **Interfaces Inter-Módulos (Ball-and-Socket):**
+  * **`USER API`:** Fornecida por `UserManagement`, consumida por `ReaderManagement` (um leitor herda e especializa a identidade de utilizador).
+  * **`Genre API`:** Fornecida por `GenreManagement`, consumida por `BookManagement` (classificação temática de livros) e por `LendingManagement` (métricas de empréstimo por género).
+  * **`Author API`:** Fornecida por `AuthorManagement`, consumida por `BookManagement` (autoria das obras).
+  * **`Book API`:** Fornecida por `BookManagement`, consumida por `LendingManagement` (validação de disponibilidade e requisição de exemplares).
+  * **`Reader API`:** Fornecida por `ReaderManagement`, consumida por `LendingManagement` (validação de leitor elegível e histórico).
+  * **`Lending API`:** Fornecida por `LendingManagement`, consumida por `ReaderManagement` (consulta do histórico de requisições de um leitor).
+  * **`NINJA API`:** Consumida exclusivamente pelo `ReaderManagement` (através de `ApiNinjasService` no detalhe de leitor).
+  * **`REST API`:** Encaminhada na fronteira para os controladores dos respetivos módulos de domínio.
+  * **`DB API`:** Canal lógico de persistência que assegura o armazenamento relacional das entidades de domínio.
 
 ---
 
-## ASR (Architecturally Significant Requirements)
+### 1.4 Nível 4 — Estrutura Interna de um Módulo (Clean Architecture)
 
-### 1. Requisitos Globais do Sistema
+No Nível 4, realiza-se o detalhe concetual interno de um módulo específico — **`UserManagement`** (`pt.psoft.g1.psoftg1.usermanagement`) — decompondo-o em 4 camadas concêntricas segundo o padrão **Clean Architecture / Onion Architecture**.
 
-#### 1.1 Requisitos Funcionais (FR)
+![VA_N4.png](System-as-is/VA_N4.png)
 
-* **FR01 – Gestão de Livros (*Books*):** Registar, editar, consultar e listar livros do catálogo (ISBN, título, autores, descrição, géneros).
-* **FR02 – Gestão de Autores e Géneros (*Authors & Genres*):** Manter o registo de autores e a taxonomia de géneros literários associados aos livros.
-* **FR03 – Gestão de Leitores (*Readers*):** Gerir o ciclo de vida dos utilizadores/leitores (dados cadastrais, preferências de notificação).
-* **FR04 – Gestão de Empréstimos (*Lendings*):** Criar e devolver empréstimos de livros a leitores, validando disponibilidade e regras de limite.
-* **FR05 – Obtenção de Dados Bibliográficos Externos:** Obter e integrar metadados de livros a partir de APIs externas (ex.: Google Books, Open Library), harmonizando modelos de dados heterogéneos.
+* **Regras de Dependência e DIP:**
+  * As setas de dependência (`..>`) apontam estritamente de fora para dentro (*The Dependency Rule*). O modelo de domínio (`Enterprise Business Rules`) não conhece nenhuma classe ou framework exterior.
+  * O princípio da inversão de dependência (*DIP*) assegura que o adaptador de persistência `SpringDataUserRepository` implementa a interface `UserRepository` definida na camada aplicacional/domínio, desacoplando o núcleo de negócio dos detalhes tecnológicos da base de dados.
+
+---
+
+## 2. System-as-is: Vista de Implementação (VI)
+
+A Vista de Implementação descreve a organização estática do código-fonte, das unidades de compilação, dos subsistemas de empacotamento e da infraestrutura tecnológica concreta.
+
+### 2.1 Nível 1 — Artefato Executável Global
+
+No Nível 1, a aplicação é empacotada num único artefato executável JAR gerado pelo Apache Maven (`psoft-g1-0.0.1-SNAPSHOT.jar`), incorporando o Spring Boot Starter e o servidor Tomcat embutido.
+
+![VI_N1.png](System-as-is/VI_N1.png)
+
+* O executável expõe os pontos de terminação HTTP (`REST API`) e consome a biblioteca de cliente WebClient para conexão à `NINJA API`.
+
+---
+
+### 2.2 Nível 2 — Subsistemas de Implementação
+
+No Nível 2, a arquitetura de implementação divide-se entre a base de código Java (`Backend`) e a unidade de gestão de dados relacional (`DB`).
+
+![VI_N2.png](System-as-is/VI_N2.png)
+
+* O subsistema `Backend` acede ao subsistema `DB` através de ligações JDBC geridas pelo driver H2, satisfazendo a interface **`BD API`**.
+
+---
+
+### 2.3 Nível 3 — Módulos de Subdomínio e Subsistema de Persistência
+
+No Nível 3, a base de código do `Backend` organiza-se em subsistemas de código correspondentes aos subdomínios funcionais e destaca o componente técnico de suporte transversal **`Persistência`**.
+
+![VI_N3.png](System-as-is/VI_N3.png)
+
+* **Componentes de Subdomínio (Código):**
+  * `UserManagement SubDomain Module` (`pt.psoft.g1.psoftg1.usermanagement`)
+  * `ReaderManagement SubDomain Module` (`pt.psoft.g1.psoftg1.readermanagement`)
+  * `BookManagement SubDomain Module` (`pt.psoft.g1.psoftg1.bookmanagement`)
+  * `AuthorManagement SubDomain Module` (`pt.psoft.g1.psoftg1.authormanagement`)
+  * `GenreManagement SubDomain Module` (`pt.psoft.g1.psoftg1.genremanagement`)
+  * `LendingManagement SubDomain Module` (`pt.psoft.g1.psoftg1.lendingmanagement`)
+
+* **Componente de Infraestrutura Técnica de Persistência:**
+  * **`Persistência`:** Centraliza a camada técnica partilhada de acesso a dados (configuração Spring Data JPA, `JpaConfig`, `EntityManagerFactory`, Hibernate ORM e repositórios concretos).
+  * Disponibiliza a interface **`Persistence API`**, consumida através de soquetes por todos os módulos de subdomínio, consolidando a ligação relacional à base de dados através da porta **`DB API`**.
+
+---
+
+### 2.4 Nível 4 — Decomposição Física em Pacotes Java
+
+No Nível 4, a estrutura de implementação descreve a árvore física de pacotes e tipos Java de um módulo de subdomínio (exemplificado em `usermanagement`):
+
+![VI_N4.png](System-as-is/VI_N4.png)
+
+---
+
+## 3. Mapeamento e Rastreabilidade entre Vistas (*Manifestation*)
+
+A rastreabilidade arquitetural assegura que cada conceito lógico abstrato da Vista Arquitetural encontra correspondência direta e inequívoca nos artefactos de software da Vista de Implementação através de relações `<<manifest>>`.
+
+### 3.1 Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3)
+
+O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógicos) com os módulos de código e com o subsistema técnico de persistência.
+
+![VA_to_VI_N3.png](System-as-is/VA_to_VI_N3.png)
+
+* **Racional Arquitetural:**
+  * Cada módulo de subdomínio na VI manifesta o seu módulo funcional correspondente na VA (`VI: UserManagement` $\xrightarrow{\text{<<manifest>>}}$ `VA: UserManagement`, etc.).
+  * O componente **`Persistência`** da VI manifesta a capacidade de persistência de **todos os módulos lógicos da VA**. Justifica como uma arquitetura monolítica modular partilha uma stack tecnológica comum de ORM e transações (Spring Data JPA / Hibernate) sem que cada módulo necessite de gerir uma base de dados autónoma.
+
+### 3.2 Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
+
+O mapeamento de Nível 4 correlaciona as 4 camadas concêntricas de *Clean Architecture* com os pacotes Java reais do módulo.
+
+![VI_to_VL.png](System-as-is/VI_to_VL.png)
+
+* `Frameworks & Drivers` $\leftarrow$ Configuração Spring Boot, `SecurityConfig`, `JpaConfig` e driver H2.
+* `Interface Adapters` $\leftarrow$ Pacotes `api` e `infrastructure.repositories.impl`.
+* `Enterprise Application Rules` $\leftarrow$ Pacote `services` e interfaces de `repositories`.
+* `Enterprise Business Rules` $\leftarrow$ Pacote `model`.
+
+---
+
+## 4. System-as-is: Vista Física / Implantação (VF)
+
+### 4.1 Nível 1
+Um único nó de processamento físico local (*Node*) aloja a máquina virtual Java (JVM) que executa o processo completo do LMS.
+
+![VF_N1.jpg](System-as-is/VF-N1.png)
+
+### 4.2 Nível 2
+O nó local é diferenciado em processos independentes em tempo de execução: o processo da aplicação Spring Boot (`Backend`) e o processo do motor H2 Server a escutar na porta TCP configurada.
+
+![VF_N2.jpg](System-as-is/VF-N2.png)
+
+---
+
+## 5. System-as-is: Vista de Processos (VP)
+
+A realização dinâmica das operações é ilustrada através de diagramas de sequência para os três cenários de referência representativos.
+
+### 5.1 Cenário 1: Criar Empréstimo (*Create Lending*)
+Validação do leitor, verificação de limites ativos e empréstimos em mora (`LendingForbiddenException` $\rightarrow$ 403), consulta de disponibilidade da obra e registo do novo empréstimo.
+
+* **Nível 1:**  
+  ![VP_N1.jpg](System-as-is/VP-N1.png)
+* **Nível 2:**  
+  ![VP_N2.jpg](System-as-is/VP-N2.png)
+* **Nível 3:**  
+  ![VP_N3.jpg](System-as-is/VP-N3.png)
+
+### 5.2 Cenário 2: Registar Livro (*Register Book*)
+Verificação de unicidade de ISBN (`ConflictException` $\rightarrow$ 409), validação de existência prévia de autores e género literário (`NotFoundException` $\rightarrow$ 404), instanciação da entidade e persistência transacional.
+
+* **Nível 1:**  
+  ![VP_2_N1.jpg](System-as-is/VP_2_N1.png)
+* **Nível 2:**  
+  ![VP_2_N2.jpg](System-as-is/VP_2_N2.png)
+* **Nível 3:**  
+  ![VP_2_N3.jpg](System-as-is/VP_2_N3.png)
+
+### 5.3 Cenário 3: Consulta Top 5 Géneros Literários (*Top 5 Genres*)
+Operação analítica paginada de leitura, demonstrando consulta otimizada sem alteração de estado nem criação de novos objetos de negócio.
+
+* **Nível 1:**  
+  ![VP_3_N1.jpg](System-as-is/VP_3_N1.png)
+* **Nível 2:**  
+  ![VP_3_N2.jpg](System-as-is/VP_3_N2.png)
+* **Nível 3:**  
+  ![VP_3_N3.jpg](System-as-is/VP_3_N3.png)
+
+---
+
+## 6. ASR (Architecturally Significant Requirements)
+
+### 6.1 Requisitos Funcionais Globais (FR)
+
+* **FR01 – Gestão do Catálogo de Livros (*Books*):** Registar, editar, consultar e listar livros do catálogo (ISBN, título, autores, descrição, géneros literários).
+* **FR02 – Gestão de Autores e Géneros (*Authors & Genres*):** Manter o registo biográfico de autores e a taxonomia de géneros literários associados aos livros.
+* **FR03 – Gestão de Leitores (*Readers*):** Gerir o ciclo de vida cadastral dos leitores (dados cadastrais, preferências de notificação).
+* **FR04 – Gestão de Empréstimos (*Lendings*):** Criar e devolver empréstimos de livros a leitores, validando disponibilidade de exemplares e limites de requisição.
+* **FR05 – Obtenção de Metadados Bibliográficos Externos:** Integrar informação bibliográfica a partir de múltiplos fornecedores externos (ex.: Google Books, Open Library), harmonizando modelos de dados heterogéneos.
 * **FR06 – Notificação a Leitores:** Notificar leitores sobre eventos relevantes de empréstimo (criação de empréstimo, aviso de devolução, atraso) via SMS, Email e/ou Webhook.
-* **FR07 – Aplicação de Políticas de Empréstimo Dinâmicas:** Avaliar e aplicar regras e limites de empréstimo (duração, máximo de livros simultâneos, multas) com base no perfil do leitor ou tipo de obra.
+* **FR07 – Aplicação de Políticas de Empréstimo Dinâmicas:** Avaliar e aplicar regras e limites de empréstimo (duração, máximo de livros simultâneos, cálculo de multas) com base no perfil do leitor ou tipo de obra.
 
 ---
 
-### 2. Identificação e Classificação dos ASRs (*Architecturally Significant Requirements*)
+### 6.2 Especificação dos ASRs (*Quality Attribute Scenarios*)
 
 #### ASR01: Extensibilidade de Fontes Bibliográficas
 * **Atributo de Qualidade:** Modificabilidade (*Modifiability / Extensibility*)
@@ -224,7 +295,7 @@ Organizada por cenário (caso de uso), à semelhança do documento de referênci
 
 ---
 
-### 3. Mapeamento para Táticas Arquiteturais (ADD)
+### 6.3 Mapeamento para Táticas Arquiteturais (ADD)
 
 | ASR | Atributo de Qualidade | Tática Arquitetural (SEI / ADD) | Padrão / Solução Concreta |
 | :--- | :--- | :--- | :--- |
