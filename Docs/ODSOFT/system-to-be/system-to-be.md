@@ -127,7 +127,7 @@ Following the **Twelve-Factor App methodology (Factor X: Dev/Prod Parity)**, the
 +---------------------------------------------------------------------------------------------------------+
 |  1. DEVELOPMENT (Dev)           |  2. STAGING (Stg)                |  3. PRODUCTION (Prod)              |
 |  - Scope: Local & CI Runners    |  - Scope: Pre-production QA      |  - Scope: Live End-User System     |
-|  - DB: In-Memory H2 (Fast/Mock) |  - DB: Persistent Volume Replica |  - DB: Persistent Hardened Storage |
+|  - DB: In-Memory H2            |  - DB: Relational Docker Container |  - DB: Relational Docker Container |
 |  - Port: 8080                   |  - Port: 8081 (Isolated)         |  - Port: 8080 (Behind Reverse Proxy|
 |  - Profiles: dev, bootstrap     |  - Profiles: staging             |  - Profiles: prod                  |
 |  - Logs: Verbose (DEBUG)        |  - Logs: Structured (INFO)       |  - Logs: Minimal / Audit (WARN)    |
@@ -145,7 +145,7 @@ Following the **Twelve-Factor App methodology (Factor X: Dev/Prod Parity)**, the
 #### 2.1.2. Staging Environment (`staging`)
 * **Purpose and Target:** A pre-production verification environment dedicated to automated end-to-end acceptance tests, automated Postman/Newman API regression suites, security vulnerability dynamic testing, and stakeholder user acceptance testing (UAT).
 * **Architecture & Containerization:** Deployed as an immutable OCI container orchestrated via **Docker Compose** (`docker-compose.staging.yml`). The container runs the exact identical container image that will subsequently be promoted to Production, guaranteeing binary immutability.
-* **Database & Persistence:** Utilizes a persistent database instance backed by an isolated Docker named volume (`staging_db_data:/app/data`). This provides state persistence across container restarts while ensuring complete isolation from production data.
+* **Database & Persistence:** Uses a relational database in a dedicated Docker container, with its data persisted on an isolated Docker named volume (`staging_db_data`). This provides state persistence across container restarts while ensuring complete isolation from production data. The connection URL and credentials are injected through environment-specific configuration.
 * **Data Seeding & Sanitization:** Pre-populated with an anonymized, sanitized test dataset that mirrors production volume, indexes, and relationship complexity, without containing real personally identifiable information (PII). Automatic demo bootstrapping is deactivated (`spring.profiles.active=staging`).
 * **Networking & Security:** Binds to a dedicated host port (`8081:8080`) to eliminate port collision with developers' local workspaces or collocated CI daemons. The H2 web console is disabled. CORS policies restrict access to registered staging frontend URLs and test runner clients.
 * **Observability:** Structured logging at `INFO` level. Spring Boot Actuator endpoints are active for CI automated health checks and metrics gathering.
@@ -153,7 +153,7 @@ Following the **Twelve-Factor App methodology (Factor X: Dev/Prod Parity)**, the
 #### 2.1.3. Production Environment (`production` / `prod`)
 * **Purpose and Target:** The live operational environment serving authentic end users (readers, librarians, system administrators) and external client applications.
 * **Architecture & Immutability:** Deployed as an immutable container pulled strictly from the verified image registry (GitHub Container Registry). The container filesystem is read-only; mutable uploaded files are routed to an isolated, encrypted persistent volume (`prod_uploads_data:/app/uploads`).
-* **Database & Persistence:** Utilizes a production-grade relational database with connection pooling (HikariCP), automated snapshot backups, and strict schema validation (`spring.jpa.hibernate.ddl-auto=validate`). Direct schema mutations by the application at startup are forbidden.
+* **Database & Persistence:** Uses a production-grade relational database in a dedicated Docker container with persistent storage, connection pooling (HikariCP), automated snapshot backups, and strict schema validation (`spring.jpa.hibernate.ddl-auto=validate`). Direct schema mutations by the application at startup are forbidden.
 * **Security Hardening:**
   * Zero plain-text credentials or cryptographic keys in the repository; all secrets are injected dynamically at container startup via runtime environment variables.
   * Strict CORS policy: wildcard origins (`*`) are prohibited; origins are strictly whitelisted to the official production domain (e.g., `https://lms.psoft.pt`), with `allowCredentials(true)` configured securely.
@@ -170,8 +170,8 @@ The following matrix formally specifies and compares configuration parameters ac
 | :--- | :--- | :--- | :--- |
 | **Primary Objective** | Rapid local development & CI unit tests | Automated acceptance tests & UAT | Live end-user service delivery |
 | **Deployment Mechanism** | Maven CLI / IDE / Local Docker Compose | Docker Compose (`docker-compose.staging.yml`) | Immutable OCI Container (GHCR / Orchestrator) |
-| **Database Engine** | In-Memory H2 (`testdb`) | Persistent H2 / Containerized Relational DB | Hardened Persistent Relational Database |
-| **JDBC Connection URL** | `jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;IGNORECASE=TRUE` | `jdbc:h2:file:/app/data/stagingdb;DB_CLOSE_ON_EXIT=FALSE` | Environment-injected (`jdbc:.../lms_prod`) |
+| **Database Engine** | In-Memory H2 (`testdb`) | Relational database in Docker container | Hardened relational database in Docker container |
+| **JDBC Connection URL** | `jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;IGNORECASE=TRUE` | Environment-injected (`jdbc:.../lms_staging`) | Environment-injected (`jdbc:.../lms_prod`) |
 | **JPA / Hibernate DDL** | `ddl-auto=update` | `ddl-auto=validate` (or pre-migrated schema) | `ddl-auto=validate` (zero automatic schema mutations) |
 | **Active Spring Profile** | `dev,bootstrap` | `staging` | `prod` |
 | **Host Port Mapping** | `8080:8080` | `8081:8080` (isolated dedicated port) | `8080` (Internal container) / `443` (Reverse Proxy) |
@@ -512,11 +512,41 @@ To guarantee system availability and minimize Mean Time to Recovery (MTTR) as ta
 ---
 
 <!-- ========================================================================= -->
-<!-- PONTO 3: Architectural Decision Records (ADRs)                            -->
-<!-- (A preencher pelo Colega 2 / Gonçalo)                                     -->
-<!-- ========================================================================= -->
-
 ## 3. Engineering Decisions Supporting the Design (Ponto 3 - ADRs)
 
-*(Secção reservada para o Colega 2: formalização dos ADRs justificando escolhas de ferramentas: GitHub Actions, Docker, JaCoCo/PIT, H2 in-memory vs TCP, e Branching Strategy).*
+The following Architectural Decision Records (ADRs) document the key choices underpinning the target CI/CD pipeline and deployment strategy.
 
+### ADR-01: GitHub Actions as the CI/CD Engine
+
+- **Status:** Accepted
+- **Context / Problem:** The *system-as-is* has no CI/CD pipeline, and builds and tests are run manually on developer machines. A CI engine is required to run the gates defined in Section 1.2 for pull requests, merges to `main`, and release tags, and to coordinate deployment approvals described in Section 2.5. Jenkins would require the team to provision, secure, update, and maintain a server and its agents. GitLab CI would add a separate platform integration when the source repository and release artifacts are already managed through GitHub.
+- **Decision:** Use **GitHub Actions** as the project CI/CD engine. Workflows will be versioned in the repository, run on GitHub-hosted runners with a pinned JDK 17 toolchain, and use the Actions ecosystem for Maven, test reporting, Docker image creation, and publishing to GitHub Container Registry (GHCR). GitHub Environments and their protection rules will gate access to Staging and Production secrets and require approval for Production deployment.
+- **Consequences / Trade-offs:** Repository events, pull requests, workflow status checks, secrets, deployment approvals, and GHCR integrate natively, reducing operational overhead and enabling traceability from commit to deployed image. Hosted runners provide clean, disposable environments without maintaining CI servers. The trade-offs are reliance on GitHub availability and platform-specific workflow conventions, hosted-runner quotas, and less control over runner infrastructure; self-hosted runners may be considered only if future workload or network requirements demand them.
+
+### ADR-02: Multi-Stage Docker Builds for Delivery
+
+- **Status:** Accepted
+- **Context / Problem:** The current process packages and transfers a JAR manually, producing non-reproducible deployments that depend on each host's installed Java version, configuration, filesystem, and dependency setup. The *system-as-is* analysis also identifies build sensitivity to host JDK versions and local-path dependencies. A bare-metal JAR alone does not package the runtime environment or isolate application dependencies.
+- **Decision:** Build the application in a **multi-stage Dockerfile** using a Maven/JDK 17 builder image and a minimal JRE 17 runtime image. CI will retain the executable JAR as a build artifact where useful, but Staging and Production will run the OCI image built and tested by the pipeline. Tag and promote that immutable image by commit SHA without rebuilding between environments, as specified in Sections 1.2 and 2.4-2.5.
+- **Consequences / Trade-offs:** The image standardizes the OS/JVM runtime and packages application dependencies, reducing "works on my machine" failures and host configuration drift. Multi-stage builds keep Maven, compilers, and source code out of the runtime image, reducing its size and attack surface; non-root execution further limits impact. The approach adds Docker image build, registry, scanning, and orchestration steps, and requires persistent volumes and externalized configuration for mutable data and secrets. Containerization does not remove the need to manage database state and backups separately.
+
+### ADR-03: Static Analysis, Coverage, and Mutation Quality Gates
+
+- **Status:** Accepted
+- **Context / Problem:** The baseline has no integrated static analysis or JaCoCo reporting, only 33% line coverage and a 22% mutation score. Although the existing suite reports passing tests, it is concentrated on simple value-object checks; 78% of generated mutations survive, exposing a gap between test quantity and fault-detection effectiveness.
+- **Decision:** Add **SpotBugs** to the static analysis stage, requiring zero high-priority bug findings. Use **JaCoCo** to enforce at least **60% line coverage** and **PITest** to enforce at least a **50% mutation score** on the core domain and service packages, as defined by the quality gates in Sections 1.2 and 1.4. These checks run in CI and are required before a pull request can merge into `main`.
+- **Consequences / Trade-offs:** The combined gates detect likely code defects and measure both execution coverage and whether tests detect behavioral faults, shifting quality assurance from cosmetic pass counts toward test effectiveness. SpotBugs, JaCoCo, and PITest reports make regressions visible and actionable. Mutation analysis increases build time and may expose unstable or equivalent mutants; applying its gate to core packages focuses the cost on business-critical behavior. The thresholds require stronger tests and should be maintained as explicit, measurable gates rather than treated as proof of defect-free software.
+
+### ADR-04: Environment-Specific Database Strategy
+
+- **Status:** Accepted
+- **Context / Problem:** The existing H2 configuration uses TCP mode and a database file under the host user's home directory. It requires a separately started H2 server on port 9092 and pre-existing host state, so a clean machine or CI runner can fail before the application is usable. Sharing such host-specific state also undermines environment isolation and reproducibility.
+- **Decision:** Eliminate the H2 TCP server and host-home-directory database file. Use **H2 in-memory** for CI and local Development, recreated at application startup. Use a **relational database in a dedicated Docker container** for Staging and Production, with persistent Docker storage, separate environment-specific credentials and connection URLs injected at runtime, and schema validation rather than automatic schema changes. This makes the environment strategy in Section 2.1 and the matrix in Section 2.2 consistent.
+- **Consequences / Trade-offs:** CI and Development no longer depend on an external process, port, or pre-created local files, and each run starts with isolated database state. Staging and Production gain persistent, isolated relational storage aligned with their operational needs. H2 may differ from the deployment database in SQL and behavior, so integration testing should use the target relational engine where practical (for example, through Testcontainers). Persistent database containers require explicit volume management, backup/restore procedures, credential protection, and operational monitoring.
+
+### ADR-05: Trunk-Based Development with Protected Pull Requests
+
+- **Status:** Accepted
+- **Context / Problem:** The current workflow permits direct commits and pushes without protected branches, pull-request review, or automated checks. This allows unverified changes to reach `main`. GitFlow's long-lived `develop`, release, and feature branches can increase merge divergence and delay integration, which conflicts with the fast feedback and automated deployment flow in Section 1.
+- **Decision:** Adopt **Trunk-Based Development**: `main` is the integration trunk; developers use short-lived feature branches and submit pull requests to `main`. Configure branch protection to prohibit direct pushes and require successful CI status checks, the defined quality gates, and review before merge. Release tags identify approved versions; Production promotion remains subject to the approval or release-tag gate in Section 2.5.
+- **Consequences / Trade-offs:** Frequent integration keeps changes close to the trunk, while pull requests provide review, traceability, and enforceable CI gates before changes reach `main`. This supports the pipeline triggers and promotion model already documented. It requires small, independently mergeable changes and timely review; incomplete features must be kept non-disruptive (for example, behind a feature flag) rather than isolated on long-lived branches. Branch protection also makes urgent changes subject to the same verification policy, so the team must keep CI feedback fast and reliable.
