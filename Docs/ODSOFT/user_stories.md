@@ -34,10 +34,10 @@
 **Assigned Member(s):** Rafael
 
 **Acceptance Criteria:**
-1. Pipeline supports bui.ding and packaging the software.
-2. Pipeline suports static code analysis.
+1. Pipeline supports building and packaging the software.
+2. Pipeline supports static code analysis.
 3. Pipeline supports test coverage and mutation testing.
-4. pipeline supports reporting of build, quality, and test results.
+4. Pipeline supports reporting of build, quality, and test results.
 5. Pipeline supports creation and management of deployable artifacts.
 6. Pipeline supports deployment to different environments.
 
@@ -45,7 +45,7 @@
 
 ## US-OD04: Improve the automated testing strategy
 
-**Assigned Member(s):** Gonsalo
+**Assigned Member(s):** Gonçalo
 
 **Acceptance Criteria:**
 1. The strategy must consider different scopes and levels of testing.
