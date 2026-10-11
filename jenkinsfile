@@ -1,0 +1,16 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code...'
+            }
+        }
+        stage('Test Build') {
+            steps {
+                sh 'java -version'
+                sh 'git --version'
+            }
+        }
+    }
+}
