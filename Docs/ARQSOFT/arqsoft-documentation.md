@@ -22,7 +22,7 @@ A Vista Arquitetural descreve a decomposição funcional e concetual do sistema,
 
 No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
-![VA_N1.png](System-as-is/VA_N1.png)
+![VA_N1.png](System-as-is/Vista%20Arquitetural/VA_N1.png)
 
 * **Interfaces Externas:**
   * **`REST API` (Provided `()`):** Interface HTTP/JSON exposta aos clientes externos (leitores, bibliotecários, administradores) para todas as operações da biblioteca.
@@ -34,7 +34,7 @@ No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
 No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
-![VA_N2.png](System-as-is/VA_N2.png)
+![VA_N2.png](System-as-is/Vista%20Arquitetural/VA_N2.png)
 
 * **Componentes:**
   * **`Backend`:** Núcleo aplicacional responsável por toda a lógica de negócio, controlo de acessos, orquestração de serviços e disponibilização dos endpoints REST.
@@ -49,7 +49,7 @@ No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
 No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais, adotando o padrão arquitetural **Modular Monolith** orientado por domínios (DDD).
 
-![VA_N3.png](System-as-is/VA_N3.png)
+![VA_N3.png](System-as-is/Vista%20Arquitetural/VA_N3.png)
 
 * **Módulos de Domínio:**
   * **`UserManagement Module`:** Gestão da identidade dos utilizadores, credenciais, palavras-passe e atribuição de perfis/autorizações (`ADMIN`, `LIBRARIAN`, `READER`).
@@ -76,7 +76,7 @@ No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais,
 
 No Nível 4, realiza-se o detalhe concetual interno de um módulo específico — **`UserManagement`** (`pt.psoft.g1.psoftg1.usermanagement`) — decompondo-o em 4 camadas concêntricas segundo o padrão **Clean Architecture / Onion Architecture**.
 
-![VA_N4.png](System-as-is/VA_N4.png)
+![VA_N4.png](System-as-is/Vista%20Arquitetural/VA_N4.png)
 
 * **Regras de Dependência e DIP:**
   * As setas de dependência (`..>`) apontam estritamente de fora para dentro (*The Dependency Rule*). O modelo de domínio (`Enterprise Business Rules`) não conhece nenhuma classe ou framework exterior.
@@ -92,7 +92,7 @@ A Vista de Implementação descreve a organização estática do código-fonte, 
 
 No Nível 1, a aplicação é empacotada num único artefato executável JAR gerado pelo Apache Maven (`psoft-g1-0.0.1-SNAPSHOT.jar`), incorporando o Spring Boot Starter e o servidor Tomcat embutido.
 
-![VI_N1.png](System-as-is/VI_N1.png)
+![VI_N1.png](System-as-is/Vista%20Implementação/VI_N1.png)
 
 * O executável expõe os pontos de terminação HTTP (`REST API`) e consome a biblioteca de cliente WebClient para conexão à `NINJA API`.
 
@@ -102,7 +102,7 @@ No Nível 1, a aplicação é empacotada num único artefato executável JAR ger
 
 No Nível 2, a arquitetura de implementação divide-se entre a base de código Java (`Backend`) e a unidade de gestão de dados relacional (`DB`).
 
-![VI_N2.png](System-as-is/VI_N2.png)
+![VI_N2.png](System-as-is/Vista%20Implementação/VI_N2.png)
 
 * O subsistema `Backend` acede ao subsistema `DB` através de ligações JDBC geridas pelo driver H2, satisfazendo a interface **`BD API`**.
 
@@ -112,7 +112,7 @@ No Nível 2, a arquitetura de implementação divide-se entre a base de código 
 
 No Nível 3, a base de código do `Backend` organiza-se em subsistemas de código correspondentes aos subdomínios funcionais e destaca o componente técnico de suporte transversal **`Persistência`**.
 
-![VI_N3.png](System-as-is/VI_N3.png)
+![VI_N3.png](System-as-is/Vista%20Implementação/VI_N3.png)
 
 * **Componentes de Subdomínio (Código):**
   * `UserManagement SubDomain Module` (`pt.psoft.g1.psoftg1.usermanagement`)
@@ -132,7 +132,7 @@ No Nível 3, a base de código do `Backend` organiza-se em subsistemas de códig
 
 No Nível 4, a estrutura de implementação descreve a árvore física de pacotes e tipos Java de um módulo de subdomínio (exemplificado em `usermanagement`):
 
-![VI_N4.png](System-as-is/VI_N4.png)
+![VI_N4.png](System-as-is/Vista%20Implementação/VI_N4.png)
 
 ---
 
@@ -168,12 +168,12 @@ O mapeamento de Nível 4 correlaciona as 4 camadas concêntricas de *Clean Archi
 ### 4.1 Nível 1
 Um único nó de processamento físico local (*Node*) aloja a máquina virtual Java (JVM) que executa o processo completo do LMS.
 
-![VF_N1.jpg](System-as-is/VF-N1.png)
+![VF-N1.png](System-as-is/Vista%20Física/VF-N1.png)
 
 ### 4.2 Nível 2
 O nó local é diferenciado em processos independentes em tempo de execução: o processo da aplicação Spring Boot (`Backend`) e o processo do motor H2 Server a escutar na porta TCP configurada.
 
-![VF_N2.jpg](System-as-is/VF-N2.png)
+![VF-N2.png](System-as-is/Vista%20Física/VF-N2.png)
 
 ---
 
@@ -185,31 +185,31 @@ A realização dinâmica das operações é ilustrada através de diagramas de s
 Validação do leitor, verificação de limites ativos e empréstimos em mora (`LendingForbiddenException` $\rightarrow$ 403), consulta de disponibilidade da obra e registo do novo empréstimo.
 
 * **Nível 1:**  
-  ![VP_N1.jpg](System-as-is/VP-N1.png)
+  ![VP-N1.png](System-as-is/Vista%20Processos/VP-N1.png)
 * **Nível 2:**  
-  ![VP_N2.jpg](System-as-is/VP-N2.png)
+  ![VP-N2.png](System-as-is/Vista%20Processos/VP-N2.png)
 * **Nível 3:**  
-  ![VP_N3.jpg](System-as-is/VP-N3.png)
+  ![VP-N3.png](System-as-is/Vista%20Processos/VP-N3.png)
 
 ### 5.2 Cenário 2: Registar Livro (*Register Book*)
 Verificação de unicidade de ISBN (`ConflictException` $\rightarrow$ 409), validação de existência prévia de autores e género literário (`NotFoundException` $\rightarrow$ 404), instanciação da entidade e persistência transacional.
 
 * **Nível 1:**  
-  ![VP_2_N1.jpg](System-as-is/VP_2_N1.png)
+  ![VP_2_N1.png](System-as-is/Vista%20Processos/VP_2_N1.png)
 * **Nível 2:**  
-  ![VP_2_N2.jpg](System-as-is/VP_2_N2.png)
+  ![VP_2_N2.png](System-as-is/Vista%20Processos/VP_2_N2.png)
 * **Nível 3:**  
-  ![VP_2_N3.jpg](System-as-is/VP_2_N3.png)
+  ![VP_2_N3.png](System-as-is/Vista%20Processos/VP_2_N3.png)
 
 ### 5.3 Cenário 3: Consulta Top 5 Géneros Literários (*Top 5 Genres*)
 Operação analítica paginada de leitura, demonstrando consulta otimizada sem alteração de estado nem criação de novos objetos de negócio.
 
 * **Nível 1:**  
-  ![VP_3_N1.jpg](System-as-is/VP_3_N1.png)
+  ![VP_3_N1.png](System-as-is/Vista%20Processos/VP_3_N1.png)
 * **Nível 2:**  
-  ![VP_3_N2.jpg](System-as-is/VP_3_N2.png)
+  ![VP_3_N2.png](System-as-is/Vista%20Processos/VP_3_N2.png)
 * **Nível 3:**  
-  ![VP_3_N3.jpg](System-as-is/VP_3_N3.png)
+  ![VP_3_N3.png](System-as-is/Vista%20Processos/VP_3_N3.png)
 
 ---
 
