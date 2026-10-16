@@ -144,7 +144,7 @@ A rastreabilidade arquitetural assegura que cada conceito lógico abstrato da Vi
 
 O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógicos) com os módulos de código e com o subsistema técnico de persistência.
 
-![VA_to_VI_N3.png](System-as-is/VA_to_VI_N3.png)
+![VA_to_VI_N3.png](System-as-is/Manifestação/VA_to_VI_N3.png)
 
 * **Racional Arquitetural:**
   * Cada módulo de subdomínio na VI manifesta o seu módulo funcional correspondente na VA (`VI: UserManagement` $\xrightarrow{\text{<<manifest>>}}$ `VA: UserManagement`, etc.).
