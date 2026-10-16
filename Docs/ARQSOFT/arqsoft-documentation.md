@@ -154,7 +154,7 @@ O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógic
 
 O mapeamento de Nível 4 correlaciona as 4 camadas concêntricas de *Clean Architecture* com os pacotes Java reais do módulo.
 
-![VI_to_VL.png](System-as-is/VI_to_VL.png)
+![VA_to_VI_N4.png](System-as-is/Manifestação/VA_to_VI_N4.png)
 
 * `Frameworks & Drivers` $\leftarrow$ Configuração Spring Boot, `SecurityConfig`, `JpaConfig` e driver H2.
 * `Interface Adapters` $\leftarrow$ Pacotes `api` e `infrastructure.repositories.impl`.
