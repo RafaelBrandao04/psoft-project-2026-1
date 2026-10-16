@@ -1,0 +1,51 @@
+﻿@startuml VP_N2_CreateBook
+title Process View (Level 2) - Create Book (As-Is)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<component>>\nBackend" as Backend
+participant "<<component>>\nDB" as DB
+
+activate Actor
+Actor -> Backend: PUT /api/books/{isbn} (resource)
+activate Backend
+
+Backend -> DB: check if book exists by ISBN
+activate DB
+DB --> Backend: not found
+deactivate DB
+
+Backend -> DB: get authors and genre
+activate DB
+DB --> Backend: authors, genre
+deactivate DB
+
+Backend -> DB: save new book
+activate DB
+DB --> Backend: saved book
+deactivate DB
+
+Backend --> Actor: 201 Created (book)
+deactivate Backend
+deactivate Actor
+
+@enduml

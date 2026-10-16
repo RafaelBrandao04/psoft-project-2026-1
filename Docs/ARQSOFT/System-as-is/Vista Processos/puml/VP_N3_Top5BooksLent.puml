@@ -1,0 +1,51 @@
+﻿@startuml VP_N3_Top5BooksLent
+title Process View (Level 3) - Get Top 5 Books Lent (As-Is)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<controller>>\nBookController" as Controller
+participant "<<service>>\nBookServiceImpl" as Service
+participant "<<repository>>\nBookRepository" as BookRepo
+
+activate Actor
+Actor -> Controller: GET /api/books/top5
+activate Controller
+
+Controller -> Service: findTop5BooksLent()
+activate Service
+
+Service -> Service: oneYearAgo = LocalDate.now().minusYears(1)
+Service -> Service: pageableRules = PageRequest.of(0, 5)
+
+Service -> BookRepo: findTop5BooksLent(oneYearAgo, pageableRules)
+activate BookRepo
+BookRepo --> Service: bookLentList
+deactivate BookRepo
+
+Service --> Controller: bookLentList
+deactivate Service
+
+Controller --> Actor: 200 OK (top 5 books)
+deactivate Controller
+deactivate Actor
+
+@enduml

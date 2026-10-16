@@ -1,0 +1,68 @@
+﻿@startuml VP_N2_ReturnLending
+title Process View (Level 2) - Return Lending (As-Is)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Reader" as Actor
+participant "<<component>>\nBackend" as Backend
+participant "<<component>>\nDB" as DB
+
+activate Actor
+Actor -> Backend: PATCH /api/lendings/{year}/{seq} (ifMatch,resource)
+activate Backend
+
+Backend -> DB: get lending by number
+activate DB
+DB --> Backend: lending
+deactivate DB
+
+Backend -> DB: get user by authentication
+activate DB
+DB --> Backend: user
+deactivate DB
+
+Backend -> DB: get reader details by user name
+activate DB
+DB --> Backend: reader
+deactivate DB
+
+opt return date is overdue
+    Backend -> DB: save fine
+    activate DB
+    DB --> Backend: fine saved
+    deactivate DB
+end
+
+Backend -> DB: update lending status
+activate DB
+DB --> Backend: lending updated
+deactivate DB
+
+Backend --> Actor: 200 OK (updated lending)
+deactivate Backend
+deactivate Actor
+
+@enduml
