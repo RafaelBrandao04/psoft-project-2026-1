@@ -165,51 +165,69 @@ O mapeamento de Nível 4 correlaciona as 4 camadas concêntricas de *Clean Archi
 
 ## 4. System-as-is: Vista Física / Implantação (VF)
 
-### 4.1 Nível 1
-Um único nó de processamento físico local (*Node*) aloja a máquina virtual Java (JVM) que executa o processo completo do LMS.
+A Vista Física (ou de Implantação) descreve a topologia de nós computacionais físicos/lógicos onde os subsistemas e artefactos de software executam em ambiente real ou de desenvolvimento.
 
-![VF-N1.png](System-as-is/Vista%20Física/VF-N1.png)
+### 4.1 Nível 1
+No Nível 1, o sistema é representado no seu nó de execução de topo (*Server*), alojando o bloco concetual único do sistema de gestão de biblioteca (`<<C4System>> LMS`).
+
+![VF_N1.png](System-as-is/Vista_Fisica/VF_N1.png)
 
 ### 4.2 Nível 2
-O nó local é diferenciado em processos independentes em tempo de execução: o processo da aplicação Spring Boot (`Backend`) e o processo do motor H2 Server a escutar na porta TCP configurada.
+No Nível 2, a topologia de implantação detalha os nós de execução físicos/lógicos, processos em execução, portas e canais de comunicação em tempo de execução:
+* **`Server (localhost)`:**
+  * **`JVM 17`:** Processo de execução da aplicação Spring Boot (`Backend`), escutando requisições REST na porta HTTP `8080`.
+  * **`H2 DBMS`:** Processo ou subsistema de base de dados relacional (`H2 Database`), acedido pelo Backend através do protocolo JDBC.
+  * **`Local Storage`:** Sistema de ficheiros local (`uploads-psoft-g1`) acedido via File I/O pelo Backend para armazenamento de fotografias de livros e utilizadores.
+* **`Client Workstation`:** Estação de trabalho do utilizador (leitor, bibliotecário), comunicando com o backend através de `HTTP/REST:8080` (ex.: Web Browser, Postman).
+* **`Cloud`:** Nó exterior de infraestrutura de serviços em nuvem alojando a **Ninja API**, consumida pelo backend através de ligação segura `HTTP/REST:443`.
 
-![VF-N2.png](System-as-is/Vista%20Física/VF-N2.png)
+![VF_N2.png](System-as-is/Vista_Fisica/VF_N2.png)
 
 ---
 
 ## 5. System-as-is: Vista de Processos (VP)
 
-A realização dinâmica das operações é ilustrada através de diagramas de sequência para os três cenários de referência representativos.
+A realização dinâmica das operações é ilustrada através de diagramas de sequência para os quatro cenários de referência representativos do sistema.
 
 ### 5.1 Cenário 1: Criar Empréstimo (*Create Lending*)
-Validação do leitor, verificação de limites ativos e empréstimos em mora (`LendingForbiddenException` $\rightarrow$ 403), consulta de disponibilidade da obra e registo do novo empréstimo.
+Validação do leitor, verificação de limites ativos e empréstimos em mora (`LendingForbiddenException` $\rightarrow$ 403), consulta de disponibilidade da obra, apuramento do número sequencial anual e registo transacional do novo empréstimo.
 
 * **Nível 1:**  
-  ![VP-N1.png](System-as-is/Vista%20Processos/VP-N1.png)
+  ![VP_N1_CreateLending.png](System-as-is/Vista%20Processos/png/VP_N1_CreateLending.png)
 * **Nível 2:**  
-  ![VP-N2.png](System-as-is/Vista%20Processos/VP-N2.png)
+  ![VP_N2_CreateLending.png](System-as-is/Vista%20Processos/png/VP_N2_CreateLending.png)
 * **Nível 3:**  
-  ![VP-N3.png](System-as-is/Vista%20Processos/VP-N3.png)
+  ![VP_N3_CreateLending.png](System-as-is/Vista%20Processos/png/VP_N3_CreateLending.png)
 
 ### 5.2 Cenário 2: Registar Livro (*Register Book*)
-Verificação de unicidade de ISBN (`ConflictException` $\rightarrow$ 409), validação de existência prévia de autores e género literário (`NotFoundException` $\rightarrow$ 404), instanciação da entidade e persistência transacional.
+Verificação de unicidade de ISBN (`ConflictException` $\rightarrow$ 409), validação de existência prévia de autores e género literário (`NotFoundException` $\rightarrow$ 404), instanciação da entidade de domínio e persistência transacional.
 
 * **Nível 1:**  
-  ![VP_2_N1.png](System-as-is/Vista%20Processos/VP_2_N1.png)
+  ![VP_N1_CreateBook.png](System-as-is/Vista%20Processos/png/VP_N1_CreateBook.png)
 * **Nível 2:**  
-  ![VP_2_N2.png](System-as-is/Vista%20Processos/VP_2_N2.png)
+  ![VP_N2_CreateBook.png](System-as-is/Vista%20Processos/png/VP_N2_CreateBook.png)
 * **Nível 3:**  
-  ![VP_2_N3.png](System-as-is/Vista%20Processos/VP_2_N3.png)
+  ![VP_N3_CreateBook.png](System-as-is/Vista%20Processos/png/VP_N3_CreateBook.png)
 
-### 5.3 Cenário 3: Consulta Top 5 Géneros Literários (*Top 5 Genres*)
-Operação analítica paginada de leitura, demonstrando consulta otimizada sem alteração de estado nem criação de novos objetos de negócio.
+### 5.3 Cenário 3: Devolver Empréstimo (*Return Lending*)
+Verificação de permissões do leitor autenticado, controle de concorrência otimista via cabeçalho HTTP `If-Match`, apuramento e criação condicional de multa por atraso (*Fine*) e atualização persistente do estado do empréstimo.
 
 * **Nível 1:**  
-  ![VP_3_N1.png](System-as-is/Vista%20Processos/VP_3_N1.png)
+  ![VP_N1_ReturnLending.png](System-as-is/Vista%20Processos/png/VP_N1_ReturnLending.png)
 * **Nível 2:**  
-  ![VP_3_N2.png](System-as-is/Vista%20Processos/VP_3_N2.png)
+  ![VP_N2_ReturnLending.png](System-as-is/Vista%20Processos/png/VP_N2_ReturnLending.png)
 * **Nível 3:**  
-  ![VP_3_N3.png](System-as-is/Vista%20Processos/VP_3_N3.png)
+  ![VP_N3_ReturnLending.png](System-as-is/Vista%20Processos/png/VP_N3_ReturnLending.png)
+
+### 5.4 Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
+Operação analítica paginada de leitura, demonstrando consulta otimizada no repositório com filtro temporal relativo ao último ano (`minusYears(1)`), projeção em DTO (`BookCountDTO`) e ausência de efeitos secundários de escrita.
+
+* **Nível 1:**  
+  ![VP_N1_Top5BooksLent.png](System-as-is/Vista%20Processos/png/VP_N1_Top5BooksLent.png)
+* **Nível 2:**  
+  ![VP_N2_Top5BooksLent.png](System-as-is/Vista%20Processos/png/VP_N2_Top5BooksLent.png)
+* **Nível 3:**  
+  ![VP_N3_Top5BooksLent.png](System-as-is/Vista%20Processos/png/VP_N3_Top5BooksLent.png)
 
 ---
 
