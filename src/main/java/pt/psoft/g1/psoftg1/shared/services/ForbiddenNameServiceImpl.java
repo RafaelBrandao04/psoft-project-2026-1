@@ -9,6 +9,7 @@ import pt.psoft.g1.psoftg1.shared.repositories.ForbiddenNameRepository;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -18,7 +19,7 @@ public class ForbiddenNameServiceImpl implements ForbiddenNameService {
     public void loadDataFromFile(String fileName) {
         try {
             ClassPathResource resource = new ClassPathResource(fileName);
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream()))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     final var fn = repo.findByForbiddenName(line);

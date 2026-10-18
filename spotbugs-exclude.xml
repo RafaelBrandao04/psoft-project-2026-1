@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Ignore MapStruct generated mapper implementations -->
+    <Match>
+        <Class name="~.*MapperImpl.*" />
+    </Match>
+
+    <!-- Ignore Lombok generated classes -->
+    <Match>
+        <Class name="~.*Builder.*" />
+    </Match>
+
+    <!-- Suppress EI_EXPOSE_REP and EI_EXPOSE_REP2 (representation exposure) on DTOs, entities, and Spring components -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+    </Match>
+
+    <!-- Suppress CT_CONSTRUCTOR_THROW on domain Value Objects where constructor validation throws IllegalArgumentException -->
+    <Match>
+        <Bug pattern="CT_CONSTRUCTOR_THROW" />
+    </Match>
+</FindBugsFilter>
+

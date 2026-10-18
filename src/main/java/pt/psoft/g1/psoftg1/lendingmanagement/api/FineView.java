@@ -13,7 +13,7 @@ import java.io.Serializable;
  */
 @Data
 @Schema(description = "A Fine")
-public class FineView implements Serializable {
+public class FineView {
     @PositiveOrZero
     private int centsValue;
 

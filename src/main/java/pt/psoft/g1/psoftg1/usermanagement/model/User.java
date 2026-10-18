@@ -163,7 +163,7 @@ public class User implements UserDetails {
 	}
 
 	public void setPassword(final String password) {
-		Password passwordCheck = new Password(password);
+		new Password(password);
 		final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 		this.password = passwordEncoder.encode(password);
 	}

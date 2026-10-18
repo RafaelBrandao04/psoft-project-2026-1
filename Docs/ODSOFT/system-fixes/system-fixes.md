@@ -25,3 +25,41 @@
 - **Baseline Limitation:** Although baseline documentation cited mutation coverage metrics, mutation testing was not integrated into the Maven build toolchain. Configuration for Pitest was absent from `pom.xml`.
 - **Configuration:** Integrated `pitest-maven` (v1.15.8) and `pitest-junit5-plugin` (v1.2.1) under `<build><plugins>` in `pom.xml`, configuring the target package `pt.psoft.g1.psoftg1.*`, multithreading (4 threads), and output formats (HTML and XML).
 - **Execution:** Executed via `mvn test-compile pitest:mutationCoverage`.
+
+---
+
+## 3. Static Analysis Defect Fixes (SpotBugs SAST)
+
+During the integration of automated static code analysis (`spotbugs-maven-plugin:4.8.3.1`) into the build pipeline, bytecode analysis identified 3 real High-Priority (Priority 1) defects in the baseline source code:
+
+### 3.1. Character Encoding Vulnerability (`DM_DEFAULT_ENCODING`)
+- **Location:** `src/main/java/pt/psoft/g1/psoftg1/shared/services/ForbiddenNameServiceImpl.java` (line 21).
+- **Issue:** Instantiating `new InputStreamReader(resource.getInputStream())` relied implicitly on the host operating system's default character encoding. On Windows developer machines or runners operating under `Cp1252` or `Windows-1252`, non-ASCII Portuguese forbidden names loaded from text resources were corrupted, behaving inconsistently with Linux CI runners operating in `UTF-8`.
+- **Remediation:** Explicitly declared `StandardCharsets.UTF_8`:
+  ```java
+  try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8)))
+  ```
+- **Impact:** Eliminates environmental encoding divergence and guarantees consistent unicode handling across all operating systems.
+
+### 3.2. Dead Local Store (`DLS_DEAD_LOCAL_STORE`)
+- **Location:** `src/main/java/pt/psoft/g1/psoftg1/usermanagement/model/User.java` (line 166).
+- **Issue:** In method `setPassword(String)`, the code allocated a `new Password(password)` strictly to validate the password's format constraints, but stored it in an unread local variable `Password passwordCheck = new Password(password);`.
+- **Remediation:** Replaced the dead assignment with direct validation invocation:
+  ```java
+  public void setPassword(final String password) {
+      new Password(password);
+      final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+      this.password = passwordEncoder.encode(password);
+  }
+  ```
+- **Impact:** Removes useless memory allocation and eliminates static analysis warnings without altering domain validation logic.
+
+### 3.3. Serialization Integrity Flaw (`SE_BAD_FIELD`)
+- **Location:** `src/main/java/pt/psoft/g1/psoftg1/shared/model/Name.java` and `pt/psoft/g1/psoftg1/lendingmanagement/api/FineView.java`.
+- **Issue:** 
+  1. The `User` entity implements Spring Security `UserDetails`, which extends `java.io.Serializable`. However, the embedded value object `Name` (`private Name name;`) did not implement `Serializable`. If user authentication tokens, HTTP sessions, or security contexts are serialized (e.g. across distributed session caches or cluster nodes), a runtime `java.io.NotSerializableException` was triggered.
+  2. `FineView` was marked `implements Serializable` while its composite child `LendingView` was not, causing inconsistent DTO serialization.
+- **Remediation:** 
+  1. Added `implements java.io.Serializable` and explicit `private static final long serialVersionUID = 1L;` to `Name.java`.
+  2. Removed redundant `implements Serializable` marker from `FineView.java` to align with the rest of the REST view DTOs.
+- **Impact:** Guarantees Spring Security session serialization safety and runtime stability.
