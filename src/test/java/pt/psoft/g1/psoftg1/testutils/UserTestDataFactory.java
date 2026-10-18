@@ -27,6 +27,7 @@ public class UserTestDataFactory {
     @Transactional
     public UserView createUser(final String username, final String fullName, final String password) {
         final CreateUserRequest createRequest = new CreateUserRequest(username, fullName, password);
+        createRequest.setRole(pt.psoft.g1.psoftg1.usermanagement.model.Role.READER);
 
         final User user = userService.create(createRequest);
 
