@@ -209,6 +209,7 @@
 							<formats>
 								<format>HTML</format>
 								<format>XML</format>
+								<format>CSV</format>
 							</formats>
 						</configuration>
 					</execution>
@@ -230,6 +231,7 @@
 							<formats>
 								<format>HTML</format>
 								<format>XML</format>
+								<format>CSV</format>
 							</formats>
 						</configuration>
 					</execution>
@@ -287,7 +289,7 @@
 	</build>
 
 	<profiles>
-		<!-- Workaround for Windows paths containing special characters (e.g. '1º Ano') where argument truncation produces .ex -->
+		<!-- Workaround for Windows paths containing special characters (e.g. '1ºSemestre') where argument truncation produces .exe -->
 		<profile>
 			<id>windows-path-encoding-fix</id>
 			<activation>
@@ -296,8 +298,8 @@
 				</os>
 			</activation>
 			<properties>
-				<jacoco.dataFile>${project.build.directory}/jacoco.ex</jacoco.dataFile>
-				<jacoco-it.dataFile>${project.build.directory}/jacoco-it.ex</jacoco-it.dataFile>
+				<jacoco.dataFile>${project.build.directory}/jacoco.exe</jacoco.dataFile>
+				<jacoco-it.dataFile>${project.build.directory}/jacoco-it.exe</jacoco-it.dataFile>
 			</properties>
 		</profile>
 	</profiles>

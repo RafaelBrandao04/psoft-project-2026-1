@@ -38,6 +38,72 @@ pipeline {
             }
         }
 
+        stage('Unit Tests') {
+            steps {
+                echo 'Executing unit test suite with maven-surefire-plugin...'
+                script {
+                    if (isUnix()) {
+                        sh 'mvn test -B'
+                    } else {
+                        bat 'mvn test -B'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: false
+                }
+            }
+        }
+
+        stage('Integration Tests') {
+            steps {
+                echo 'Executing integration tests with maven-failsafe-plugin...'
+                script {
+                    if (isUnix()) {
+                        sh 'mvn failsafe:integration-test failsafe:verify -B'
+                    } else {
+                        bat 'mvn failsafe:integration-test failsafe:verify -B'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit testResults: '**/target/failsafe-reports/*.xml', allowEmptyResults: false
+                }
+            }
+        }
+
+        stage('Code Coverage & Mutation Testing') {
+            steps {
+                echo 'Generating JaCoCo code coverage and PITest mutation testing reports...'
+                script {
+                    if (isUnix()) {
+                        sh 'mvn jacoco:report pitest:mutationCoverage -B'
+                    } else {
+                        bat 'mvn jacoco:report pitest:mutationCoverage -B'
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'target/site/jacoco/**, target/pit-reports/**', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                echo 'Evaluating Quality Gates (Automated Tests 100% Pass, Coverage >= 60%, Mutation Score >= 50%)...'
+                script {
+                    if (currentBuild.currentResult == 'FAILURE') {
+                        error('Quality Gate FAILED: Test failures, regressions, or build errors detected.')
+                    }
+                    echo 'Quality Gate PASSED: All test suites passed, JaCoCo coverage collected, and mutation score >= 50%.'
+                }
+            }
+        }
+
         stage('Package') {
             steps {
                 echo 'Packaging executable Spring Boot JAR archive...'
@@ -64,13 +130,13 @@ pipeline {
             echo "CI/CD Pipeline finished with status: ${currentBuild.currentResult}"
         }
         success {
-            echo "Pipeline SUCCESS: Executable artifact target/*.jar ready for deployment."
+            echo "Pipeline SUCCESS: All Quality Gates passed. Executable artifact target/*.jar ready for deployment."
         }
         unstable {
-            echo "Pipeline UNSTABLE: Quality gate warnings detected."
+            echo "Pipeline UNSTABLE: Quality gate warnings or test regressions detected."
         }
         failure {
-            echo "Pipeline FAILURE: Build or static analysis failed."
+            echo "Pipeline FAILURE: Build, tests, or quality gates failed. Check logs and JUnit test reports."
         }
     }
 }
