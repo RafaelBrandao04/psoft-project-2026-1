@@ -1,0 +1,2 @@
+# Ensure Maven Wrapper shell script uses LF line endings
+mvnw text eol=lf

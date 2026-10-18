@@ -124,7 +124,7 @@ To ensure reproducible builds in an authentic institutional environment, the CI/
 The minimal container template was provisioned with essential utilities and OpenJDK:
 ```bash
 sudo apt update
-sudo apt install openjdk-21-jdk curl git nano -y
+sudo apt install openjdk-21-jdk maven curl git nano -y
 ```
 
 #### 1.5.3. Jenkins Installation and Service Configuration
