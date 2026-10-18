@@ -9,34 +9,36 @@
 ## 1. Target Development and CI/CD Pipeline Architecture (Ponto 1)
 
 ### 1.1. Overview and Core Principles
-The target development process transitions the team from a manual, error-prone, and unmonitored workflow to an **automated, repeatable, and measurable Continuous Integration & Continuous Delivery (CI/CD)** pipeline.
+The target development process transitions the team from a manual, error-prone, and unmonitored workflow to an **automated, repeatable, and measurable Continuous Integration & Continuous Delivery (CI/CD)** pipeline. 
+
+The pipeline is orchestrated using **Jenkins Declarative Pipelines (`Jenkinsfile`)** running on a dedicated Linux container provisioned in the **DEI Virtual Servers Private Cloud (`vs-ctl.dei.isep.ipp.pt`)**, integrated directly with the project's GitHub repository (`https://github.com/RafaelBrandao04/psoft-project-2026-1.git`).
 
 Key design principles of the target process:
 * **Fail Fast & Immediate Feedback:** Errors (compilation, syntax, security violations, test regressions) are detected within minutes of a developer pushing code.
 * **Strict Quality Gates:** No code reaches the main branch (`main`) without passing static analysis, automated unit/integration tests, minimum code coverage thresholds, and mutation test verification.
 * **Immutable & Reproducible Artifacts:** Software packages (JAR and OCI/Docker images) are built once in the pipeline, cryptographically hashed, and promoted across environments without recompilation.
-* **Automated Traceability:** Every build artifact is linked back to a specific Git commit SHA and workflow run ID.
+* **Automated Traceability:** Every build artifact is linked back to a specific Git commit SHA, Jenkins build number, and changelog.
 
 ---
 
 ### 1.2. Pipeline Stages Specification
 
 The target CI/CD pipeline is triggered on:
-1. **Pull Requests** targeting `main` (verification and gatekeeping).
+1. **Pull Requests** targeting `main` (verification and gatekeeping via GitHub Webhook / Polling).
 2. **Push / Merge** to `main` (packaging, artifact publishing, and automated deployment).
 3. **Release Tags** (`v*.*.*`) for official release management.
 
 | Stage # | Stage Name | Purpose | Tooling | Input | Output Artifact | Approval Criteria | Fail Action |
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1** | **Checkout & Environment Setup** | Provision clean runner and JDK environment | GitHub Actions, JDK 17 (Temurin) | Repository code | Initialized runner environment | Successful JDK & Maven cache setup | Terminate workflow |
+| **1** | **Checkout & SCM Setup** | Checkout code and provision build environment on DEI runner | Jenkins Git SCM Plugin, OpenJDK 21/17 | GitHub Repository (`*/main`) | Cloned workspace | Clean checkout & authenticated Git fetch | Terminate workflow |
 | **2** | **Compile & Linting** | Verify code syntax, annotation processors, and style guide | Apache Maven (`mvn compile`), Spotless / Checkstyle | Source code (`src/main/java`) | Compiled bytecode (`target/classes`) | 0 compilation errors, 0 style violations | Block PR / Fail build |
-| **3** | **Static Code Analysis (SAST)** | Detect security vulnerabilities, code smells, and bugs | SpotBugs, PMD, SonarCloud | Compiled bytecode & source | SAST reports (`spotbugsXml.xml`) | 0 high-severity bugs, 0 security vulnerabilities | Block PR / Fail build |
+| **3** | **Static Code Analysis (SAST)** | Detect security vulnerabilities, code smells, and bugs | SpotBugs, PMD, SonarQube / SonarCloud | Compiled bytecode & source | SAST reports (`spotbugsXml.xml`) | 0 high-severity bugs, 0 security vulnerabilities | Block PR / Fail build |
 | **4** | **Automated Testing (Unit & Domain)** | Validate business domain invariants and application logic | JUnit 5, Mockito, `maven-surefire-plugin` | Unit test suite (`src/test/java`) | Surefire XML/HTML test reports | 100% test pass rate (0 failures, 0 errors) | Block PR / Fail build |
 | **5** | **Code Coverage & Mutation Testing** | Measure test thoroughness and fault-detection capability | JaCoCo, PITest (`pitest-maven`) | Bytecode & test suites | JaCoCo execution data (`jacoco.exec`), PIT report | JaCoCo Line Coverage $\ge 60\%$, Mutation Score $\ge 50\%$ | Block PR / Alert on regressions |
 | **6** | **Integration & API Testing** | Test repository queries, Spring context, and REST contracts | `maven-failsafe-plugin`, Testcontainers / in-memory H2 | SUT + integration test classes | Failsafe XML/HTML test reports | 100% integration test pass rate | Block PR / Fail build |
 | **7** | **Packaging & Containerization** | Build immutable, production-ready deployable artifacts | `spring-boot-maven-plugin`, Docker multi-stage build | Verified code & dependencies | Standalone JAR & OCI Docker Image | Successful image build, image vulnerability scan | Terminate pipeline |
-| **8** | **Artifact Publishing** | Store and version deployable packages | GitHub Packages / GitHub Releases / GH Actions Artifacts | Built JAR & Docker image | Tagged container image, versioned JAR asset | Successful upload to artifact registry | Terminate pipeline |
-| **9** | **Continuous Deployment** | Deploy to target environments according to promotion gates | SSH / Docker Compose / Cloud runner | Container image & env config | Running application instance | HTTP 200 on `/actuator/health` | Automated Rollback to last stable version |
+| **8** | **Artifact Archiving & Publishing** | Store and version deployable packages | Jenkins `archiveArtifacts`, GitHub Container Registry | Built JAR & Docker image | Tagged container image, archived JAR asset | Successful upload to artifact registry | Terminate pipeline |
+| **9** | **Continuous Deployment** | Deploy to target environments according to promotion gates | Jenkins SSH Pipeline / Docker Compose on DEI host | Container image & env config | Running application instance | HTTP 200 on `/actuator/health` | Automated Rollback to last stable version |
 
 ---
 
@@ -50,28 +52,34 @@ flowchart TD
         TAG["Release Tag (v*.*.*)"]
     end
 
-    subgraph CI["Pipeline de Integração Contínua (CI)"]
-        S1["1. Compile & Lint<br/><i>(Maven + Checkstyle)</i>"]
-        S2["2. Static Analysis<br/><i>(SpotBugs / PMD)</i>"]
-        S3["3. Unit Testing<br/><i>(JUnit 5 / Surefire)</i>"]
-        S4["4. Coverage & Mutation<br/><i>(JaCoCo + PITest)</i>"]
-        S5["5. Integration Testing<br/><i>(Failsafe + H2 In-Memory)</i>"]
+    subgraph JenkinsServer["Servidor Jenkins (Cloud Privada DEI - Porta 2226)"]
+        direction TB
+        SCM["0. Git Checkout via PAT<br/><i>(github-token credential)</i>"]
+
+        subgraph CI["Pipeline de Integração Contínua (CI)"]
+            S1["1. Compile & Lint<br/><i>(Maven + Checkstyle)</i>"]
+            S2["2. Static Analysis<br/><i>(SpotBugs / PMD)</i>"]
+            S3["3. Unit Testing<br/><i>(JUnit 5 / Surefire)</i>"]
+            S4["4. Coverage & Mutation<br/><i>(JaCoCo + PITest)</i>"]
+            S5["5. Integration Testing<br/><i>(Failsafe + H2 In-Memory)</i>"]
+        end
+
+        subgraph Package["Empacotamento & Registo"]
+            S6["6. Package JAR & Docker<br/><i>(Multi-stage build)</i>"]
+            S7["7. Archive & Publish Artifact<br/><i>(Jenkins Archive + GHCR)</i>"]
+        end
+
+        subgraph CD["Pipeline de Entrega/Deployment Contínuo (CD)"]
+            DEV["8. Deploy to Development<br/><i>(Automático pós-merge)</i>"]
+            STG["9. Deploy to Staging<br/><i>(Automático para validação)</i>"]
+            PROD["10. Deploy to Production<br/><i>(Aprovação manual / Release)</i>"]
+        end
     end
 
-    subgraph Package["Empacotamento & Registo"]
-        S6["6. Package JAR & Docker<br/><i>(Multi-stage build)</i>"]
-        S7["7. Publish Artifact<br/><i>(GitHub Container Registry)</i>"]
-    end
-
-    subgraph CD["Pipeline de Entrega/Deployment Contínuo (CD)"]
-        DEV["8. Deploy to Development<br/><i>(Automático pós-merge)</i>"]
-        STG["9. Deploy to Staging<br/><i>(Automático para validação)</i>"]
-        PROD["10. Deploy to Production<br/><i>(Aprovação manual / Release)</i>"]
-    end
-
-    PR --> S1
-    PUSH --> S1
-    TAG --> S1
+    PR --> SCM
+    PUSH --> SCM
+    TAG --> SCM
+    SCM --> S1
 
     S1 -->|Sucesso| S2
     S2 -->|Quality Gate OK| S3
@@ -85,12 +93,14 @@ flowchart TD
     STG -->|Gate Manual / Tag| PROD
 
     classDef triggerStyle fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef serverStyle fill:#eceff1,stroke:#455a64,stroke-width:2px;
     classDef ciStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
     classDef pkgStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
     classDef cdStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
 
     class PR,PUSH,TAG triggerStyle;
-    class S1,S2,S3,S4,S5 ciStyle;
+    class JenkinsServer serverStyle;
+    class SCM,S1,S2,S3,S4,S5 ciStyle;
     class S6,S7 pkgStyle;
     class DEV,STG,PROD cdStyle;
 ```
@@ -99,14 +109,62 @@ flowchart TD
 
 ### 1.4. Quality Gates and Enforcement Rules
 
-To eliminate the manual oversights identified in the *system-as-is*, the target CI process enforces automated gates:
-1. **Compilation Gate:** Zero warnings treated as errors where applicable; builds must be reproducible under clean JDK 17 environments.
-2. **Test Quality Gate:** Any regression or broken test immediately halts the pipeline (*Break the Build* principle).
+To eliminate the manual oversights identified in the *system-as-is*, the target CI process enforces automated gates inside the `Jenkinsfile`:
+1. **Compilation Gate:** Zero warnings treated as errors where applicable; builds must be reproducible under clean JDK 17/21 environments.
+2. **Test Quality Gate:** Any regression or broken test immediately halts the pipeline (*Break the Build* principle via `junit testResults: '**/target/surefire-reports/*.xml'`).
 3. **Code Coverage Gate (JaCoCo):** Minimum global line coverage target set to **60%** on new code, ensuring that domain rules and controllers are exercised.
 4. **Mutation Testing Gate (PIT):** Mutation threshold of **50%** on core domain and service packages, preventing survival of mutants that alter critical library rules (such as loan limits or fine calculations).
 5. **Static Analysis Gate:** Zero high-priority bugs reported by SpotBugs.
 
 ---
+
+### 1.5. CI/CD Infrastructure Setup: Jenkins on DEI Private Cloud
+
+To ensure reproducible builds in an authentic institutional environment, the CI/CD controller is provisioned in the **DEI Virtual Servers Private Cloud**:
+
+#### 1.5.1. Host Environment & Network Topology
+* **Target Infrastructure:** DEI Virtual Servers Private Cloud (`vs-ctl.dei.isep.ipp.pt`).
+* **Base OS:** Ubuntu 22.04 LTS (Jammy Jellyfish) in an LXD Linux Container.
+* **Network & Port Forwarding Architecture:**
+  * **SSH Administrative Access:** Routed through `vsgate-ssh.dei.isep.ipp.pt` mapped to the container's internal SSH port:
+    ```bash
+    ssh root@vsgate-ssh.dei.isep.ipp.pt -p <ASSIGNED_SSH_PORT>
+    ```
+  * **Jenkins Web Interface:** Mapped through public gateway `vs-gate.dei.isep.ipp.pt` targeting container internal port **`2226`** (reconfigured from the default `8080` to comply with DEI port allocations).
+
+#### 1.5.2. Tooling and Runtime Provisioning
+The minimal container template was provisioned with essential utilities and OpenJDK:
+```bash
+sudo apt update
+sudo apt install openjdk-21-jdk curl git nano -y
+```
+
+#### 1.5.3. Jenkins Installation and Service Configuration
+1. **GPG Key Resolution:** Installed the active Jenkins Debian repository keyring:
+   ```bash
+   curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2026.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+   echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+   sudo apt update
+   sudo apt install jenkins -y
+   ```
+2. **Port Rebinding (Port 2226):** To prevent collisions and match DEI gateway mappings, updated the systemd unit file (`/lib/systemd/system/jenkins.service`):
+   ```ini
+   Environment="JENKINS_PORT=2226"
+   ```
+   Reloaded systemd and restarted the daemon:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart jenkins
+   ```
+
+#### 1.5.4. GitHub Integration and Pipeline SCM Configuration
+1. **Authentication:** Configured a GitHub Personal Access Token (classic with `repo` scope) stored securely in Jenkins Credentials Store as ID `github-token`.
+2. **Pipeline Job Configuration:**
+   * **Job Type:** Pipeline (`Pipeline script from SCM`).
+   * **SCM:** Git (`https://github.com/RafaelBrandao04/psoft-project-2026-1.git`).
+   * **Credentials:** `github-token` (Username with password).
+   * **Branch Specifier:** `*/main`.
+   * **Script Path:** `Jenkinsfile` at the repository root.
 
 <!-- ========================================================================= -->
 <!-- PONTO 2: Target Deployment Process & Environment Strategy                 -->
@@ -516,12 +574,12 @@ To guarantee system availability and minimize Mean Time to Recovery (MTTR) as ta
 
 The following Architectural Decision Records (ADRs) document the key choices underpinning the target CI/CD pipeline and deployment strategy.
 
-### ADR-01: GitHub Actions as the CI/CD Engine
+### ADR-01: Jenkins on DEI Virtual Servers Private Cloud as the CI/CD Engine
 
 - **Status:** Accepted
-- **Context / Problem:** The *system-as-is* has no CI/CD pipeline, and builds and tests are run manually on developer machines. A CI engine is required to run the gates defined in Section 1.2 for pull requests, merges to `main`, and release tags, and to coordinate deployment approvals described in Section 2.5. Jenkins would require the team to provision, secure, update, and maintain a server and its agents. GitLab CI would add a separate platform integration when the source repository and release artifacts are already managed through GitHub.
-- **Decision:** Use **GitHub Actions** as the project CI/CD engine. Workflows will be versioned in the repository, run on GitHub-hosted runners with a pinned JDK 17 toolchain, and use the Actions ecosystem for Maven, test reporting, Docker image creation, and publishing to GitHub Container Registry (GHCR). GitHub Environments and their protection rules will gate access to Staging and Production secrets and require approval for Production deployment.
-- **Consequences / Trade-offs:** Repository events, pull requests, workflow status checks, secrets, deployment approvals, and GHCR integrate natively, reducing operational overhead and enabling traceability from commit to deployed image. Hosted runners provide clean, disposable environments without maintaining CI servers. The trade-offs are reliance on GitHub availability and platform-specific workflow conventions, hosted-runner quotas, and less control over runner infrastructure; self-hosted runners may be considered only if future workload or network requirements demand them.
+- **Context / Problem:** The *system-as-is* has no automated CI/CD pipeline, and builds and tests are run manually on developer machines. A dedicated CI engine is required to enforce the gates defined in Section 1.2 for pull requests, merges to `main`, and release tags, and to coordinate deployment approvals and artifact archiving. While third-party SaaS solutions (e.g., GitHub-hosted runners) exist, they impose execution minute quotas, lack direct network access to private institutional infrastructure, and abstract away infrastructure operations. The team has access to the DEI Virtual Servers Private Cloud (`vs-ctl.dei.isep.ipp.pt`) with full administrative privileges over Linux containers.
+- **Decision:** Deploy and configure **Jenkins** on an **Ubuntu 22.04 LTS LXD container hosted in the DEI Virtual Servers Private Cloud**, bound to internal port `2226` and mapped through institutional gateways (`vs-gate.dei.isep.ipp.pt`). The CI/CD pipeline is defined as code using a version-controlled **`Jenkinsfile`** at the root of the Git repository (`https://github.com/RafaelBrandao04/psoft-project-2026-1.git`). Secure authentication with GitHub is handled via a Personal Access Token (classic `repo` scope) stored in the Jenkins Credentials Store as `github-token`.
+- **Consequences / Trade-offs:** The team gains complete control over runner resources, Java toolchains (OpenJDK 21), local Maven caching, and network locality to prospective deployment hosts within the DEI private cloud, with zero external billing quotas. The declarative `Jenkinsfile` ensures that pipeline stages are versioned alongside source code. The trade-offs include the operational overhead of administering the Jenkins service (GPG keyring updates, systemd service port customization, plugin management, and credential lifecycle) and configuring network ingress through DEI gateway ports (`2226`) rather than relying on fully managed SaaS infrastructure.
 
 ### ADR-02: Multi-Stage Docker Builds for Delivery
 
