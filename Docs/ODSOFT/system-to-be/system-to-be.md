@@ -1,12 +1,6 @@
 # System-to-Be: Target Development and Deployment Process
 
-> **Project:** Library Management System (LMS) — `psoft-g1`  
-> **Course:** Software Development Organization (ODSOFT) — 2026/2027  
-> **Goal:** Design the target development and deployment process, documenting the relevant system-to-be and the engineering decisions supporting its design (US-OD02).
-
----
-
-## 1. Target Development and CI/CD Pipeline Architecture (Ponto 1)
+## 1. Target Development and CI/CD Pipeline Architecture
 
 ### 1.1. Overview and Core Principles
 The target development process transitions the team from a manual, error-prone, and unmonitored workflow to an **automated, repeatable, and measurable Continuous Integration & Continuous Delivery (CI/CD)** pipeline. 
@@ -18,8 +12,6 @@ Key design principles of the target process:
 * **Strict Quality Gates:** No code reaches the main branch (`main`) without passing static analysis, automated unit/integration tests, minimum code coverage thresholds, and mutation test verification.
 * **Immutable & Reproducible Artifacts:** Software packages (JAR and OCI/Docker images) are built once in the pipeline, cryptographically hashed, and promoted across environments without recompilation.
 * **Automated Traceability:** Every build artifact is linked back to a specific Git commit SHA, Jenkins build number, and changelog.
-
----
 
 ### 1.2. Pipeline Stages Specification
 
@@ -39,8 +31,6 @@ The target CI/CD pipeline is triggered on:
 | **7** | **Packaging & Containerization** | Build immutable, production-ready deployable artifacts | `spring-boot-maven-plugin`, Docker multi-stage build | Verified code & dependencies | Standalone JAR & OCI Docker Image | Successful image build, image vulnerability scan | Terminate pipeline |
 | **8** | **Artifact Archiving & Publishing** | Store and version deployable packages | Jenkins `archiveArtifacts`, GitHub Container Registry | Built JAR & Docker image | Tagged container image, archived JAR asset | Successful upload to artifact registry | Terminate pipeline |
 | **9** | **Continuous Deployment** | Deploy to target environments according to promotion gates | Jenkins SSH Pipeline / Docker Compose on DEI host | Container image & env config | Running application instance | HTTP 200 on `/actuator/health` | Automated Rollback to last stable version |
-
----
 
 ### 1.3. Target Pipeline Workflow Diagram
 
@@ -105,8 +95,6 @@ flowchart TD
     class DEV,STG,PROD cdStyle;
 ```
 
----
-
 ### 1.4. Quality Gates and Enforcement Rules
 
 To eliminate the manual oversights identified in the *system-as-is*, the target CI process enforces automated gates inside the `Jenkinsfile`:
@@ -166,12 +154,9 @@ sudo apt install openjdk-21-jdk curl git nano -y
    * **Branch Specifier:** `*/main`.
    * **Script Path:** `Jenkinsfile` at the repository root.
 
-<!-- ========================================================================= -->
-<!-- PONTO 2: Target Deployment Process & Environment Strategy                 -->
-<!-- (A preencher pelo Colega 1 / Daniel)                                      -->
-<!-- ========================================================================= -->
+---
 
-## 2. Target Deployment Process and Environments Strategy (Ponto 2)
+## 2. Target Deployment Process and Environments Strategy
 
 ### 2.1. Environment Structure and Parity (Estrutura e Paridade de Ambientes)
 
@@ -220,7 +205,7 @@ Following the **Twelve-Factor App methodology (Factor X: Dev/Prod Parity)**, the
 
 ---
 
-### 2.2. Environment Matrix and Configuration Comparison (Tabela Comparativa de Ambientes)
+### 2.2. Environment Matrix and Configuration Comparison
 
 The following matrix formally specifies and compares configuration parameters across all three deployment environments:
 
@@ -244,9 +229,7 @@ The following matrix formally specifies and compares configuration parameters ac
 | **Data Fixtures** | Dynamic automatic bootstrap seeding | Sanitized, realistic static dataset | Production data only (strictly zero test fixtures) |
 | **Rollback Strategy** | Manual Git reset | Automated container redeployment to previous tag | Automated rollback upon failed health check probe |
 
----
-
-### 2.3. Configuration and Secrets Management (Gestão de Configuração e Segredos)
+### 2.3. Configuration and Secrets Management
 
 #### 2.3.1. Remediation of *System-as-is* Vulnerabilities
 The analysis in *system-as-is* (Section 1.1 and 4.1) revealed high-risk security anti-patterns:
@@ -332,8 +315,6 @@ In automated CI/CD pipelines, secrets are managed securely using **GitHub Action
 * **Repository-Level Secrets:** Common CI tools and registry access tokens (`GHCR_TOKEN`, `SONAR_TOKEN`).
 * **Staging Environment Secrets (`staging`):** Credentials for staging database, testing API keys, and staging CORS domains. Access is automated for builds on the `main` branch.
 * **Production Environment Secrets (`production`):** Highly restricted secrets containing production RSA private keys, production database credentials, and production API Ninjas tokens. Access is protected by **GitHub Environment Protection Rules**, requiring mandatory manual review and approval from designated team leads before secrets are exposed to runner memory.
-
----
 
 ### 2.4. Containerization Strategy and Reproducible Execution (Estratégia de Containerização e Execução Repetível)
 
@@ -463,9 +444,7 @@ volumes:
 docker compose up --build -d
 ```
 
----
-
-### 2.5. Promotion Flow and Continuous Deployment (Fluxo de Promoção e Deployment Contínuo)
+### 2.5. Promotion Flow and Continuous Deployment
 
 #### 2.5.1. Immutable Artifact Promotion (Build Once, Run Anywhere)
 A fundamental tenet of modern DevOps engineering is the **Single-Build Immutable Artifact Pattern**. 
@@ -569,8 +548,7 @@ To guarantee system availability and minimize Mean Time to Recovery (MTTR) as ta
 
 ---
 
-<!-- ========================================================================= -->
-## 3. Engineering Decisions Supporting the Design (Ponto 3 - ADRs)
+## 3. Engineering Decisions Supporting the Design
 
 The following Architectural Decision Records (ADRs) document the key choices underpinning the target CI/CD pipeline and deployment strategy.
 
