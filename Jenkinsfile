@@ -10,15 +10,18 @@ pipeline {
         stage('Compile') {
             steps {
                 echo 'Compiling source code with Apache Maven...'
-                sh 'chmod +x ./mvnw'
-                sh './mvnw clean compile -B'
+                script {
+                    runMaven('clean compile -B')
+                }
             }
         }
 
         stage('Static Code Analysis (SAST)') {
             steps {
                 echo 'Executing SpotBugs static code analysis for defect and vulnerability detection...'
-                sh './mvnw spotbugs:spotbugs -B'
+                script {
+                    runMaven('spotbugs:spotbugs -B')
+                }
             }
             post {
                 always {
@@ -30,7 +33,9 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 echo 'Executing unit test suite with maven-surefire-plugin...'
-                sh './mvnw test -B'
+                script {
+                    runMaven('test -B')
+                }
             }
             post {
                 always {
@@ -42,7 +47,9 @@ pipeline {
         stage('Integration Tests') {
             steps {
                 echo 'Executing integration tests with maven-failsafe-plugin...'
-                sh './mvnw failsafe:integration-test failsafe:verify -B'
+                script {
+                    runMaven('jacoco:prepare-agent-integration failsafe:integration-test failsafe:verify -B')
+                }
             }
             post {
                 always {
@@ -54,11 +61,13 @@ pipeline {
         stage('Code Coverage & Mutation Testing') {
             steps {
                 echo 'Generating JaCoCo code coverage and PITest mutation testing reports...'
-                sh './mvnw jacoco:report pitest:mutationCoverage -B'
+                script {
+                    runMaven('jacoco:report jacoco:report-integration pitest:mutationCoverage -B')
+                }
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'target/site/jacoco/**, target/pit-reports/**', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'target/site/jacoco/**, target/site/jacoco-it/**, target/pit-reports/**', allowEmptyArchive: true
                 }
             }
         }
@@ -78,7 +87,9 @@ pipeline {
         stage('Package') {
             steps {
                 echo 'Packaging executable Spring Boot JAR archive...'
-                sh './mvnw package -DskipTests -B'
+                script {
+                    runMaven('package -DskipTests -B')
+                }
             }
         }
 
@@ -103,5 +114,23 @@ pipeline {
         failure {
             echo "Pipeline FAILURE: Build, tests, or quality gates failed. Check logs and JUnit test reports."
         }
+    }
+}
+
+def runMaven(String args) {
+    if (isUnix()) {
+        sh """
+            if command -v mvn >/dev/null 2>&1; then
+                mvn ${args}
+            elif [ -f "./mvnw" ]; then
+                chmod +x ./mvnw
+                ./mvnw ${args}
+            else
+                echo "Maven not found! Please install maven or provide ./mvnw."
+                exit 1
+            fi
+        """
+    } else {
+        bat "mvn ${args}"
     }
 }

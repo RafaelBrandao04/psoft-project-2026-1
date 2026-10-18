@@ -72,7 +72,7 @@ stage('Unit Tests') {
 stage('Integration Tests') {
     steps {
         script {
-            if (isUnix()) { sh 'mvn failsafe:integration-test failsafe:verify -B' } else { bat 'mvn failsafe:integration-test failsafe:verify -B' }
+            runMaven('jacoco:prepare-agent-integration failsafe:integration-test failsafe:verify -B')
         }
     }
     post {
@@ -175,15 +175,20 @@ pipeline {
         stage('Compile') {
             steps {
                 echo 'Compiling source code with Apache Maven...'
-                sh 'chmod +x ./mvnw'
-                sh './mvnw clean compile -B'
+                script {
+                    if (isUnix()) { sh 'mvn clean compile -B' }
+                    else { bat 'mvn clean compile -B' }
+                }
             }
         }
 
         stage('Static Code Analysis (SAST)') {
             steps {
                 echo 'Executing SpotBugs static code analysis for defect and vulnerability detection...'
-                sh './mvnw spotbugs:spotbugs -B'
+                script {
+                    if (isUnix()) { sh 'mvn spotbugs:spotbugs -B' }
+                    else { bat 'mvn spotbugs:spotbugs -B' }
+                }
             }
             post {
                 always {
@@ -195,7 +200,10 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 echo 'Executing unit test suite with maven-surefire-plugin...'
-                sh './mvnw test -B'
+                script {
+                    if (isUnix()) { sh 'mvn test -B' }
+                    else { bat 'mvn test -B' }
+                }
             }
             post {
                 always {
@@ -207,7 +215,10 @@ pipeline {
         stage('Integration Tests') {
             steps {
                 echo 'Executing integration tests with maven-failsafe-plugin...'
-                sh './mvnw failsafe:integration-test failsafe:verify -B'
+                script {
+                    if (isUnix()) { sh 'mvn failsafe:integration-test failsafe:verify -B' }
+                    else { bat 'mvn failsafe:integration-test failsafe:verify -B' }
+                }
             }
             post {
                 always {
@@ -219,7 +230,10 @@ pipeline {
         stage('Code Coverage & Mutation Testing') {
             steps {
                 echo 'Generating JaCoCo code coverage and PITest mutation testing reports...'
-                sh './mvnw jacoco:report pitest:mutationCoverage -B'
+                script {
+                    if (isUnix()) { sh 'mvn jacoco:report pitest:mutationCoverage -B' }
+                    else { bat 'mvn jacoco:report pitest:mutationCoverage -B' }
+                }
             }
             post {
                 always {
@@ -243,7 +257,10 @@ pipeline {
         stage('Package') {
             steps {
                 echo 'Packaging executable Spring Boot JAR archive...'
-                sh './mvnw package -DskipTests -B'
+                script {
+                    if (isUnix()) { sh 'mvn package -DskipTests -B' }
+                    else { bat 'mvn package -DskipTests -B' }
+                }
             }
         }
 
