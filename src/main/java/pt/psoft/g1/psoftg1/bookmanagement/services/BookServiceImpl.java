@@ -36,6 +36,7 @@ public class BookServiceImpl implements BookService {
 	private final AuthorRepository authorRepository;
 	private final PhotoRepository photoRepository;
 	private final ReaderRepository readerRepository;
+	private final BookInfoProvider bookInfoProvider;
 
 	@Value("${suggestionsLimitPerGenre}")
 	private long suggestionsLimitPerGenre;
@@ -47,7 +48,9 @@ public class BookServiceImpl implements BookService {
 			throw new ConflictException("Book with ISBN " + isbn + " already exists");
 		}
 
-		List<Long> authorNumbers = request.getAuthors();
+		enrichRequestFromExternalSourcesIfNeeded(request, isbn);
+
+		List<Long> authorNumbers = request.getAuthors() != null ? request.getAuthors() : List.of();
 		List<Author> authors = new ArrayList<>();
 		for (Long authorNumber : authorNumbers) {
 
@@ -206,5 +209,59 @@ public class BookServiceImpl implements BookService {
 			query = new SearchBooksQuery("", "", "");
 		}
 		return bookRepository.searchBooks(page, query);
+	}
+
+	@Override
+	public Optional<BookDetailsDTO> findExternalBookInfo(String isbn) {
+		if (bookInfoProvider == null) {
+			return Optional.empty();
+		}
+		return bookInfoProvider.findBookByIsbn(isbn);
+	}
+
+	private void enrichRequestFromExternalSourcesIfNeeded(CreateBookRequest request, String isbn) {
+		if (request == null || bookInfoProvider == null || !needsExternalEnrichment(request)) {
+			return;
+		}
+
+		Optional<BookDetailsDTO> externalOpt = bookInfoProvider.findBookByIsbn(isbn);
+		if (externalOpt.isEmpty()) {
+			return;
+		}
+
+		BookDetailsDTO external = externalOpt.get();
+		if (isBlank(request.getTitle()) && external.getTitle() != null) {
+			request.setTitle(external.getTitle());
+		}
+		if (isBlank(request.getDescription()) && external.getDescription() != null) {
+			request.setDescription(external.getDescription());
+		}
+		if (isBlank(request.getGenre()) && external.getGenre() != null) {
+			request.setGenre(external.getGenre());
+		}
+		if ((request.getAuthors() == null || request.getAuthors().isEmpty()) && !external.getAuthors().isEmpty()) {
+			List<Long> resolvedAuthorIds = new ArrayList<>();
+			for (String authorName : external.getAuthors()) {
+				List<Author> matched = authorRepository.searchByNameName(authorName);
+				if (matched != null && !matched.isEmpty() && matched.get(0).getAuthorNumber() != null) {
+					resolvedAuthorIds.add(matched.get(0).getAuthorNumber());
+				}
+			}
+			if (!resolvedAuthorIds.isEmpty()) {
+				request.setAuthors(resolvedAuthorIds);
+			}
+		}
+	}
+
+	private static boolean needsExternalEnrichment(CreateBookRequest request) {
+		return isBlank(request.getTitle())
+				|| isBlank(request.getDescription())
+				|| isBlank(request.getGenre())
+				|| request.getAuthors() == null
+				|| request.getAuthors().isEmpty();
+	}
+
+	private static boolean isBlank(String value) {
+		return value == null || value.trim().isEmpty();
 	}
 }

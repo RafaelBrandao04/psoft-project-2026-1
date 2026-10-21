@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
+import pt.psoft.g1.psoftg1.bookmanagement.services.BookDetailsDTO;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import pt.psoft.g1.psoftg1.bookmanagement.services.CreateBookRequest;
 import pt.psoft.g1.psoftg1.bookmanagement.services.SearchBooksQuery;
@@ -94,6 +95,14 @@ public class BookController {
         return ResponseEntity.ok()
                 .eTag(Long.toString(book.getVersion()))
                 .body(bookView);
+    }
+
+    @Operation(summary = "Retrieves bibliographic information about a book by ISBN from configured external sources")
+    @GetMapping(value = "/external/{isbn}")
+    public ResponseEntity<BookDetailsDTO> findExternalBookByIsbn(@PathVariable("isbn") final String isbn) {
+        final var bookDetails = bookService.findExternalBookInfo(isbn)
+                .orElseThrow(() -> new NotFoundException(Book.class, isbn));
+        return ResponseEntity.ok().body(bookDetails);
     }
 
     @Operation(summary = "Deletes a book photo")
@@ -240,4 +249,3 @@ public class BookController {
         return new ListResponse<>(bookViewMapper.toBookView(bookList));
     }
 }
-
