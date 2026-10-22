@@ -126,10 +126,26 @@ A aplicação arrancará em `http://localhost:8080`.
   * **Password:** `mysqlpass`
 
 ### 4.4. Execução da Pipeline de CI/CD (Jenkins)
-O repositório possui uma pipeline declarativa completa definida no ficheiro [`Jenkinsfile`](Jenkinsfile), pronta a ser executada no servidor Jenkins (por exemplo, na infraestrutura do ISEP ou em instância local):
+O repositório possui uma pipeline declarativa completa definida no ficheiro [`Jenkinsfile`](Jenkinsfile), configurada para ser executada no servidor oficial do ISEP:
 
-* **Acesso ao Servidor Jenkins:**
-  * Servidor ISEP: [https://vs-gate.dei.isep.ipp.pt:10806/](https://vs-gate.dei.isep.ipp.pt:10806/) *(ou instância local `http://localhost:8080`)*. 
+* **Acesso ao Servidor Jenkins do ISEP:**
+  * URL: [https://vs-gate.dei.isep.ipp.pt:10806/](https://vs-gate.dei.isep.ipp.pt:10806/)
+* **Credenciais SCM:**
+  * O job utiliza a credencial ID `Password_for_GitHub` (Personal Access Token / utilizador GitHub) para efetuar o checkout autenticado do repositório.
+* **Como Disparar a Pipeline:**
+  * **Automático (Webhook / Push):** Qualquer `git push` para a branch `main` despoleta automaticamente uma nova execução da pipeline via GitHub Webhook / SCM Polling.
+  * **Manual:** No painel do projeto no Jenkins (ex.: `Jenkins_Demo_from_GitHub`), aceder ao menu lateral e clicar em **"Build Now"** (*Construir agora*).
+* **Fluxo de Estágios Automatizados:**
+  1. **Compile:** Validação e compilação multiplataforma via `./mvnw clean compile -B`.
+  2. **Static Code Analysis (SAST):** Análise estática com SpotBugs e arquivo de `target/spotbugsXml.xml`.
+  3. **Unit Tests:** Execução de 279 testes unitários (`mvn test`) com publicação de resultados JUnit.
+  4. **Integration Tests:** Execução de 41 testes de integração com base de dados H2 (`mvn failsafe:integration-test failsafe:verify`).
+  5. **Code Coverage & Mutation Testing:** Geração de relatórios JaCoCo (`jacoco:report`) e PITest (`pitest:mutationCoverage`).
+  6. **Quality Gate:** Avaliação automática das regras de aprovação (100% testes verdes, cobertura $\ge 60\%$, mutação $\ge 50\%$).
+  7. **Package & Archive:** Empacotamento do JAR executável (`psoft-g1-0.0.1-SNAPSHOT.jar`) e arquivamento dos relatórios para download.
+* **Consulta de Relatórios no Jenkins:**
+  * **Test Result:** Gráficos e listagem detalhada de falhas/sucessos de testes JUnit.
+  * **Build Artifacts:** Relatórios HTML navegáveis do JaCoCo, relatórios PITest e binário JAR descarregável. 
 ---
 
 ## 5. Credenciais e Utilizadores de Teste (Bootstrap)

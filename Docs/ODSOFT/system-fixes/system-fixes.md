@@ -18,6 +18,13 @@
 - **Remediation:** Updated reader lookups in `Bootstrapper.java` to query dynamically using the current calendar year with fallback to `2024`, and added defensive bounds checks before initializing lending entities.
 - **Impact:** Ensures application startup stability and seed data consistency regardless of the execution year.
 
+### 1.4. H2 Console Security and Frame Options Accessibility
+- **Issue:** Accessing the H2 database web console (`http://localhost:8080/h2-console`) during local execution returned `401 Unauthorized`. In `SecurityConfig.java`, while Swagger and public API paths were permitted, the H2 console servlet path (`/h2-console/**`) lacked explicit permit rules, falling through to `.anyRequest().authenticated()`. Additionally, Spring Security's default `X-Frame-Options: DENY` header blocked rendering the console's UI iframes.
+- **Remediation:** In `SecurityConfig.java`:
+  1. Configured `.requestMatchers(AntPathRequestMatcher.antMatcher("/h2-console/**")).permitAll()` to allow development access without triggering Spring MVC path introspection conflicts.
+  2. Configured `headers.frameOptions(frameOptions -> frameOptions.sameOrigin())` to enable iframe rendering for the H2 web console.
+- **Impact:** Enables developer access to the in-memory database UI for data inspection and debugging while preserving strict security across all protected REST endpoints.
+
 ---
 
 ## 2. Mutation Testing Integration
@@ -62,4 +69,4 @@ During the integration of automated static code analysis (`spotbugs-maven-plugin
 - **Remediation:** 
   1. Added `implements java.io.Serializable` and explicit `private static final long serialVersionUID = 1L;` to `Name.java`.
   2. Removed redundant `implements Serializable` marker from `FineView.java` to align with the rest of the REST view DTOs.
-- **Impact:** Guarantees Spring Security session serialization safety and runtime stability.
+- **Impact:** Guarantees Spring Security session serialization safety and runtime stability.
