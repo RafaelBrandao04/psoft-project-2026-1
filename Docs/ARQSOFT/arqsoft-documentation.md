@@ -313,6 +313,35 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 
 ---
 
+#### ASR06: Fiabilidade e Tolerância a Falhas em Serviços Externos
+* **Atributo de Qualidade:** Fiabilidade / Resiliência (*Reliability / Fault Tolerance*)
+* **Estímulo:** Falha temporária, latência excessiva (*timeout*) ou resposta de erro HTTP (ex.: 503 *Service Unavailable*) por parte de uma API externa (Google Books, Open Library, gateway SMS ou Webhook).
+* **Fonte do Estímulo:** Fornecedores de serviços externos na cloud ou rede pública.
+* **Ambiente:** Tempo de execução normal (*Runtime*).
+* **Artefacto:** Módulos de integração externa (`bookmanagement.infrastructure.gateways`, `readermanagement.notifications`).
+* **Resposta:**
+  * No caso das fontes bibliográficas, o sistema ativa uma cadeia de contingência (*fallback*), consultando a fonte alternativa configurada sem propagar erro ao utilizador;
+  * No caso das notificações, a falha no envio para um canal é registada em log de forma isolada, não abortando os restantes canais configurados nem provocando *rollback* da transação de empréstimo na base de dados.
+* **Medida de Resposta:**
+  * 0% de interrupções na persistência do empréstimo devido a indisponibilidade de canais de notificação;
+  * Sucesso na recuperação de metadados se pelo menos uma das fontes bibliográficas ativas responder com dados válidos;
+  * Registo auditável em log de todas as exceções intercetadas.
+
+---
+
+#### ASR07: Desempenho e Não-Bloqueio no Atendimento a Requisições
+* **Atributo de Qualidade:** Desempenho / Concorrência (*Performance / Resource Management*)
+* **Estímulo:** Conclusão de uma operação de empréstimo ou devolução que desencadeia notificações para múltiplos canais de comunicação com latência variável.
+* **Fonte do Estímulo:** Transações de negócio no serviço de empréstimos (`LendingService`).
+* **Ambiente:** Carga operacional concorrente (*Runtime*).
+* **Artefacto:** Barramento de eventos aplicacionais e despachador de notificações.
+* **Resposta:** A emissão de notificações é desacoplada da transação síncrona principal através de eventos de domínio (`LendingCreatedEvent`, etc.) e processamento orientado a eventos (`@EventListener` / `@TransactionalEventListener`), permitindo que a resposta HTTP 201/200 seja devolvida ao utilizador sem esperar pela confirmação das redes externas.
+* **Medida de Resposta:**
+  * O tempo de resposta do endpoint REST de empréstimo não é afetado pelo tempo de transmissão dos emails, SMS ou Webhooks;
+  * *Overhead* de despacho de eventos inferior a 50 ms.
+
+---
+
 ### 6.3 Mapeamento para Táticas Arquiteturais (ADD)
 
 | ASR | Atributo de Qualidade | Tática Arquitetural (SEI / ADD) | Padrão / Solução Concreta |
@@ -322,3 +351,16 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 | **ASR03** | Modificabilidade | *Publish-Subscribe* / *Separate Concerns* | Padrão **Observer / Domain Events** combinado com o padrão **Composite** para múltiplos canais. |
 | **ASR04** | Configurabilidade / Modificabilidade | *Defer Binding Time* / *Use an Intermediary* | Padrão **Strategy** em conjunto com **Factory / Specification** para resolução das políticas em runtime. |
 | **ASR05** | Testabilidade | *Specialized Interfaces* / *Record/Playback* | Inversão de Controlo (IoC), Injeção de Dependências e Mocks para componentes externos. |
+| **ASR06** | Fiabilidade / Resiliência | *Degradation / Fallback* / *Fault Isolation* | Padrão **Composite / Fallback Chain** e blocos de tratamento resiliente no listener de eventos. |
+| **ASR07** | Desempenho / Concorrência | *Asynchronous Event Processing* / *Introduce Concurrency* | Desacoplamento temporal através do `ApplicationEventPublisher` do Spring e execução assíncrona. |
+
+---
+
+### 6.4 Rastreabilidade com a Arquitetura Alvo (*System-to-Be*)
+
+A especificação completa do processo **ADD 3.0** e o detalhe das táticas e estratégias de implementação encontram-se documentados nos artefactos dedicados da pasta `system-to-be`:
+
+* **[Identificação e Classificação de Fatores Arquiteturais (Issue #11)](./system-to-be/architectural-factors.md):** Levantamento exaustivo dos requisitos funcionais (`FR01-FR04`), cenários de atributos de qualidade (`ASR01-ASR07`), restrições técnicas (`TC01-TC05`), limitações organizacionais (`OL01-OL04`) e matriz de priorização do ADD.
+* **[Seleção de Táticas Arquiteturais (Issue #13)](./system-to-be/architectural-tactics.md):** Catálogo formal de táticas SEI selecionadas, matriz de rastreabilidade completa e análise de *trade-offs*.
+* **[Planeamento e Divisão de Trabalho do System-to-Be](./system-to-be/system-to-be.md):** Distribuição dos três tópicos de desenvolvimento (Fontes, Notificações, Políticas) pelos 3 membros da equipa e desenho da bateria de testes funcionais e mutação PITest.
+* **[Relatório de Conclusão das Issues #11 e #13](./system-to-be/issues-11-13-completion-report.md):** Síntese detalhada do trabalho executado, rastreabilidade e critérios de aceitação cumpridos para fecho no GitHub Projects.
