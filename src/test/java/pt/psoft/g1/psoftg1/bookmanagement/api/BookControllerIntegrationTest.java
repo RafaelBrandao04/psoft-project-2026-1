@@ -10,11 +10,13 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
+import pt.psoft.g1.psoftg1.bookmanagement.services.BookDetailsDTO;
 import pt.psoft.g1.psoftg1.bookmanagement.services.BookService;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.services.FileStorageService;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,12 +26,12 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Integration Test for BookController.
- * Validates Spring Security RBAC (Librarian can create books, Readers cannot;
- * Readers have suggestions, Librarians do not) and HTTP routing.
+ * Integration Test for BookController (SUT = Controller + Service + Spring Security).
+ * Validates Spring Security RBAC, HTTP routing, and external bibliographic endpoints.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -96,6 +98,53 @@ public class BookControllerIntegrationTest {
         mockMvc.perform(get("/api/books/9782826012092")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "reader@example.com", roles = "READER")
+    @DisplayName("GET /api/books/external/{isbn} with READER role returns 200 OK and external BookDetailsDTO")
+    void testFindExternalBookByIsbn_WithReaderRole_ReturnsOk() throws Exception {
+        BookDetailsDTO details = new BookDetailsDTO(
+                "9780132350884",
+                "Clean Code",
+                "Craftsmanship handbook",
+                List.of("Robert C. Martin"),
+                "Computers / Programming",
+                "Prentice Hall",
+                "2008",
+                "http://example.com/cover.jpg",
+                "googlebooks"
+        );
+
+        given(bookService.findExternalBookInfo("9780132350884")).willReturn(Optional.of(details));
+
+        mockMvc.perform(get("/api/books/external/9780132350884")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isbn").value("9780132350884"))
+                .andExpect(jsonPath("$.title").value("Clean Code"))
+                .andExpect(jsonPath("$.authors[0]").value("Robert C. Martin"))
+                .andExpect(jsonPath("$.genre").value("Computers / Programming"))
+                .andExpect(jsonPath("$.sourceProvider").value("googlebooks"));
+    }
+
+    @Test
+    @WithMockUser(username = "librarian@example.com", roles = "LIBRARIAN")
+    @DisplayName("GET /api/books/external/{isbn} when not found in external sources returns 404 Not Found")
+    void testFindExternalBookByIsbn_NotFound_Returns404() throws Exception {
+        given(bookService.findExternalBookInfo("9780000000000")).willReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/books/external/9780000000000")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET /api/books/external/{isbn} without authentication returns 401 Unauthorized")
+    void testFindExternalBookByIsbn_Unauthenticated_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/books/external/9780132350884")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

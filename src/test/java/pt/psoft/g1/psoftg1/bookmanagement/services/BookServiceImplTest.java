@@ -55,6 +55,9 @@ class BookServiceImplTest {
     @Mock
     private ReaderRepository readerRepository;
 
+    @Mock
+    private BookInfoProvider bookInfoProvider;
+
     @InjectMocks
     private BookServiceImpl bookService;
 
@@ -139,6 +142,41 @@ class BookServiceImplTest {
         assertThat(result).isNotNull();
         assertThat(request.getPhoto()).isNull();
         assertThat(request.getPhotoURI()).isNull();
+    }
+
+    @Test
+    void testCreate_EnrichedFromExternalSource_WhenFieldsMissing() {
+        CreateBookRequest request = new CreateBookRequest();
+        // Missing title, description, genre
+        request.setAuthors(List.of(1L));
+
+        BookDetailsDTO externalDto = new BookDetailsDTO(
+                "9780132350884",
+                "Clean Code (Enriched)",
+                "Agile craftsmanship (Enriched)",
+                List.of("Uncle Bob"),
+                "Software",
+                "Prentice Hall",
+                "2008",
+                null,
+                "googlebooks"
+        );
+
+        Author author = mock(Author.class);
+        Genre genre = new Genre("Software");
+
+        when(bookRepository.findByIsbn("9780132350884")).thenReturn(Optional.empty());
+        when(bookInfoProvider.findBookByIsbn("9780132350884")).thenReturn(Optional.of(externalDto));
+        when(authorRepository.findByAuthorNumber(1L)).thenReturn(Optional.of(author));
+        when(genreRepository.findByString("Software")).thenReturn(Optional.of(genre));
+        when(bookRepository.save(any(Book.class))).thenAnswer(i -> i.getArgument(0));
+
+        Book result = bookService.create(request, "9780132350884");
+
+        assertThat(result).isNotNull();
+        assertThat(request.getTitle()).isEqualTo("Clean Code (Enriched)");
+        assertThat(request.getDescription()).isEqualTo("Agile craftsmanship (Enriched)");
+        assertThat(request.getGenre()).isEqualTo("Software");
     }
 
     @Test
@@ -244,6 +282,25 @@ class BookServiceImplTest {
         Book result = bookService.findByIsbn("9780132350884");
 
         assertThat(result).isSameAs(book);
+    }
+
+    @Test
+    void testFindExternalBookInfo_Success() {
+        BookDetailsDTO dto = new BookDetailsDTO("9780132350884", "Clean Code", "Desc", List.of("Author"), "Genre");
+        when(bookInfoProvider.findBookByIsbn("9780132350884")).thenReturn(Optional.of(dto));
+
+        Optional<BookDetailsDTO> result = bookService.findExternalBookInfo("9780132350884");
+
+        assertThat(result).isPresent().contains(dto);
+    }
+
+    @Test
+    void testFindExternalBookInfo_NotFound() {
+        when(bookInfoProvider.findBookByIsbn("9780132350884")).thenReturn(Optional.empty());
+
+        Optional<BookDetailsDTO> result = bookService.findExternalBookInfo("9780132350884");
+
+        assertThat(result).isEmpty();
     }
 
     @Test
