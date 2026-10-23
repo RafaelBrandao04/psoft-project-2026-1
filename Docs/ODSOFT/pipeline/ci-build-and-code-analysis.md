@@ -12,7 +12,7 @@ In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*
 ## 2. Automated Build and Packaging Strategy
 
 ### 2.1. Limitations of the Baseline Process (*As-Is*)
-As analyzed in [`Docs/ODSOFT/System-as-is/system-as-is.md`](../System-as-is/system-as-is.md):
+As analyzed in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
 * Software compilation was performed manually on developers' workstations (`mvn clean compile`), suffering from environmental discrepancies and JDK incompatibility (e.g. annotation processing failures on non-LTS releases).
 * Packaging relied on ad-hoc executions of `mvn clean package`, transferring unverified JARs manually to target servers via SSH/FTP without cryptographic hashing, audit logs, or pipeline traceability.
 * Binaries were repeatedly recompiled for each environment, directly violating the **Continuous Delivery core principle: Build binaries only once** (Jez Humble & David Farley).

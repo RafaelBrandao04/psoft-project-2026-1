@@ -22,7 +22,7 @@ A Vista Arquitetural descreve a decomposição funcional e concetual do sistema,
 
 No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
-![VA_N1.png](System-as-is/Vista%20Arquitetural/VA_N1.png)
+![VA_N1.png](system-as-is/Vista%20Arquitetural/VA_N1.png)
 
 * **Interfaces Externas:**
   * **`REST API` (Provided `()`):** Interface HTTP/JSON exposta aos clientes externos (leitores, bibliotecários, administradores) para todas as operações da biblioteca.
@@ -34,7 +34,7 @@ No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
 No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
-![VA_N2.png](System-as-is/Vista%20Arquitetural/VA_N2.png)
+![VA_N2.png](system-as-is/Vista%20Arquitetural/VA_N2.png)
 
 * **Componentes:**
   * **`Backend`:** Núcleo aplicacional responsável por toda a lógica de negócio, controlo de acessos, orquestração de serviços e disponibilização dos endpoints REST.
@@ -49,7 +49,7 @@ No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
 No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais, adotando o padrão arquitetural **Modular Monolith** orientado por domínios (DDD).
 
-![VA_N3.png](System-as-is/Vista%20Arquitetural/VA_N3.png)
+![VA_N3.png](system-as-is/Vista%20Arquitetural/VA_N3.png)
 
 * **Módulos de Domínio:**
   * **`UserManagement Module`:** Gestão da identidade dos utilizadores, credenciais, palavras-passe e atribuição de perfis/autorizações (`ADMIN`, `LIBRARIAN`, `READER`).
@@ -76,7 +76,7 @@ No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais,
 
 No Nível 4, realiza-se o detalhe concetual interno de um módulo específico — **`UserManagement`** (`pt.psoft.g1.psoftg1.usermanagement`) — decompondo-o em 4 camadas concêntricas segundo o padrão **Clean Architecture / Onion Architecture**.
 
-![VA_N4.png](System-as-is/Vista%20Arquitetural/VA_N4.png)
+![VA_N4.png](system-as-is/Vista%20Arquitetural/VA_N4.png)
 
 * **Regras de Dependência e DIP:**
   * As setas de dependência (`..>`) apontam estritamente de fora para dentro (*The Dependency Rule*). O modelo de domínio (`Enterprise Business Rules`) não conhece nenhuma classe ou framework exterior.
@@ -92,7 +92,7 @@ A Vista de Implementação descreve a organização estática do código-fonte, 
 
 No Nível 1, a aplicação é empacotada num único artefato executável JAR gerado pelo Apache Maven (`psoft-g1-0.0.1-SNAPSHOT.jar`), incorporando o Spring Boot Starter e o servidor Tomcat embutido.
 
-![VI_N1.png](System-as-is/Vista%20Implementação/VI_N1.png)
+![VI_N1.png](system-as-is/Vista%20Implementação/VI_N1.png)
 
 * O executável expõe os pontos de terminação HTTP (`REST API`) e consome a biblioteca de cliente WebClient para conexão à `NINJA API`.
 
@@ -102,7 +102,7 @@ No Nível 1, a aplicação é empacotada num único artefato executável JAR ger
 
 No Nível 2, a arquitetura de implementação divide-se entre a base de código Java (`Backend`) e a unidade de gestão de dados relacional (`DB`).
 
-![VI_N2.png](System-as-is/Vista%20Implementação/VI_N2.png)
+![VI_N2.png](system-as-is/Vista%20Implementação/VI_N2.png)
 
 * O subsistema `Backend` acede ao subsistema `DB` através de ligações JDBC geridas pelo driver H2, satisfazendo a interface **`BD API`**.
 
@@ -112,7 +112,7 @@ No Nível 2, a arquitetura de implementação divide-se entre a base de código 
 
 No Nível 3, a base de código do `Backend` organiza-se em subsistemas de código correspondentes aos subdomínios funcionais e destaca o componente técnico de suporte transversal **`Persistência`**.
 
-![VI_N3.png](System-as-is/Vista%20Implementação/VI_N3.png)
+![VI_N3.png](system-as-is/Vista%20Implementação/VI_N3.png)
 
 * **Componentes de Subdomínio (Código):**
   * `UserManagement SubDomain Module` (`pt.psoft.g1.psoftg1.usermanagement`)
@@ -132,7 +132,7 @@ No Nível 3, a base de código do `Backend` organiza-se em subsistemas de códig
 
 No Nível 4, a estrutura de implementação descreve a árvore física de pacotes e tipos Java de um módulo de subdomínio (exemplificado em `usermanagement`):
 
-![VI_N4.png](System-as-is/Vista%20Implementação/VI_N4.png)
+![VI_N4.png](system-as-is/Vista%20Implementação/VI_N4.png)
 
 ---
 
@@ -144,7 +144,7 @@ A rastreabilidade arquitetural assegura que cada conceito lógico abstrato da Vi
 
 O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógicos) com os módulos de código e com o subsistema técnico de persistência.
 
-![VA_to_VI_N3.png](System-as-is/Manifestação/VA_to_VI_N3.png)
+![VA_to_VI_N3.png](system-as-is/Manifestação/VA_to_VI_N3.png)
 
 * **Racional Arquitetural:**
   * Cada módulo de subdomínio na VI manifesta o seu módulo funcional correspondente na VA (`VI: UserManagement` $\xrightarrow{\text{<<manifest>>}}$ `VA: UserManagement`, etc.).
@@ -154,7 +154,7 @@ O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógic
 
 O mapeamento de Nível 4 correlaciona as 4 camadas concêntricas de *Clean Architecture* com os pacotes Java reais do módulo.
 
-![VA_to_VI_N4.png](System-as-is/Manifestação/VA_to_VI_N4.png)
+![VA_to_VI_N4.png](system-as-is/Manifestação/VA_to_VI_N4.png)
 
 * `Frameworks & Drivers` $\leftarrow$ Configuração Spring Boot, `SecurityConfig`, `JpaConfig` e driver H2.
 * `Interface Adapters` $\leftarrow$ Pacotes `api` e `infrastructure.repositories.impl`.
@@ -170,7 +170,7 @@ A Vista Física (ou de Implantação) descreve a topologia de nós computacionai
 ### 4.1 Nível 1
 No Nível 1, o sistema é representado no seu nó de execução de topo (*Server*), alojando o bloco concetual único do sistema de gestão de biblioteca (`<<C4System>> LMS`).
 
-![VF_N1.png](System-as-is/Vista_Fisica/VF_N1.png)
+![VF_N1.png](system-as-is/Vista%20Fisica/VF_N1.png)
 
 ### 4.2 Nível 2
 No Nível 2, a topologia de implantação detalha os nós de execução físicos/lógicos, processos em execução, portas e canais de comunicação em tempo de execução:
@@ -181,7 +181,7 @@ No Nível 2, a topologia de implantação detalha os nós de execução físicos
 * **`Client Workstation`:** Estação de trabalho do utilizador (leitor, bibliotecário), comunicando com o backend através de `HTTP/REST:8080` (ex.: Web Browser, Postman).
 * **`Cloud`:** Nó exterior de infraestrutura de serviços em nuvem alojando a **Ninja API**, consumida pelo backend através de ligação segura `HTTP/REST:443`.
 
-![VF_N2.png](System-as-is/Vista_Fisica/VF_N2.png)
+![VF_N2.png](system-as-is/Vista%20Fisica/VF_N2.png)
 
 ---
 
@@ -193,41 +193,41 @@ A realização dinâmica das operações é ilustrada através de diagramas de s
 Validação do leitor, verificação de limites ativos e empréstimos em mora (`LendingForbiddenException` $\rightarrow$ 403), consulta de disponibilidade da obra, apuramento do número sequencial anual e registo transacional do novo empréstimo.
 
 * **Nível 1:**  
-  ![VP_N1_CreateLending.png](System-as-is/Vista%20Processos/png/VP_N1_CreateLending.png)
+  ![VP_N1_CreateLending.png](system-as-is/Vista%20Processos/png/VP_N1_CreateLending.png)
 * **Nível 2:**  
-  ![VP_N2_CreateLending.png](System-as-is/Vista%20Processos/png/VP_N2_CreateLending.png)
+  ![VP_N2_CreateLending.png](system-as-is/Vista%20Processos/png/VP_N2_CreateLending.png)
 * **Nível 3:**  
-  ![VP_N3_CreateLending.png](System-as-is/Vista%20Processos/png/VP_N3_CreateLending.png)
+  ![VP_N3_CreateLending.png](system-as-is/Vista%20Processos/png/VP_N3_CreateLending.png)
 
 ### 5.2 Cenário 2: Registar Livro (*Register Book*)
 Verificação de unicidade de ISBN (`ConflictException` $\rightarrow$ 409), validação de existência prévia de autores e género literário (`NotFoundException` $\rightarrow$ 404), instanciação da entidade de domínio e persistência transacional.
 
 * **Nível 1:**  
-  ![VP_N1_CreateBook.png](System-as-is/Vista%20Processos/png/VP_N1_CreateBook.png)
+  ![VP_N1_CreateBook.png](system-as-is/Vista%20Processos/png/VP_N1_CreateBook.png)
 * **Nível 2:**  
-  ![VP_N2_CreateBook.png](System-as-is/Vista%20Processos/png/VP_N2_CreateBook.png)
+  ![VP_N2_CreateBook.png](system-as-is/Vista%20Processos/png/VP_N2_CreateBook.png)
 * **Nível 3:**  
-  ![VP_N3_CreateBook.png](System-as-is/Vista%20Processos/png/VP_N3_CreateBook.png)
+  ![VP_N3_CreateBook.png](system-as-is/Vista%20Processos/png/VP_N3_CreateBook.png)
 
 ### 5.3 Cenário 3: Devolver Empréstimo (*Return Lending*)
 Verificação de permissões do leitor autenticado, controle de concorrência otimista via cabeçalho HTTP `If-Match`, apuramento e criação condicional de multa por atraso (*Fine*) e atualização persistente do estado do empréstimo.
 
 * **Nível 1:**  
-  ![VP_N1_ReturnLending.png](System-as-is/Vista%20Processos/png/VP_N1_ReturnLending.png)
+  ![VP_N1_ReturnLending.png](system-as-is/Vista%20Processos/png/VP_N1_ReturnLending.png)
 * **Nível 2:**  
-  ![VP_N2_ReturnLending.png](System-as-is/Vista%20Processos/png/VP_N2_ReturnLending.png)
+  ![VP_N2_ReturnLending.png](system-as-is/Vista%20Processos/png/VP_N2_ReturnLending.png)
 * **Nível 3:**  
-  ![VP_N3_ReturnLending.png](System-as-is/Vista%20Processos/png/VP_N3_ReturnLending.png)
+  ![VP_N3_ReturnLending.png](system-as-is/Vista%20Processos/png/VP_N3_ReturnLending.png)
 
 ### 5.4 Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
 Operação analítica paginada de leitura, demonstrando consulta otimizada no repositório com filtro temporal relativo ao último ano (`minusYears(1)`), projeção em DTO (`BookCountDTO`) e ausência de efeitos secundários de escrita.
 
 * **Nível 1:**  
-  ![VP_N1_Top5BooksLent.png](System-as-is/Vista%20Processos/png/VP_N1_Top5BooksLent.png)
+  ![VP_N1_Top5BooksLent.png](system-as-is/Vista%20Processos/png/VP_N1_Top5BooksLent.png)
 * **Nível 2:**  
-  ![VP_N2_Top5BooksLent.png](System-as-is/Vista%20Processos/png/VP_N2_Top5BooksLent.png)
+  ![VP_N2_Top5BooksLent.png](system-as-is/Vista%20Processos/png/VP_N2_Top5BooksLent.png)
 * **Nível 3:**  
-  ![VP_N3_Top5BooksLent.png](System-as-is/Vista%20Processos/png/VP_N3_Top5BooksLent.png)
+  ![VP_N3_Top5BooksLent.png](system-as-is/Vista%20Processos/png/VP_N3_Top5BooksLent.png)
 
 ---
 
@@ -358,9 +358,14 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 
 ### 6.4 Rastreabilidade com a Arquitetura Alvo (*System-to-Be*)
 
-A especificação completa do processo **ADD 3.0** e o detalhe das táticas e estratégias de implementação encontram-se documentados nos artefactos dedicados da pasta `system-to-be`:
+A especificação completa do processo **ADD 3.0** e o detalhe das decisões de desenho arquitetural encontram-se documentados nos artefactos dedicados da pasta `system-to-be`, correspondentes às 6 secções estipuladas no **Tópico 1.3.2 do Enunciado**:
 
-* **[Identificação e Classificação de Fatores Arquiteturais (Issue #11)](./system-to-be/architectural-factors.md):** Levantamento exaustivo dos requisitos funcionais (`FR01-FR04`), cenários de atributos de qualidade (`ASR01-ASR07`), restrições técnicas (`TC01-TC05`), limitações organizacionais (`OL01-OL04`) e matriz de priorização do ADD.
-* **[Seleção de Táticas Arquiteturais (Issue #13)](./system-to-be/architectural-tactics.md):** Catálogo formal de táticas SEI selecionadas, matriz de rastreabilidade completa e análise de *trade-offs*.
+1. **[Identificação e Classificação de Fatores Arquiteturais (1.3.2.1 / Issue #11)](./system-to-be/architectural-factors.md):** Levantamento exaustivo dos requisitos funcionais (`FR01-FR04`), cenários de atributos de qualidade (`ASR01-ASR07`), restrições técnicas (`TC01-TC05`), limitações organizacionais (`OL01-OL04`) e matriz de priorização do ADD.
+2. **[Execução do Processo ADD 3.0 e Iterações de Desenho (1.3.2.2 / Issue #12)](./system-to-be/add-process.md):** Execução formal dos Passos 1 a 7 do ADD para as três iterações do sistema (Fontes Bibliográficas, Notificações Multicanal e Políticas de Empréstimo).
+3. **[Seleção de Táticas Arquiteturais (1.3.2.3 / Issue #13)](./system-to-be/architectural-tactics.md):** Catálogo formal de táticas SEI selecionadas, matriz de rastreabilidade completa e análise de *trade-offs*.
+4. **[Arquiteturas de Referência (1.3.2.4 / Issue #14)](./system-to-be/reference-architectures.md):** Análise de arquétipos candidatos (MSA vs. Monólito Tradicional vs. Monólito Modular DDD com Clean Architecture) e caracterização da arquitetura de referência adotada.
+5. **[Padrões Arquiteturais e de Desenho (1.3.2.5 / Issue #15)](./system-to-be/architectural-patterns.md):** Catálogo de padrões macro-estruturais (Modular Monolith, Clean Architecture, Domain Events) e táticos (Adapter, Composite, Strategy, Policy Resolver, Canonical DTO).
+6. **[Alternativas de Desenho e Racional com Modelos Visuais (1.3.2.6 / Issue #16)](./system-to-be/design-alternatives-and-rationale.md):** Análise comparativa de alternativas por sub-problema, Technical Memos formais (TM-01 a TM-03), avaliação de trade-offs e catálogo com espaços reservados para diagramas visuais (C4 e Kruchten 4+1).
+
+Adicionalmente, o planeamento operacional da equipa e a divisão de trabalho encontram-se detalhados em:
 * **[Planeamento e Divisão de Trabalho do System-to-Be](./system-to-be/system-to-be.md):** Distribuição dos três tópicos de desenvolvimento (Fontes, Notificações, Políticas) pelos 3 membros da equipa e desenho da bateria de testes funcionais e mutação PITest.
-* **[Relatório de Conclusão das Issues #11 e #13](./system-to-be/issues-11-13-completion-report.md):** Síntese detalhada do trabalho executado, rastreabilidade e critérios de aceitação cumpridos para fecho no GitHub Projects.

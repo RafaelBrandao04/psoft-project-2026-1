@@ -304,7 +304,7 @@ A documentação detalhada encontra-se organizada na pasta `Docs/`:
 
 * **Arquitetura (ARQSOFT):**
   * [Documentação Global ARQSOFT (Vistas C4 e 4+1)](Docs/ARQSOFT/arqsoft-documentation.md)
-  * [Engenharia Reversa do System-as-is](Docs/ARQSOFT/System-as-is/system-as-is.md)
+  * [Engenharia Reversa do System-as-is](Docs/ARQSOFT/system-as-is/system-as-is.md)
   * [Processo ADD e Decisões de Design (System-to-be)](Docs/ARQSOFT/system-to-be/add-process.md)
   * [Fatores Arquiteturais e ASRs](Docs/ARQSOFT/system-to-be/architectural-factors.md)
   * [Táticas Arquiteturais de Modificabilidade e Testabilidade](Docs/ARQSOFT/system-to-be/architectural-tactics.md)
