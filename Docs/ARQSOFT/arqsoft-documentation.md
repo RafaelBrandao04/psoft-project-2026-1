@@ -1,239 +1,79 @@
-# ARQSOFT — Documentação de Arquitetura (P1)
+# ARQSOFT — Documentação Global de Arquitetura (P1)
 
-> **Projeto Base:** `psoft-g1` — Sistema de Gestão de Biblioteca (LMS — *Library Management System*).  
-> **Unidade Curricular:** Arquitetura de Software (ARQSOFT), Mestrado em Engenharia Informática, ISEP.  
-> **Âmbito:** Engenharia Reversa do *System-as-is*, Levantamento de Vistas Arquiteturais segundo o modelo **C4 + 4+1 Views** (Kruchten / Brown), Especificação de ASRs e Táticas ADD.
+## 1. Enquadramento e Objetivos do Projeto (P1)
 
-Este documento consolida a descrição arquitetural completa do *system-as-is* do LMS, obtida por análise e engenharia reversa do código-fonte real. Segue a abordagem combinada de **4+1 Vistas de Kruchten** com os níveis de granularidade do **Modelo C4** (Nível 1 a Nível 4):
-* **Vista Arquitetural / Lógica (VA / VL)**: organização funcional, subsistemas, módulos de domínio e camadas internas.
-* **Vista de Implementação (VI)**: estrutura física do código-fonte, módulos de subdomínio, infraestrutura de persistência e pacotes Java.
-* **Mapeamento entre Vistas (*Manifestation*)**: rastreabilidade formal (`<<manifest>>`) entre conceitos lógicos e artefactos de implementação.
-* **Vista Física / Implantação (VF)**: topologia de nós e processos em execução.
-* **Vista de Processos (VP)**: realização dinâmica dos principais casos de uso através de diagramas de sequência.
-* **ASRs (*Architecturally Significant Requirements*) & ADD**: especificação de requisitos arquiteturais e mapeamento para táticas de desenho.
+### 1.1 Contexto
+Na fase anterior do projeto, foi desenvolvido o serviço backend orientado a REST do LMS (*Library Management System*), disponibilizando endpoints para gestão de:
+1. **Livros (*Books*)**
+2. **Géneros (*Genres*)**
+3. **Autores (*Authors*)**
+4. **Leitores (*Readers*)**
+5. **Empréstimos (*Lendings*)**
 
----
+### 1.2 Problemas Identificados no Sistema Base
+A análise do sistema herdado revelou três limitações arquiteturais críticas que impedem a sua evolução sustentável:
+1. **Extensibilidade (*Extensibility / Modifiability*):** Incapacidade de adicionar novos fornecedores ou canais sem alterar o código existente (violação do princípio *Open-Closed Principle* — OCP).
+2. **Configurabilidade (*Configurability*):** Ausência de parametrização em tempo de arranque (*setup time*) para seleção de adaptadores e ausência de mecanismos para calibrar políticas em tempo de execução (*runtime*).
+3. **Testabilidade (*Testability*):** Forte acoplamento a implementações e dependências externas, inviabilizando testes automatizados isolados, determinísticos e de alta cobertura de mutação.
 
-## 1. System-as-is: Vista Arquitetural / Lógica (VA)
-
-A Vista Arquitetural descreve a decomposição funcional e concetual do sistema, evidenciando as responsabilidades de negócio, os contratos de interface pública (*ball-and-socket*) e os limites de contexto segundo os princípios do *Domain-Driven Design* (DDD) e da *Clean Architecture*.
-
-### 1.1 Nível 1 — Sistema Global (C4 Context)
-
-No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
-
-![VA_N1.png](system-as-is/Vista%20Arquitetural/VA_N1.png)
-
-* **Interfaces Externas:**
-  * **`REST API` (Provided `()`):** Interface HTTP/JSON exposta aos clientes externos (leitores, bibliotecários, administradores) para todas as operações da biblioteca.
-  * **`NINJA API` (Required `)-`):** Interface externa consumida pelo LMS para obtenção de factos históricos e citações culturais.
+### 1.3 Objetivos Centrais de P1
+O Projeto 1 estrutura-se em torno de três grandes pilares do enunciado:
+* **1.3.1 Documenting:** Engenharia reversa do *System-as-is*, levantamento das vistas arquiteturais (C4 + 4+1 Vistas), especificação de ASRs e matriz de rastreabilidade.
+* **1.3.2 Adoption of ADD:** Aplicação formal do método *Attribute-Driven Design* (ADD 3.0), cobrindo requisitos, fatores, táticas, padrões, arquiteturas de referência e alternativas de desenho.
+* **1.3.3 Development:** Desenho e implementação de três novas capacidades (Informação Bibliográfica, Notificações a Leitores e Políticas de Empréstimo) acompanhadas de uma bateria rigorosa de testes funcionais e mutação.
 
 ---
 
-### 1.2 Nível 2 — Decomposição em Subsistemas (C4 Container)
+## 2. Mapa de Navegação da Documentação
 
-No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
+A documentação do projeto está organizada modularmente nas respetivas pastas temáticas:
 
-![VA_N2.png](system-as-is/Vista%20Arquitetural/VA_N2.png)
-
-* **Componentes:**
-  * **`Backend`:** Núcleo aplicacional responsável por toda a lógica de negócio, controlo de acessos, orquestração de serviços e disponibilização dos endpoints REST.
-  * **`DB`:** Repositório relacional persistente do sistema (servidor de base de dados H2).
-* **Conexões e Portas:**
-  * As portas na fronteira do `LMS` delegam o tráfego de entrada da `REST API` e a dependência de saída da `NINJA API` diretamente no componente `Backend`.
-  * A comunicação entre `Backend` e `DB` realiza-se através da interface **`BD API`** (o `Backend` consome os serviços de dados fornecidos pelo container `DB`).
-
----
-
-### 1.3 Nível 3 — Módulos de Domínio (Modular Monolith)
-
-No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais, adotando o padrão arquitetural **Modular Monolith** orientado por domínios (DDD).
-
-![VA_N3.png](system-as-is/Vista%20Arquitetural/VA_N3.png)
-
-* **Módulos de Domínio:**
-  * **`UserManagement Module`:** Gestão da identidade dos utilizadores, credenciais, palavras-passe e atribuição de perfis/autorizações (`ADMIN`, `LIBRARIAN`, `READER`).
-  * **`ReaderManagement Module`:** Gestão do ciclo de vida cadastral dos leitores, números de leitor, dados pessoais e preferências.
-  * **`BookManagement Module`:** Gestão do catálogo bibliográfico, títulos, ISBN, exemplares e associação a autores e géneros.
-  * **`AuthorManagement Module`:** Gestão dos autores, biografias e relacionamento com as respetivas obras.
-  * **`GenreManagement Module`:** Gestão da taxonomia de géneros literários e geração de estatísticas associadas.
-  * **`LendingManagement Module`:** Gestão de operações de empréstimo, devoluções, cálculo de prazos e apuramento de multas (*fines*).
-
-* **Interfaces Inter-Módulos (Ball-and-Socket):**
-  * **`USER API`:** Fornecida por `UserManagement`, consumida por `ReaderManagement` (um leitor herda e especializa a identidade de utilizador).
-  * **`Genre API`:** Fornecida por `GenreManagement`, consumida por `BookManagement` (classificação temática de livros) e por `LendingManagement` (métricas de empréstimo por género).
-  * **`Author API`:** Fornecida por `AuthorManagement`, consumida por `BookManagement` (autoria das obras).
-  * **`Book API`:** Fornecida por `BookManagement`, consumida por `LendingManagement` (validação de disponibilidade e requisição de exemplares).
-  * **`Reader API`:** Fornecida por `ReaderManagement`, consumida por `LendingManagement` (validação de leitor elegível e histórico).
-  * **`Lending API`:** Fornecida por `LendingManagement`, consumida por `ReaderManagement` (consulta do histórico de requisições de um leitor).
-  * **`NINJA API`:** Consumida exclusivamente pelo `ReaderManagement` (através de `ApiNinjasService` no detalhe de leitor).
-  * **`REST API`:** Encaminhada na fronteira para os controladores dos respetivos módulos de domínio.
-  * **`DB API`:** Canal lógico de persistência que assegura o armazenamento relacional das entidades de domínio.
+```
+Docs/ARQSOFT/
+├── arqsoft-documentation.md        <-- ÍNDICE MESTRE / RELATÓRIO GLOBAL (Este Documento)
+├── Enunciado - ARQSOFT.pdf         <-- Enunciado Oficial da Unidade Curricular
+│
+├── system-as-is/                   <-- 1.3.1 ENGENHARIA REVERSA DO SYSTEM-AS-IS
+│   ├── system-as-is.md             <-- Documentação Completa e Vistas Arquiteturais
+│   ├── Vista Arquitetural/         <-- Diagramas C4 Context, Container, Component, Class (N1 a N4)
+│   ├── Vista Implementação/        <-- Diagramas de Pacotes, Módulos e Artefactos (N1 a N4)
+│   ├── Manifestação/               <-- Diagramas de Rastreabilidade VA <-> VI (N3 e N4)
+│   ├── Vista Fisica/               <-- Diagramas de Topologia de Nós e Implantação (N1 e N2)
+│   └── Vista Processos/            <-- Diagramas de Sequência dos 4 Cenários de Referência
+│
+└── system-to-be/                   <-- 1.3.2 ADOÇÃO DE ADD & ARQUITETURA ALVO
+    ├── architectural-factors.md    <-- 1.3.2.1 Identificação e Classificação de Fatores (ASRs, FRs, TC, OL)
+    ├── add-process.md              <-- 1.3.2.2 Processo ADD 3.0 e Iterações de Desenho
+    ├── architectural-tactics.md    <-- 1.3.2.3 Seleção e Justificação de Táticas SEI
+    ├── reference-architectures.md  <-- 1.3.2.4 Análise e Seleção de Arquiteturas de Referência
+    ├── architectural-patterns.md   <-- 1.3.2.5 Catálogo de Padrões Arquiteturais e de Desenho
+    └── design-alternatives-and-rationale.md <-- 1.3.2.6 Alternativas de Desenho e Technical Memos
+```
 
 ---
 
-### 1.4 Nível 4 — Estrutura Interna de um Módulo (Clean Architecture)
+## 3. Síntese do System-as-is (1.3.1)
 
-No Nível 4, realiza-se o detalhe concetual interno de um módulo específico — **`UserManagement`** (`pt.psoft.g1.psoftg1.usermanagement`) — decompondo-o em 4 camadas concêntricas segundo o padrão **Clean Architecture / Onion Architecture**.
+O detalhe exaustivo de engenharia reversa encontra-se formalmente documentado em:
+👉 **[Documentação Completa do System-as-is](./system-as-is/system-as-is.md)**
 
-![VA_N4.png](system-as-is/Vista%20Arquitetural/VA_N4.png)
-
-* **Regras de Dependência e DIP:**
-  * As setas de dependência (`..>`) apontam estritamente de fora para dentro (*The Dependency Rule*). O modelo de domínio (`Enterprise Business Rules`) não conhece nenhuma classe ou framework exterior.
-  * O princípio da inversão de dependência (*DIP*) assegura que o adaptador de persistência `SpringDataUserRepository` implementa a interface `UserRepository` definida na camada aplicacional/domínio, desacoplando o núcleo de negócio dos detalhes tecnológicos da base de dados.
-
----
-
-## 2. System-as-is: Vista de Implementação (VI)
-
-A Vista de Implementação descreve a organização estática do código-fonte, das unidades de compilação, dos subsistemas de empacotamento e da infraestrutura tecnológica concreta.
-
-### 2.1 Nível 1 — Artefato Executável Global
-
-No Nível 1, a aplicação é empacotada num único artefato executável JAR gerado pelo Apache Maven (`psoft-g1-0.0.1-SNAPSHOT.jar`), incorporando o Spring Boot Starter e o servidor Tomcat embutido.
-
-![VI_N1.png](system-as-is/Vista%20Implementação/VI_N1.png)
-
-* O executável expõe os pontos de terminação HTTP (`REST API`) e consome a biblioteca de cliente WebClient para conexão à `NINJA API`.
+### Principais Características do Sistema Inicial
+* **Paradigma:** Monólito Modular (*Modular Monolith*) orientado a domínios de negócio (DDD).
+* **Camadas Internas:** Cada módulo de domínio (`bookmanagement`, `lendingmanagement`, `readermanagement`, `usermanagement`, etc.) adota internamente uma organização em camadas (`api`, `services`, `model`, `infrastructure/repositories`), isolando o núcleo de domínio de detalhes tecnológicos.
+* **Vistas Documentadas:**
+  * **Vista Arquitetural / Lógica (VA):** 4 níveis C4 detalhando portas de interface pública (*ball-and-socket*), limites de contexto e desacoplamento via DIP.
+  * **Vista de Implementação (VI):** Empacotamento Maven JAR, módulos de código Java e centralização técnica da `Persistência` (Spring Data JPA / Hibernate).
+  * **Mapeamento de Manifestação:** Relações formais `<<manifest>>` entre a VA e a VI nos Níveis 3 e 4.
+  * **Vista Física (VF):** Topologia de nós (`Server localhost`, `Client Workstation`, `Cloud Ninja API`).
+  * **Vista de Processos (VP):** Realização sequencial dos 4 cenários base (*Create Lending*, *Register Book*, *Return Lending*, *Top 5 Books Lent*).
 
 ---
 
-### 2.2 Nível 2 — Subsistemas de Implementação
+## 4. Requisitos de Significância Arquitetural (ASR) & Táticas ADD (1.3.1.2)
 
-No Nível 2, a arquitetura de implementação divide-se entre a base de código Java (`Backend`) e a unidade de gestão de dados relacional (`DB`).
+Em estrito cumprimento do **Tópico 1.3.1.2 do Enunciado (*Requirements, especially ASR*)**, esta secção detalha os requisitos funcionais primários e a especificação formal dos cenários de atributos de qualidade (*Quality Attribute Scenarios*) segundo a metodologia de referência do *Software Engineering Institute* (SEI — Bass, Clements, Kazman).
 
-![VI_N2.png](system-as-is/Vista%20Implementação/VI_N2.png)
-
-* O subsistema `Backend` acede ao subsistema `DB` através de ligações JDBC geridas pelo driver H2, satisfazendo a interface **`BD API`**.
-
----
-
-### 2.3 Nível 3 — Módulos de Subdomínio e Subsistema de Persistência
-
-No Nível 3, a base de código do `Backend` organiza-se em subsistemas de código correspondentes aos subdomínios funcionais e destaca o componente técnico de suporte transversal **`Persistência`**.
-
-![VI_N3.png](system-as-is/Vista%20Implementação/VI_N3.png)
-
-* **Componentes de Subdomínio (Código):**
-  * `UserManagement SubDomain Module` (`pt.psoft.g1.psoftg1.usermanagement`)
-  * `ReaderManagement SubDomain Module` (`pt.psoft.g1.psoftg1.readermanagement`)
-  * `BookManagement SubDomain Module` (`pt.psoft.g1.psoftg1.bookmanagement`)
-  * `AuthorManagement SubDomain Module` (`pt.psoft.g1.psoftg1.authormanagement`)
-  * `GenreManagement SubDomain Module` (`pt.psoft.g1.psoftg1.genremanagement`)
-  * `LendingManagement SubDomain Module` (`pt.psoft.g1.psoftg1.lendingmanagement`)
-
-* **Componente de Infraestrutura Técnica de Persistência:**
-  * **`Persistência`:** Centraliza a camada técnica partilhada de acesso a dados (configuração Spring Data JPA, `JpaConfig`, `EntityManagerFactory`, Hibernate ORM e repositórios concretos).
-  * Disponibiliza a interface **`Persistence API`**, consumida através de soquetes por todos os módulos de subdomínio, consolidando a ligação relacional à base de dados através da porta **`DB API`**.
-
----
-
-### 2.4 Nível 4 — Decomposição Física em Pacotes Java
-
-No Nível 4, a estrutura de implementação descreve a árvore física de pacotes e tipos Java de um módulo de subdomínio (exemplificado em `usermanagement`):
-
-![VI_N4.png](system-as-is/Vista%20Implementação/VI_N4.png)
-
----
-
-## 3. Mapeamento e Rastreabilidade entre Vistas (*Manifestation*)
-
-A rastreabilidade arquitetural assegura que cada conceito lógico abstrato da Vista Arquitetural encontra correspondência direta e inequívoca nos artefactos de software da Vista de Implementação através de relações `<<manifest>>`.
-
-### 3.1 Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3)
-
-O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógicos) com os módulos de código e com o subsistema técnico de persistência.
-
-![VA_to_VI_N3.png](system-as-is/Manifestação/VA_to_VI_N3.png)
-
-* **Racional Arquitetural:**
-  * Cada módulo de subdomínio na VI manifesta o seu módulo funcional correspondente na VA (`VI: UserManagement` $\xrightarrow{\text{<<manifest>>}}$ `VA: UserManagement`, etc.).
-  * O componente **`Persistência`** da VI manifesta a capacidade de persistência de **todos os módulos lógicos da VA**. Justifica como uma arquitetura monolítica modular partilha uma stack tecnológica comum de ORM e transações (Spring Data JPA / Hibernate) sem que cada módulo necessite de gerir uma base de dados autónoma.
-
-### 3.2 Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
-
-O mapeamento de Nível 4 correlaciona as 4 camadas concêntricas de *Clean Architecture* com os pacotes Java reais do módulo.
-
-![VA_to_VI_N4.png](system-as-is/Manifestação/VA_to_VI_N4.png)
-
-* `Frameworks & Drivers` $\leftarrow$ Configuração Spring Boot, `SecurityConfig`, `JpaConfig` e driver H2.
-* `Interface Adapters` $\leftarrow$ Pacotes `api` e `infrastructure.repositories.impl`.
-* `Enterprise Application Rules` $\leftarrow$ Pacote `services` e interfaces de `repositories`.
-* `Enterprise Business Rules` $\leftarrow$ Pacote `model`.
-
----
-
-## 4. System-as-is: Vista Física / Implantação (VF)
-
-A Vista Física (ou de Implantação) descreve a topologia de nós computacionais físicos/lógicos onde os subsistemas e artefactos de software executam em ambiente real ou de desenvolvimento.
-
-### 4.1 Nível 1
-No Nível 1, o sistema é representado no seu nó de execução de topo (*Server*), alojando o bloco concetual único do sistema de gestão de biblioteca (`<<C4System>> LMS`).
-
-![VF_N1.png](system-as-is/Vista%20Fisica/VF_N1.png)
-
-### 4.2 Nível 2
-No Nível 2, a topologia de implantação detalha os nós de execução físicos/lógicos, processos em execução, portas e canais de comunicação em tempo de execução:
-* **`Server (localhost)`:**
-  * **`JVM 17`:** Processo de execução da aplicação Spring Boot (`Backend`), escutando requisições REST na porta HTTP `8080`.
-  * **`H2 DBMS`:** Processo ou subsistema de base de dados relacional (`H2 Database`), acedido pelo Backend através do protocolo JDBC.
-  * **`Local Storage`:** Sistema de ficheiros local (`uploads-psoft-g1`) acedido via File I/O pelo Backend para armazenamento de fotografias de livros e utilizadores.
-* **`Client Workstation`:** Estação de trabalho do utilizador (leitor, bibliotecário), comunicando com o backend através de `HTTP/REST:8080` (ex.: Web Browser, Postman).
-* **`Cloud`:** Nó exterior de infraestrutura de serviços em nuvem alojando a **Ninja API**, consumida pelo backend através de ligação segura `HTTP/REST:443`.
-
-![VF_N2.png](system-as-is/Vista%20Fisica/VF_N2.png)
-
----
-
-## 5. System-as-is: Vista de Processos (VP)
-
-A realização dinâmica das operações é ilustrada através de diagramas de sequência para os quatro cenários de referência representativos do sistema.
-
-### 5.1 Cenário 1: Criar Empréstimo (*Create Lending*)
-Validação do leitor, verificação de limites ativos e empréstimos em mora (`LendingForbiddenException` $\rightarrow$ 403), consulta de disponibilidade da obra, apuramento do número sequencial anual e registo transacional do novo empréstimo.
-
-* **Nível 1:**  
-  ![VP_N1_CreateLending.png](system-as-is/Vista%20Processos/png/VP_N1_CreateLending.png)
-* **Nível 2:**  
-  ![VP_N2_CreateLending.png](system-as-is/Vista%20Processos/png/VP_N2_CreateLending.png)
-* **Nível 3:**  
-  ![VP_N3_CreateLending.png](system-as-is/Vista%20Processos/png/VP_N3_CreateLending.png)
-
-### 5.2 Cenário 2: Registar Livro (*Register Book*)
-Verificação de unicidade de ISBN (`ConflictException` $\rightarrow$ 409), validação de existência prévia de autores e género literário (`NotFoundException` $\rightarrow$ 404), instanciação da entidade de domínio e persistência transacional.
-
-* **Nível 1:**  
-  ![VP_N1_CreateBook.png](system-as-is/Vista%20Processos/png/VP_N1_CreateBook.png)
-* **Nível 2:**  
-  ![VP_N2_CreateBook.png](system-as-is/Vista%20Processos/png/VP_N2_CreateBook.png)
-* **Nível 3:**  
-  ![VP_N3_CreateBook.png](system-as-is/Vista%20Processos/png/VP_N3_CreateBook.png)
-
-### 5.3 Cenário 3: Devolver Empréstimo (*Return Lending*)
-Verificação de permissões do leitor autenticado, controle de concorrência otimista via cabeçalho HTTP `If-Match`, apuramento e criação condicional de multa por atraso (*Fine*) e atualização persistente do estado do empréstimo.
-
-* **Nível 1:**  
-  ![VP_N1_ReturnLending.png](system-as-is/Vista%20Processos/png/VP_N1_ReturnLending.png)
-* **Nível 2:**  
-  ![VP_N2_ReturnLending.png](system-as-is/Vista%20Processos/png/VP_N2_ReturnLending.png)
-* **Nível 3:**  
-  ![VP_N3_ReturnLending.png](system-as-is/Vista%20Processos/png/VP_N3_ReturnLending.png)
-
-### 5.4 Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
-Operação analítica paginada de leitura, demonstrando consulta otimizada no repositório com filtro temporal relativo ao último ano (`minusYears(1)`), projeção em DTO (`BookCountDTO`) e ausência de efeitos secundários de escrita.
-
-* **Nível 1:**  
-  ![VP_N1_Top5BooksLent.png](system-as-is/Vista%20Processos/png/VP_N1_Top5BooksLent.png)
-* **Nível 2:**  
-  ![VP_N2_Top5BooksLent.png](system-as-is/Vista%20Processos/png/VP_N2_Top5BooksLent.png)
-* **Nível 3:**  
-  ![VP_N3_Top5BooksLent.png](system-as-is/Vista%20Processos/png/VP_N3_Top5BooksLent.png)
-
----
-
-## 6. ASR (Architecturally Significant Requirements)
-
-### 6.1 Requisitos Funcionais Globais (FR)
+### 4.1 Requisitos Funcionais Globais (FR)
 
 * **FR01 – Gestão do Catálogo de Livros (*Books*):** Registar, editar, consultar e listar livros do catálogo (ISBN, título, autores, descrição, géneros literários).
 * **FR02 – Gestão de Autores e Géneros (*Authors & Genres*):** Manter o registo biográfico de autores e a taxonomia de géneros literários associados aos livros.
@@ -245,22 +85,22 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 
 ---
 
-### 6.2 Especificação dos ASRs (*Quality Attribute Scenarios*)
+### 4.2 Especificação Formal dos ASRs (*Quality Attribute Scenarios*)
 
 #### ASR01: Extensibilidade de Fontes Bibliográficas
 * **Atributo de Qualidade:** Modificabilidade (*Modifiability / Extensibility*)
-* **Estímulo:** Necessidade de suportar um novo fornecedor de metadados bibliográficos (ex.: Worldcat, Biblioteca Nacional).
+* **Estímulo:** Necessidade de suportar um novo fornecedor de metadados bibliográficos (ex.: WorldCat, Biblioteca Nacional).
 * **Fonte do Estímulo:** Equipa de desenvolvimento / Operações.
 * **Ambiente:** Tempo de desenho/desenvolvimento (*Design time*).
 * **Artefacto:** Módulo de integração bibliográfica / Serviços externos.
 * **Resposta:** O novo fornecedor é adicionado através de uma nova implementação de interface (*Adapter/Gateway*), sem alterar a lógica de negócio principal nem as fontes existentes.
 * **Medida de Resposta:**
   * Custo/esforço de implementação reduzido (impacto isolado numa única classe/pacote);
-  * Zero alterações ao código do domínio ou de apresentação (princípio Aberto/Fechado - OCP).
+  * Zero alterações ao código do domínio ou de apresentação (princípio Aberto/Fechado — OCP).
 
 ---
 
-#### ASR02: Configurabilidade de Provedores em *Setup Time*
+#### ASR02: Configurabilidade de Provedores em Setup Time
 * **Atributo de Qualidade:** Configurabilidade (*Configurability*)
 * **Estímulo:** O operador/administrador pretende ativar um ou múltiplos fornecedores de informação bibliográfica ou canais de notificação no arranque do serviço.
 * **Fonte do Estímulo:** Administrador de sistemas / DevOps.
@@ -282,11 +122,11 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 * **Resposta:** O sistema despacha a notificação para todos os canais configurados de forma desacoplada do fluxo principal de empréstimo.
 * **Medida de Resposta:**
   * A introdução de um canal adicional (ex.: Slack/Push) não afeta a lógica do subdomínio `Lendings`;
-  * Canais podem ser ativados individualmente ou em conjunto via configuração.
+  * Canais podem ser ativados individualmente ou em conjunto via configuração externa.
 
 ---
 
-#### ASR04: Seleção Dinâmica de Políticas de Empréstimo em *Runtime*
+#### ASR04: Seleção Dinâmica de Políticas de Empréstimo em Runtime
 * **Atributo de Qualidade:** Flexibilidade de Negócio / Configurabilidade em *Runtime*
 * **Estímulo:** Um leitor solicita um empréstimo e o sistema tem de determinar as regras aplicáveis (prazos, limites) de acordo com o contexto do leitor/livro.
 * **Fonte do Estímulo:** Pedido de empréstimo vindo de um leitor.
@@ -303,12 +143,12 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 * **Atributo de Qualidade:** Testabilidade (*Testability*)
 * **Estímulo:** Realização de bateria de testes automatizados (unidade, domínio transparente, mutação, integração e sistema) sobre as novas funcionalidades.
 * **Fonte do Estímulo:** Pipeline de CI/CD ou comando local de desenvolvimento (`mvn test`).
-* **Ambiente:** Tempo de build / Teste automatizado.
+* **Ambiente:** Tempo de build / Teste automatizado hermético.
 * **Artefacto:** Conjunto de testes automatizados e arquitetura de classes.
 * **Resposta:** A arquitetura desacoplada permite testar as regras de domínio e as políticas isoladamente, simular/mockar os serviços externos (Google Books, gateways de email/SMS) e validar caixas opacas e transparentes com testes de mutação representativos.
 * **Medida de Resposta:**
   * As classes de domínio são 100% testáveis sem necessidade de arrancar contexto Spring ou base de dados;
-  * Alta taxa de mutantes mortos (*mutation test score*) nas classes críticas de negócio;
+  * Alta taxa de mutantes mortos (*mutation test score* $\ge 60\%$) nas classes críticas de negócio;
   * Testes de integração ($SUT = \text{controller} + \text{service} + \text{gateways}$) executam de forma determinística utilizando mocks/stubs para as APIs externas.
 
 ---
@@ -318,7 +158,7 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 * **Estímulo:** Falha temporária, latência excessiva (*timeout*) ou resposta de erro HTTP (ex.: 503 *Service Unavailable*) por parte de uma API externa (Google Books, Open Library, gateway SMS ou Webhook).
 * **Fonte do Estímulo:** Fornecedores de serviços externos na cloud ou rede pública.
 * **Ambiente:** Tempo de execução normal (*Runtime*).
-* **Artefacto:** Módulos de integração externa (`bookmanagement.infrastructure.gateways`, `readermanagement.notifications`).
+* **Artefacto:** Módulos de integração externa (`bookmanagement.infrastructure.gateways`, `readermanagement.infrastructure.notifications`).
 * **Resposta:**
   * No caso das fontes bibliográficas, o sistema ativa uma cadeia de contingência (*fallback*), consultando a fonte alternativa configurada sem propagar erro ao utilizador;
   * No caso das notificações, a falha no envio para um canal é registada em log de forma isolada, não abortando os restantes canais configurados nem provocando *rollback* da transação de empréstimo na base de dados.
@@ -342,30 +182,77 @@ Operação analítica paginada de leitura, demonstrando consulta otimizada no re
 
 ---
 
-### 6.3 Mapeamento para Táticas Arquiteturais (ADD)
+### 4.3 Mapeamento para Táticas Arquiteturais (ADD)
 
-| ASR | Atributo de Qualidade | Tática Arquitetural (SEI / ADD) | Padrão / Solução Concreta |
-| :--- | :--- | :--- | :--- |
-| **ASR01** | Modificabilidade | *Abstract Common Services* / *Maintain Abstract Interfaces* | Padrão **Adapter** e **Gateway/Repository** para as APIs externas (Google Books, Open Library). |
-| **ASR02** | Configurabilidade | *Defer Binding Time* / *Configuration Files* | Injeção condicional no Spring (`@ConditionalOnProperty`, `@ConfigurationProperties`). |
-| **ASR03** | Modificabilidade | *Publish-Subscribe* / *Separate Concerns* | Padrão **Observer / Domain Events** combinado com o padrão **Composite** para múltiplos canais. |
-| **ASR04** | Configurabilidade / Modificabilidade | *Defer Binding Time* / *Use an Intermediary* | Padrão **Strategy** em conjunto com **Factory / Specification** para resolução das políticas em runtime. |
-| **ASR05** | Testabilidade | *Specialized Interfaces* / *Record/Playback* | Inversão de Controlo (IoC), Injeção de Dependências e Mocks para componentes externos. |
-| **ASR06** | Fiabilidade / Resiliência | *Degradation / Fallback* / *Fault Isolation* | Padrão **Composite / Fallback Chain** e blocos de tratamento resiliente no listener de eventos. |
-| **ASR07** | Desempenho / Concorrência | *Asynchronous Event Processing* / *Introduce Concurrency* | Desacoplamento temporal através do `ApplicationEventPublisher` do Spring e execução assíncrona. |
+| ID | Atributo de Qualidade | Tática Arquitetural (SEI / ADD) | Padrão / Solução Concreta | Rastreabilidade no To-Be |
+| :--- | :--- | :--- | :--- | :--- |
+| **ASR01** | **Modificabilidade** | *Abstract Common Services* / *Maintain Abstract Interfaces* | Padrão **Adapter** e **Gateway** com modelo de dados canónico (`BookDetailsDTO`). | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
+| **ASR02** | **Configurabilidade** | *Defer Binding Time* / *Configuration Files* | Injeção condicional no Spring (`@ConditionalOnProperty`, `@ConfigurationProperties`). | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
+| **ASR03** | **Modificabilidade** | *Publish-Subscribe* / *Separate Concerns* | Padrão **Observer / Domain Events** com despachador multicanal **Composite**. | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
+| **ASR04** | **Configurabilidade / Modificabilidade** | *Defer Binding Time* / *Use an Intermediary* | Padrão **Strategy** com **Policy Resolver / Factory** dinâmico e propriedades externas. | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
+| **ASR05** | **Testabilidade** | *Specialized Interfaces* / *Record-Playback* | Inversão de Controlo (IoC), Injeção de Dependências e Mocks para componentes externos. | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
+| **ASR06** | **Fiabilidade / Resiliência** | *Fault Isolation* / *Degradation & Fallback* | Padrão **Composite / Fallback Chain** e isolamento nos listeners de eventos. | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
+| **ASR07** | **Desempenho / Concorrência** | *Asynchronous Event Processing* / *Introduce Concurrency* | Desacoplamento temporal através do `ApplicationEventPublisher` do Spring. | [architectural-tactics.md](./system-to-be/architectural-tactics.md) |
 
 ---
 
-### 6.4 Rastreabilidade com a Arquitetura Alvo (*System-to-Be*)
+## 5. Índice dos Artefactos do Processo ADD 3.0 (1.3.2)
 
-A especificação completa do processo **ADD 3.0** e o detalhe das decisões de desenho arquitetural encontram-se documentados nos artefactos dedicados da pasta `system-to-be`, correspondentes às 6 secções estipuladas no **Tópico 1.3.2 do Enunciado**:
+O desenho da arquitetura alvo (*System-to-Be*) seguiu as diretrizes metodológicas do *Attribute-Driven Design 3.0* do SEI:
 
-1. **[Identificação e Classificação de Fatores Arquiteturais (1.3.2.1 / Issue #11)](./system-to-be/architectural-factors.md):** Levantamento exaustivo dos requisitos funcionais (`FR01-FR04`), cenários de atributos de qualidade (`ASR01-ASR07`), restrições técnicas (`TC01-TC05`), limitações organizacionais (`OL01-OL04`) e matriz de priorização do ADD.
-2. **[Execução do Processo ADD 3.0 e Iterações de Desenho (1.3.2.2 / Issue #12)](./system-to-be/add-process.md):** Execução formal dos Passos 1 a 7 do ADD para as três iterações do sistema (Fontes Bibliográficas, Notificações Multicanal e Políticas de Empréstimo).
-3. **[Seleção de Táticas Arquiteturais (1.3.2.3 / Issue #13)](./system-to-be/architectural-tactics.md):** Catálogo formal de táticas SEI selecionadas, matriz de rastreabilidade completa e análise de *trade-offs*.
-4. **[Arquiteturas de Referência (1.3.2.4 / Issue #14)](./system-to-be/reference-architectures.md):** Análise de arquétipos candidatos (MSA vs. Monólito Tradicional vs. Monólito Modular DDD com Clean Architecture) e caracterização da arquitetura de referência adotada.
-5. **[Padrões Arquiteturais e de Desenho (1.3.2.5 / Issue #15)](./system-to-be/architectural-patterns.md):** Catálogo de padrões macro-estruturais (Modular Monolith, Clean Architecture, Domain Events) e táticos (Adapter, Composite, Strategy, Policy Resolver, Canonical DTO).
-6. **[Alternativas de Desenho e Racional com Modelos Visuais (1.3.2.6 / Issue #16)](./system-to-be/design-alternatives-and-rationale.md):** Análise comparativa de alternativas por sub-problema, Technical Memos formais (TM-01 a TM-03), avaliação de trade-offs e catálogo com espaços reservados para diagramas visuais (C4 e Kruchten 4+1).
+1. **[1.3.2.1 Identificação e Classificação de Fatores Arquiteturais](./system-to-be/architectural-factors.md):**  
+   Levantamento estruturado dos requisitos funcionais (`FR01-FR04`), cenários de atributos de qualidade (`ASR01-ASR07`), restrições técnicas (`TC01-TC05`), limitações organizacionais (`OL01-OL04`) e matriz de priorização de importância vs. dificuldade técnica.
 
-Adicionalmente, o planeamento operacional da equipa e a divisão de trabalho encontram-se detalhados em:
-* **[Planeamento e Divisão de Trabalho do System-to-Be](./system-to-be/system-to-be.md):** Distribuição dos três tópicos de desenvolvimento (Fontes, Notificações, Políticas) pelos 3 membros da equipa e desenho da bateria de testes funcionais e mutação PITest.
+2. **[1.3.2.2 Execução do Processo ADD 3.0 e Iterações de Desenho](./system-to-be/add-process.md):**  
+   Documentação formal dos 7 passos do ADD ao longo de 3 iterações:
+   * *Iteração 1:* Módulo de Integração de Informação Bibliográfica Heterogénea.
+   * *Iteração 2:* Módulo de Notificações Multicanal Desacopladas por Eventos.
+   * *Iteração 3:* Mecanismo Dinâmico de Resolução de Políticas de Empréstimo.
+
+3. **[1.3.2.3 Seleção e Justificação de Táticas Arquiteturais](./system-to-be/architectural-tactics.md):**  
+   Catálogo das táticas SEI selecionadas para cada atributo de qualidade (Modificabilidade, Configurabilidade, Testabilidade, Fiabilidade, Desempenho) e análise formal de *trade-offs*.
+
+4. **[1.3.2.4 Arquiteturas de Referência](./system-to-be/reference-architectures.md):**  
+   Estudo comparativo entre três arquétipos candidatos (Monólito Tradicional vs. Arquitetura de Microsserviços vs. Monólito Modular DDD com Clean Architecture) e justificação técnica da arquitetura adotada.
+
+5. **[1.3.2.5 Padrões Arquiteturais e de Desenho](./system-to-be/architectural-patterns.md):**  
+   Catálogo formal de padrões macro-arquiteturais (Modular Monolith, Onion Architecture, Event-Driven Architecture) e padrões de desenho GOF/PoEAA (Adapter, Composite, Strategy, Factory, Canonical Data Model).
+
+6. **[1.3.2.6 Alternativas de Desenho e Racional com Modelos Visuais](./system-to-be/design-alternatives-and-rationale.md):**  
+   Análise sistemática de alternativas por subproblema, Technical Memos formais (TM-01 a TM-03), matrizes de decisão ponderadas e catálogo de diagramas visuais C4 e 4+1 para a arquitetura alvo.
+
+---
+
+## 6. Matriz Global de Rastreabilidade e Consistência (1.3.1.4)
+
+A matriz seguinte assegura a rastreabilidade e consistência bidirecional entre requisitos, decisões de desenho, modelos arquiteturais e a solução implementada:
+
+| Requisito / Problema | ASR | Decisão Arquitetural (ADD) | Padrões de Desenho | Artefactos / Módulos de Código | Modelos Visuais Associados |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **1.3.3.1 Fontes Bibliográficas** | ASR01, ASR02, ASR05, ASR06 | Desacoplamento via portas e adaptadores; agregação com fallback; ativação condicional em setup time. | **Adapter**, **Gateway**, **Composite / Chain**, **Canonical DTO** | `BookInfoProvider`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig` | C4 Component (N3) do `bookmanagement`; Diagrama de Sequência de Consulta Externa |
+| **1.3.3.2 Notificações a Leitores** | ASR02, ASR03, ASR07 | Publicação orientada a eventos de domínio; despachador multicanal assíncrono; ativação por propriedades. | **Observer / Domain Events**, **Strategy**, **Composite** | `LendingCreatedEvent`, `LendingReturnedEvent`, `NotificationSender`, `CompositeNotificationSender`, `NotificationConfig` | C4 Component (N3) do `readermanagement`; Diagrama de Sequência de Despacho de Eventos |
+| **1.3.3.3 Políticas de Empréstimo** | ASR02, ASR04, ASR05 | Encapsulamento de regras variáveis em estratégias polimórficas; resolução dinâmica em runtime; propriedades tipadas. | **Strategy**, **Policy Resolver / Factory**, **Specification** | `LendingPolicy`, `StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyProperties` | C4 Class/Design (N4) de `lendingmanagement`; Diagrama de Classes de Políticas |
+| **1.3.3.4 Testes Automatizados** | ASR05 | Arquitetura hermética e inversão de controlo para injeção de mocks/stubs em todos os níveis de teste. | **Inversion of Control (IoC)**, **Dependency Injection** | Testes de unidade, Transparent-box de domínio, PITest Mutation, `@SpringBootTest`, `SystemEndToEndTest` | Rastreabilidade formal em `architectural-factors.md` e suítes de teste em `src/test/java` |
+
+---
+
+## 7. Metas de Desenvolvimento e Automação de Testes (1.3.3)
+
+O desenvolvimento das novas funcionalidades (Tópico 1.3.3) e da respetiva verificação automatizada obedece rigorosamente aos seguintes padrões de qualidade:
+
+1. **Informação Bibliográfica (1.3.3.1):**
+   * Suporte obrigatório às APIs do **Google Books** e do **Open Library**.
+   * Normalização dos modelos de dados díspares num modelo canónico comum.
+   * Suporte à seleção por configuração de fontes únicas ou combinadas com mecanismo de fallback resiliente.
+2. **Notificações a Leitores (1.3.3.2):**
+   * Suporte a envio via **Email**, **SMS** e **Webhook**, operando isoladamente ou em qualquer combinação.
+   * Total desacoplamento entre o fluxo de empréstimo e os canais de transmissão através de eventos assíncronos.
+3. **Políticas de Empréstimo (1.3.3.3):**
+   * Parametrização externa de limiares (prazos, tolerâncias, limites de livros, multas) em ficheiro de configuração sem alterar código.
+   * Avaliação dinâmica da política elegível em tempo de execução com base no contexto do pedido.
+4. **Bateria de Testes Automatizados (1.3.3.4):**
+   * **Opaque-box com SUT = classes:** Testes unitários com partições de equivalência e análise de valores limite (BVA).
+   * **Transparent-box com SUT = domain classes:** Cobertura de ramos estruturais ($\ge 70\%$) nas entidades e regras de domínio.
+   * **Mutation tests com SUT = classes:** Execução do PITest atingindo taxa de mutantes mortos $\ge 60\%$.
+   * **Opaque-box com SUT = controller + service + gateways:** Testes de integração vertical determinísticos e offline com mocks.
+   * **Opaque-box com SUT = system:** Teste de sistema de ponta a ponta (*End-to-End*) validando o percurso completo da aplicação.

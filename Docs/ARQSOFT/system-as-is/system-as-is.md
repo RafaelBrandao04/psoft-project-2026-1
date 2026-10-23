@@ -1,103 +1,70 @@
-# Análise Arquitetural do Sistema — System-As-Is
+# ARQSOFT — Engenharia Reversa do System-as-is
 
-> **Projeto de Arquitetura de Software** · Análise do projeto `psoft-project-2024-g1`
+## 1. Enquadramento e Visão Geral
 
----
+Este documento consolida a descrição e análise arquitetural completa do **System-as-is** da aplicação LMS, obtida por engenharia reversa do código-fonte do projeto base. 
 
-## Objetivo
-Este documento apresenta uma visão geral da estrutura arquitetural do projeto, identificando os principais módulos, componentes, camadas, tecnologias, relações e alguns aspetos relevantes para uma análise de Engenharia de Software e Arquitetura de Software.
-
-## Classificação arquitetural
-O sistema pode ser caracterizado principalmente como um **Monólito Modular**, organizado por domínios funcionais. No interior dos módulos é utilizada uma organização em camadas, combinada com princípios associados a **Domain-Driven Design (DDD)**, nomeadamente através da representação explícita de conceitos do domínio e da separação entre domínio, serviços, API, persistência e infraestrutura.
-
----
-
-## 1. Visão geral do sistema
-A aplicação é um backend REST desenvolvido em Java com Spring Boot. Não é identificada uma aplicação frontend integrada no projeto; a interação com o sistema é realizada através da API REST, podendo ser utilizada, por exemplo, através do Postman.
-
-Em termos conceptuais, o sistema pode ser representado da seguinte forma:
-
-```
-CLIENTE / REST
-      ↓
-Spring Boot / REST API
-      ↓
-Controllers
-      ↓
-Services / Lógica de negócio
-      ↓
-Domain Model + Repositories
-      ↓
-Spring Data JPA / Hibernate
-      ↓
-H2 Database
-```
-
-Ao lado desta estrutura existem preocupações transversais, como autenticação, autorização, armazenamento de ficheiros, tratamento de exceções e funcionalidades partilhadas. Existe também uma integração com um serviço externo.
+A documentação segue a abordagem combinada do modelo **4+1 Vistas de Kruchten** com os níveis de granularidade do **Modelo C4** (Nível 1 — Sistema/Contexto a Nível 4 — Código/Classes):
+* **Vista Arquitetural / Lógica (VA / VL):** Organização funcional, subsistemas, módulos de domínio e camadas internas.
+* **Vista de Implementação (VI):** Estrutura física do código-fonte, módulos de subdomínio, infraestrutura de persistência e pacotes Java.
+* **Mapeamento entre Vistas (*Manifestation*):** Rastreabilidade formal (`<<manifest>>`) entre conceitos lógicos abstratos e artefactos de implementação.
+* **Vista Física / Implantação (VF):** Topologia de nós computacionais e processos em execução.
+* **Vista de Processos (VP):** Realização dinâmica dos principais cenários de negócio através de diagramas de sequência.
 
 ---
 
-## 2. Estrutura global do projeto
+## 2. Caracterização Arquitetural Global
+
+### 2.1 Paradigma Arquitetural
+* **Monólito Modular (*Modular Monolith*):** Todos os módulos fazem parte da mesma aplicação e do mesmo processo de execução (`JVM 17`), encontrando-se organizados por domínios funcionais.
+* **Organização em Camadas:** No interior dos módulos é utilizada uma organização em camadas, combinada com princípios associados a **Domain-Driven Design (DDD)**, nomeadamente através da separação entre API, serviços, domínio, repositórios e infraestrutura, promovendo o isolamento da lógica de negócio relativamente aos detalhes tecnológicos.
+* **Domain-Driven Design (DDD):** Representação explícita de conceitos do domínio através de entidades e *value objects* específicos, com limites de agregados bem definidos.
+* **Comunicação REST:** A interação externa é realizada através de endpoints HTTP disponibilizados pela aplicação.
+
+### 2.2 Estrutura de Pacotes da Aplicação
 
 ```
 pt.psoft.g1.psoftg1
-├── authormanagement
-├── bookmanagement
-├── genremanagement
-├── lendingmanagement
-├── readermanagement
-├── usermanagement
-├── auth
-├── shared
-├── external
-├── bootstrapping
-├── configuration
-└── exceptions
+├── authormanagement          # Gestão de autores e respetiva bibliografia
+├── bookmanagement            # Catálogo de livros, ISBN, títulos e exemplares
+├── genremanagement           # Taxonomia de géneros literários e métricas
+├── lendingmanagement         # Operações de empréstimo, devoluções e multas
+├── readermanagement          # Registo e ciclo de vida cadastral de leitores
+├── usermanagement            # Identidade de utilizadores, credenciais e perfis
+├── auth                      # Autenticação e gestão de tokens JWT
+├── shared                    # Value objects e utilitários transversais partilhados
+├── external                  # Serviços de integração externa (ApiNinjas)
+├── bootstrapping             # Povoamento e inicialização de dados
+├── configuration             # Configurações Spring e propriedades da aplicação
+└── exceptions                # Hierarquia centralizada de exceções de negócio e HTTP
 ```
 
-A organização é sobretudo orientada a funcionalidades/domínios (*Package-by-Feature*). Cada domínio mantém no seu interior as classes relacionadas com a respetiva responsabilidade, em vez de concentrar todos os controllers, services e repositories em diretórios globais.
-
-| Módulo | Responsabilidade principal |
-| :--- | :--- |
-| **`bookmanagement`** | Gestão de livros, ISBN, títulos, descrições e operações relacionadas. |
-| **`authormanagement`** | Gestão de autores e informação associada. |
-| **`genremanagement`** | Gestão de géneros e respetivas estatísticas. |
-| **`readermanagement`** | Gestão dos leitores, dados pessoais e informação estatística. |
-| **`lendingmanagement`** | Gestão de empréstimos, devoluções e multas. |
-| **`usermanagement`** | Gestão de utilizadores, papéis e informação de identidade. |
-| **`auth`** | Autenticação e emissão/validação de credenciais. |
-| **`shared`** | Funcionalidades e conceitos transversais reutilizados por vários módulos. |
-| **`external`** | Integrações com serviços externos. |
-| **`bootstrapping`** | Inicialização e população de dados. |
-| **`configuration`** | Configuração da aplicação e regras configuráveis. |
-| **`exceptions`** | Exceções e tratamento centralizado de erros. |
-
----
-
-## 3. Organização interna dos módulos
-Os principais módulos apresentam uma estrutura interna semelhante, promovendo uma separação entre exposição da API, lógica de aplicação, modelo de domínio, abstração de persistência e implementações de infraestrutura.
+### 2.3 Organização Interna dos Módulos (Camadas)
+Cada módulo funcional implementa a seguinte estrutura interna de pacotes:
 
 ```
-bookmanagement/
-├── api/
-├── model/
-├── services/
-├── repositories/
-└── infrastructure/
+<module>/
+├── api/              # Controllers REST, DTOs de entrada/saída (Request/Response) e Views
+├── model/            # Entidades de domínio, Value Objects, validações de negócio
+├── services/         # Interfaces e implementações dos serviços aplicacionais
+├── repositories/     # Abstrações e interfaces dos repositórios (Portas)
+└── infrastructure/   # Adaptadores Spring Data JPA, configurações específicas e repositórios concretos
 ```
 
-* **`api`** — contém controllers, views e objetos de entrada/saída utilizados na comunicação REST.
-* **`services`** — concentra operações e lógica de aplicação/negócio, incluindo pedidos e consultas.
-* **`model`** — representa conceitos do domínio, incluindo entidades e value objects.
-* **`repositories`** — define abstrações para acesso aos dados.
-* **`infrastructure`** — contém implementações tecnológicas concretas, como adaptadores baseados em Spring Data.
+### 2.4 Modelo de Domínio Concetual (DDD)
 
----
+O domínio da aplicação é centrado na gestão operacional de uma biblioteca. O modelo distingue claramente **Entidades** (com ciclo de vida e identidade persistente própria) e **Value Objects** imutáveis que encapsulam regras de validação de dados, evitando a proliferação de tipos primitivos genéricos (*Primitive Obsession*).
 
-## 4. Modelo de domínio
-O domínio da aplicação é centrado numa biblioteca. Entre os principais conceitos encontram-se `Book`, `Author`, `Genre`, `Reader`, `Lending` e `Fine`. Existem também value objects específicos, como `Isbn`, `Title`, `Description`, `Name`, `BirthDate`, `PhoneNumber` e `EmailAddress`.
+#### Principais Entidades e Agregados
+* **`Book`:** Representa uma obra literária no catálogo, identificada unicamente pelo seu ISBN, agregando título, descrição, associação obrigatória a autores e a um género literário.
+* **`Author`:** Representa um autor literário, mantendo biografia e relacionamento com as obras publicadas.
+* **`Genre`:** Representa a taxonomia de géneros literários, mantendo métricas e contagem agregada de obras associadas.
+* **`Reader`:** Representa o leitor cadastrado na biblioteca, possuindo um número sequencial anual (`ReaderNumber`), dados pessoais de contacto, preferências e histórico de requisições.
+* **`Lending`:** Representa a transação de empréstimo de um livro a um leitor, gerindo o ciclo de vida operacional (criação, data prevista de devolução, devolução efetiva, apuramento de atraso).
+* **`Fine`:** Representa a sanção financeira associada a empréstimos devolvidos com atraso em relação à data limite.
+* **`User`:** Representa a identidade, credenciais e perfis de segurança (`ADMIN`, `LIBRARIAN`, `READER`).
 
-A existência destes objetos específicos permite representar conceitos do domínio de forma mais explícita do que através de tipos genéricos como `String` ou `Integer` em todas as situações.
+#### Relações Concetuais de Negócio
 
 ```
 Reader ─────────── Lending ─────────── Book
@@ -107,159 +74,257 @@ Reader ─────────── Lending ──────────�
 
 ---
 
-## 5. Principais módulos funcionais
+## 3. Vista Arquitetural / Lógica (VA)
 
-### 5.1 Book Management
-Responsável pela gestão de livros. Inclui `Book`, `Isbn`, `Title` e `Description`, bem como controllers, serviços, pedidos, consultas, views e repositories.
+A Vista Arquitetural descreve a decomposição funcional e concetual do sistema, evidenciando as responsabilidades de negócio, os contratos de interface pública (*ball-and-socket*) e os limites de contexto.
 
-### 5.2 Author Management
-Responsável pelos autores e respetiva informação. Inclui operações de gestão e funcionalidades relacionadas com livros, coautores e estatísticas.
+### 3.1 Nível 1 — Sistema Global (C4 Context)
 
-### 5.3 Genre Management
-Responsável pelos géneros literários e por informação estatística relacionada com empréstimos e quantidade de livros.
+No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
-### 5.4 Reader Management
-Responsável pelos leitores, incluindo `Reader`, `ReaderNumber`, `EmailAddress`, `PhoneNumber` e `BirthDate`, bem como informação e operações estatísticas relacionadas com empréstimos.
+![VA_N1.png](Vista%20Arquitetural/VA_N1.png)
 
-### 5.5 Lending Management
-Responsável pelos empréstimos e devoluções. Inclui `Lending`, `LendingNumber`, `Fine`, pedidos para criar empréstimos e marcar devoluções, e pesquisas de empréstimos.
-
-### 5.6 User Management e Authentication
-O `User Management` trata da identidade dos utilizadores e dos papéis, incluindo `Reader` e `Librarian`. O módulo de autenticação (`auth`) integra-se com Spring Security e JWT para autenticação e autorização.
+* **Interfaces Externas:**
+  * **`REST API` (Provided `()`):** Interface HTTP/JSON exposta aos clientes externos (leitores, bibliotecários, administradores) para todas as operações da biblioteca.
+  * **`NINJA API` (Required `)-`):** Interface externa consumida pelo LMS para obtenção de factos históricos e citações culturais.
 
 ---
 
-## 6. Fluxo arquitetural típico
+### 3.2 Nível 2 — Decomposição em Subsistemas (C4 Container)
 
-```
-HTTP Request
-     ↓
-Controller / API
-     ↓
-Service
-     ↓
-Domain Model / regras de negócio
-     ↓
-Repository
-     ↓
-Spring Data / Hibernate
-     ↓
-H2 Database
-```
+No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
-O controller funciona como ponto de entrada da API. O serviço coordena a operação e as regras necessárias. O repository abstrai o acesso aos dados, sendo a implementação concreta fornecida pela infraestrutura tecnológica.
+![VA_N2.png](Vista%20Arquitetural/VA_N2.png)
+
+* **Componentes:**
+  * **`Backend`:** Núcleo aplicacional responsável por toda a lógica de negócio, controlo de acessos, orquestração de serviços e disponibilização dos endpoints REST.
+  * **`DB`:** Repositório relacional persistente do sistema (servidor de base de dados H2).
+* **Conexões e Portas:**
+  * As portas na fronteira do `LMS` delegam o tráfego de entrada da `REST API` e a dependência de saída da `NINJA API` diretamente no componente `Backend`.
+  * A comunicação entre `Backend` e `DB` realiza-se através da interface **`BD API`** (o `Backend` consome os serviços de dados fornecidos pelo container `DB`).
 
 ---
 
-## 7. Persistência e infraestrutura
-A persistência utiliza Spring Data JPA e Hibernate sobre uma base de dados H2. Os repositories do domínio são separados das implementações tecnológicas existentes na infraestrutura.
+### 3.3 Nível 3 — Módulos de Domínio (Modular Monolith)
 
-Esta separação permite reduzir o acoplamento direto dos serviços relativamente à tecnologia de persistência e facilita a identificação dos pontos onde a infraestrutura pode ser substituída.
+No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais, adotando o padrão arquitetural **Modular Monolith** orientado por domínios (DDD).
 
----
+![VA_N3.png](Vista%20Arquitetural/VA_N3.png)
 
-## 8. Segurança
-O projeto utiliza Spring Security, JWT e papéis de utilizador, distinguindo pelo menos os perfis `READER` e `LIBRARIAN`. O fluxo conceptual é:
+* **Módulos de Domínio:**
+  * **`UserManagement Module`:** Gestão da identidade dos utilizadores, credenciais, palavras-passe e atribuição de perfis/autorizações (`ADMIN`, `LIBRARIAN`, `READER`).
+  * **`ReaderManagement Module`:** Gestão do ciclo de vida cadastral dos leitores, números de leitor, dados pessoais e preferências.
+  * **`BookManagement Module`:** Gestão do catálogo bibliográfico, títulos, ISBN, exemplares e associação a autores e géneros.
+  * **`AuthorManagement Module`:** Gestão dos autores, biografias e relacionamento com as respetivas obras.
+  * **`GenreManagement Module`:** Gestão da taxonomia de géneros literários e geração de estatísticas associadas.
+  * **`LendingManagement Module`:** Gestão de operações de empréstimo, devoluções, cálculo de prazos e apuramento de multas (*fines*).
 
-```
-Credenciais → Autenticação → JWT → Pedido REST com Bearer Token → Spring Security → Autorização por Papel
-```
-
----
-
-## 9. Funcionalidades transversais
-O módulo `shared` concentra conceitos e serviços reutilizáveis, incluindo funcionalidades associadas a fotografias, armazenamento de ficheiros, concorrência, nomes e outras utilidades. Existe ainda um módulo de `exceptions` para tratamento de erros.
-
-Esta abordagem evita duplicação, embora seja importante controlar o crescimento do módulo `shared` para evitar que se transforme num ponto de acoplamento excessivo entre os restantes módulos.
-
----
-
-## 10. Integração externa
-O projeto contém um serviço denominado `ApiNinjasService`, responsável pela comunicação com uma API externa. A integração encontra-se isolada no módulo `external`, evitando que os restantes componentes tenham de conhecer diretamente os detalhes da API externa.
-
----
-
-## 11. Configuração e regras de negócio
-Existem propriedades configuráveis relacionadas com regras da biblioteca, como a duração dos empréstimos, valor da multa por dia, idade mínima do leitor e limites de sugestões por género. A externalização destas regras reduz a necessidade de alterar código para modificar determinados parâmetros operacionais.
+* **Interfaces Inter-Módulos (Ball-and-Socket):**
+  * **`USER API`:** Fornecida por `UserManagement`, consumida por `ReaderManagement` (um leitor herda e especializa a identidade de utilizador).
+  * **`Genre API`:** Fornecida por `GenreManagement`, consumida por `BookManagement` (classificação temática de livros) e por `LendingManagement` (métricas de empréstimo por género).
+  * **`Author API`:** Fornecida por `AuthorManagement`, consumida por `BookManagement` (autoria das obras).
+  * **`Book API`:** Fornecida por `BookManagement`, consumida por `LendingManagement` (validação de disponibilidade e requisição de exemplares).
+  * **`Reader API`:** Fornecida por `ReaderManagement`, consumida por `LendingManagement` (validação de leitor elegível e histórico).
+  * **`Lending API`:** Fornecida por `LendingManagement`, consumida por `ReaderManagement` (consulta do histórico de requisições de um leitor).
+  * **`NINJA API`:** Consumida exclusivamente pelo `ReaderManagement` (através de `ApiNinjasService` no detalhe de leitor).
+  * **`REST API`:** Encaminhada na fronteira para os controladores dos respetivos módulos de domínio.
+  * **`DB API`:** Canal lógico de persistência que assegura o armazenamento relacional das entidades de domínio.
 
 ---
 
-## 12. Testes e qualidade
-O projeto possui testes unitários e testes de integração. Existem testes orientados ao domínio, como `BookTest`, `AuthorTest`, `GenreTest`, `LendingTest` e `ReaderTest`, bem como testes de repositories, services e controllers.
+### 3.4 Nível 4 — Estrutura Interna de um Módulo (Organização em Camadas)
 
-A existência de testes em diferentes níveis permite validar tanto unidades isoladas como a integração entre componentes e infraestrutura.
+No Nível 4, realiza-se o detalhe concetual interno de um módulo específico — **`UserManagement`** (`pt.psoft.g1.psoftg1.usermanagement`) — decompondo-o na sua organização interna em camadas concêntricas.
 
----
+![VA_N4.png](Vista%20Arquitetural/VA_N4.png)
 
-## 13. Caracterização arquitetural
-* **Monólito Modular:** Todos os módulos fazem parte da mesma aplicação e do mesmo processo de execução, mas encontram-se organizados por domínios funcionais.
-* **Arquitetura em camadas:** Dentro dos módulos existe separação entre API, serviços, domínio, repositories e infraestrutura.
-* **Princípios de DDD:** O projeto representa conceitos do domínio através de entidades e value objects específicos.
-* **REST:** A interação externa é realizada através de endpoints HTTP disponibilizados pela aplicação.
+* **Regras de Dependência e DIP:**
+  * As setas de dependência (`..>`) apontam estritamente de fora para dentro (*The Dependency Rule*). O modelo de domínio (`Enterprise Business Rules`) não conhece nenhuma classe ou framework exterior.
+  * O princípio da inversão de dependência (*DIP*) assegura que o adaptador de persistência `SpringDataUserRepository` implementa a interface `UserRepository` definida na camada aplicacional/domínio, desacoplando o núcleo de negócio dos detalhes tecnológicos da base de dados.
 
 ---
 
-## 14. Vista arquitetural consolidada
+## 4. Vista de Implementação (VI)
 
-```
-CLIENTE / REST
-      │
-      ▼
-┌────────────────────────────────────────────────────────┐
-│                      REST / API                        │
-│                     Controllers                        │
-└───────────────────────────┬────────────────────────────┘
-                            │
-       ┌────────────────────┼────────────────────┐
-       ▼                    ▼                    ▼
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│    Books    │      │   Readers   │      │   Lending   │
-│   Module    │      │   Module    │      │   Module    │
-└──────┬──────┘      └──────┬──────┘      └──────┬──────┘
-       └────────────────────┼────────────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                        Services                        │
-└───────────────────────────┬────────────────────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                      Domain Model                      │
-└───────────────────────────┬────────────────────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                      Repositories                      │
-└───────────────────────────┬────────────────────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                   JPA / Hibernate                      │
-└───────────────────────────┬────────────────────────────┘
-                            ▼
-                       H2 Database
+A Vista de Implementação descreve a organização estática do código-fonte, das unidades de compilação, dos subsistemas de empacotamento e da infraestrutura tecnológica concreta.
 
-Preocupações Transversais (Cross-cutting): Auth / Security / Shared / Exceptions / Configuration
-Integração Externa: ApiNinjasService → API externa
-```
+### 4.1 Nível 1 — Artefato Executável Global
+
+No Nível 1, a aplicação é empacotada num único artefato executável JAR gerado pelo Apache Maven (`psoft-g1-0.0.1-SNAPSHOT.jar`), incorporando o Spring Boot Starter e o servidor Tomcat embutido.
+
+![VI_N1.png](Vista%20Implementação/VI_N1.png)
+
+* O executável expõe os pontos de terminação HTTP (`REST API`) e consome a biblioteca de cliente WebClient para conexão à `NINJA API`.
 
 ---
 
-## 15. Pontos arquiteturais relevantes para análise
-* **Modularidade:** A organização por domínio favorece a coesão funcional e torna mais fácil localizar o código associado a uma determinada capacidade do sistema.
-* **Isolamento da infraestrutura:** Os repositories possuem abstrações separadas das implementações baseadas em Spring Data.
-* **Base de dados partilhada:** Sendo um monólito, os diferentes módulos utilizam a mesma infraestrutura de persistência. Isto simplifica o deployment, mas reduz o isolamento relativamente a uma arquitetura de microserviços.
-* **Shared:** Fornece reutilização transversal, mas deve ser controlado para evitar dependências excessivas entre módulos.
-* **Integrações externas:** A existência de um adaptador específico para o serviço externo ajuda a limitar o acoplamento com esse fornecedor.
-* **Segurança:** A autenticação baseada em JWT e a autorização por papéis constituem uma preocupação transversal relevante para a arquitetura.
-* **Gestão de segredos:** A configuração do projeto deve ser revista para garantir que chaves, credenciais e outros segredos não são mantidos diretamente no código ou repositório. Em ambiente real, estes valores deverão ser externalizados e geridos por mecanismos apropriados de configuração e gestão de segredos.
+### 4.2 Nível 2 — Subsistemas de Implementação
+
+No Nível 2, a arquitetura de implementação divide-se entre a base de código Java (`Backend`) e a unidade de gestão de dados relacional (`DB`).
+
+![VI_N2.png](Vista%20Implementação/VI_N2.png)
+
+* O subsistema `Backend` acede ao subsistema `DB` através de ligações JDBC geridas pelo driver H2, satisfazendo a interface **`BD API`**.
 
 ---
 
-## 16. Síntese para o documento de arquitetura
-O sistema analisado apresenta uma **arquitetura de monólito modular orientada ao domínio**. A solução organiza as principais capacidades da biblioteca em módulos funcionais, nomeadamente gestão de livros, autores, géneros, leitores, empréstimos e utilizadores. Cada módulo combina uma API de acesso, serviços de aplicação, modelo de domínio, abstrações de persistência e componentes de infraestrutura.
+### 4.3 Nível 3 — Módulos de Subdomínio e Subsistema de Persistência
 
-A utilização de Spring Boot, Spring Data JPA, Hibernate, Spring Security e JWT fornece a infraestrutura tecnológica necessária para disponibilizar a API REST, persistir dados e controlar o acesso. A existência de componentes partilhados e de um adaptador para serviços externos complementa a arquitetura.
+No Nível 3, a base de código do `Backend` organiza-se em subsistemas de código correspondentes aos subdomínios funcionais e destaca o componente técnico de suporte transversal **`Persistência`**.
 
-Do ponto de vista de Arquitetura de Software, os principais elementos a estudar posteriormente são as dependências entre módulos, os limites de cada contexto funcional, os mecanismos de comunicação, o grau de acoplamento, a coesão interna, as responsabilidades dos componentes e os potenciais pontos de evolução da arquitetura.
+![VI_N3.png](Vista%20Implementação/VI_N3.png)
+
+* **Componentes de Subdomínio (Código):**
+  * `UserManagement SubDomain Module` (`pt.psoft.g1.psoftg1.usermanagement`)
+  * `ReaderManagement SubDomain Module` (`pt.psoft.g1.psoftg1.readermanagement`)
+  * `BookManagement SubDomain Module` (`pt.psoft.g1.psoftg1.bookmanagement`)
+  * `AuthorManagement SubDomain Module` (`pt.psoft.g1.psoftg1.authormanagement`)
+  * `GenreManagement SubDomain Module` (`pt.psoft.g1.psoftg1.genremanagement`)
+  * `LendingManagement SubDomain Module` (`pt.psoft.g1.psoftg1.lendingmanagement`)
+
+* **Componente de Infraestrutura Técnica de Persistência:**
+  * **`Persistência`:** Centraliza a camada técnica partilhada de acesso a dados (configuração Spring Data JPA, `JpaConfig`, `EntityManagerFactory`, Hibernate ORM e repositórios concretos).
+  * Disponibiliza a interface **`Persistence API`**, consumida através de soquetes por todos os módulos de subdomínio, consolidando a ligação relacional à base de dados através da porta **`DB API`**.
 
 ---
-*Documento preparado com base na análise do projeto fornecido para a unidade curricular de Arquitetura de Software.*
 
+### 4.4 Nível 4 — Decomposição Física em Pacotes Java
+
+No Nível 4, a estrutura de implementação descreve a árvore física de pacotes e tipos Java de um módulo de subdomínio (exemplificado em `usermanagement`):
+
+![VI_N4.png](Vista%20Implementação/VI_N4.png)
+
+---
+
+## 5. Mapeamento e Rastreabilidade entre Vistas (*Manifestation*)
+
+A rastreabilidade arquitetural assegura que cada conceito lógico abstrato da Vista Arquitetural encontra correspondência direta e inequívoca nos artefactos de software da Vista de Implementação através de relações `<<manifest>>`.
+
+### 5.1 Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3)
+
+O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógicos) com os módulos de código e com o subsistema técnico de persistência.
+
+![VA_to_VI_N3.png](Manifestação/VA_to_VI_N3.png)
+
+* **Racional Arquitetural:**
+  * Cada módulo de subdomínio na VI manifesta o seu módulo funcional correspondente na VA (`VI: UserManagement` $\xrightarrow{\text{<<manifest>>}}$ `VA: UserManagement`, etc.).
+  * O componente **`Persistência`** da VI manifesta a capacidade de persistência de **todos os módulos lógicos da VA**. Justifica como uma arquitetura monolítica modular partilha uma stack tecnológica comum de ORM e transações (Spring Data JPA / Hibernate) sem que cada módulo necessite de gerir uma base de dados autónoma.
+
+### 5.2 Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
+
+O mapeamento de Nível 4 correlaciona as camadas concêntricas internas do módulo com os pacotes Java reais.
+
+![VA_to_VI_N4.png](Manifestação/VA_to_VI_N4.png)
+
+* `Frameworks & Drivers` $\leftarrow$ Configuração Spring Boot, `SecurityConfig`, `JpaConfig` e driver H2.
+* `Interface Adapters` $\leftarrow$ Pacotes `api` e `infrastructure.repositories.impl`.
+* `Enterprise Application Rules` $\leftarrow$ Pacote `services` e interfaces de `repositories`.
+* `Enterprise Business Rules` $\leftarrow$ Pacote `model`.
+
+---
+
+## 6. Vista Física / Implantação (VF)
+
+A Vista Física (ou de Implantação) descreve a topologia de nós computacionais físicos/lógicos onde os subsistemas e artefactos de software executam em ambiente real ou de desenvolvimento.
+
+### 6.1 Nível 1
+No Nível 1, o sistema é representado no seu nó de execução de topo (*Server*), alojando o bloco concetual único do sistema de gestão de biblioteca (`<<C4System>> LMS`).
+
+![VF_N1.png](Vista%20Fisica/VF_N1.png)
+
+### 6.2 Nível 2
+No Nível 2, a topologia de implantação detalha os nós de execução físicos/lógicos, processos em execução, portas e canais de comunicação em tempo de execução:
+* **`Server (localhost)`:**
+  * **`JVM 17`:** Processo de execução da aplicação Spring Boot (`Backend`), escutando requisições REST na porta HTTP `8080`.
+  * **`H2 DBMS`:** Processo ou subsistema de base de dados relacional (`H2 Database`), acedido pelo Backend através do protocolo JDBC.
+  * **`Local Storage`:** Sistema de ficheiros local (`uploads-psoft-g1`) acedido via File I/O pelo Backend para armazenamento de fotografias de livros e utilizadores.
+* **`Client Workstation`:** Estação de trabalho do utilizador (leitor, bibliotecário), comunicando com o backend através de `HTTP/REST:8080` (ex.: Web Browser, Postman).
+* **`Cloud`:** Nó exterior de infraestrutura de serviços em nuvem alojando a **Ninja API**, consumida pelo backend através de ligação segura `HTTP/REST:443`.
+
+![VF_N2.png](Vista%20Fisica/VF_N2.png)
+
+---
+
+## 7. Vista de Processos (VP)
+
+A realização dinâmica das operações é ilustrada através de diagramas de sequência para quatro cenários representativos do sistema.
+
+### 7.1 Cenário 1: Criar Empréstimo (*Create Lending*)
+Fluxo de criação de um novo empréstimo por parte de um bibliotecário (`POST /api/lendings`), incluindo a validação de empréstimos pendentes e atrasos do leitor, obtenção dos dados do livro e leitor, apuramento da contagem anual, instanciação e persistência da entidade `Lending`.
+
+* **Nível 1:**  
+  ![VP_N1_CreateLending.png](Vista%20Processos/png/VP_N1_CreateLending.png)
+* **Nível 2:**  
+  ![VP_N2_CreateLending.png](Vista%20Processos/png/VP_N2_CreateLending.png)
+* **Nível 3:**  
+  ![VP_N3_CreateLending.png](Vista%20Processos/png/VP_N3_CreateLending.png)
+
+### 7.2 Cenário 2: Registar Livro (*Register Book*)
+Fluxo de registo de um novo livro no catálogo (`PUT /api/books/{isbn}`), compreendendo a verificação da disponibilidade do ISBN, pesquisa dos autores associados, consulta do género literário, instanciação da entidade `Book` e persistência no repositório.
+
+* **Nível 1:**  
+  ![VP_N1_CreateBook.png](Vista%20Processos/png/VP_N1_CreateBook.png)
+* **Nível 2:**  
+  ![VP_N2_CreateBook.png](Vista%20Processos/png/VP_N2_CreateBook.png)
+* **Nível 3:**  
+  ![VP_N3_CreateBook.png](Vista%20Processos/png/VP_N3_CreateBook.png)
+
+### 7.3 Cenário 3: Devolver Empréstimo (*Return Lending*)
+Fluxo de devolução de um empréstimo (`PATCH /api/lendings/{year}/{seq}`), envolvendo a obtenção do leitor autenticado, verificação de concorrência através do cabeçalho `If-Match`, marcação da devolução na entidade `Lending`, criação e persistência opcional de multa (`Fine`) se existirem dias em atraso, e atualização do estado do empréstimo.
+
+* **Nível 1:**  
+  ![VP_N1_ReturnLending.png](Vista%20Processos/png/VP_N1_ReturnLending.png)
+* **Nível 2:**  
+  ![VP_N2_ReturnLending.png](Vista%20Processos/png/VP_N2_ReturnLending.png)
+* **Nível 3:**  
+  ![VP_N3_ReturnLending.png](Vista%20Processos/png/VP_N3_ReturnLending.png)
+
+### 7.4 Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
+Fluxo de consulta analítica (`GET /api/books/top5`), demonstrando a definição do período temporal relativo ao último ano (`minusYears(1)`), aplicação da regra de paginação para os 5 registos mais frequentes e retorno da lista de livros.
+
+* **Nível 1:**  
+  ![VP_N1_Top5BooksLent.png](Vista%20Processos/png/VP_N1_Top5BooksLent.png)
+* **Nível 2:**  
+  ![VP_N2_Top5BooksLent.png](Vista%20Processos/png/VP_N2_Top5BooksLent.png)
+* **Nível 3:**  
+  ![VP_N3_Top5BooksLent.png](Vista%20Processos/png/VP_N3_Top5BooksLent.png)
+
+---
+
+## 8. Preocupações Transversais & Infraestrutura Técnica
+
+### 8.1 Persistência e Acesso a Dados
+* A persistência relacional assenta em Spring Data JPA e Hibernate sobre base de dados H2.
+* O desacoplamento é garantido por interfaces de repositório no pacote `repositories`, implementadas na camada `infrastructure` através de adaptadores Spring Data JPA.
+* A base de dados é partilhada entre os módulos (modelo de base de dados única do Monólito Modular), assegurando integridade referencial relacional entre tabelas (`LENDING`, `BOOK`, `READER`, `USER`, etc.).
+
+### 8.2 Segurança e Controlo de Acesso
+* A autenticação baseia-se em **JWT (JSON Web Tokens)** e **Spring Security**.
+* O controlo de autorização é efetuado por papéis (*Roles*): `ADMIN`, `LIBRARIAN` e `READER`.
+* Fluxo de autenticação:
+  ```
+  Credenciais → Autenticação → JWT Token → Pedido HTTP com Bearer Token → Filtro Spring Security → Autorização RBAC
+  ```
+
+### 8.3 Integrações Externas
+* A comunicação com serviços externos no *System-as-is* resume-se ao serviço `ApiNinjasService` no pacote `external`.
+* O serviço consome uma API REST exterior via Spring `WebClient` para obter citações literárias e factos históricos associados aos perfis dos leitores.
+
+### 8.4 Configuração e Regras de Negócio
+* Parâmetros operacionais da biblioteca encontram-se definidos no ficheiro `application.properties` (ex.: duração padrão de empréstimos, valor da multa diária, limites de idade).
+* A configuração é lida no arranque da aplicação pelo Spring Boot.
+
+---
+
+## 9. Limitações Identificadas e Motivação para a Evolução (System-to-Be)
+
+A análise crítica de engenharia reversa do *System-as-is* evidenciou as três fragilidades centrais identificadas na **Secção 1.2 do Enunciado**:
+
+1. **Extensibilidade (*Extensibility / Modifiability*):**
+   * A integração de novas fontes de dados bibliográficos externos (ex.: Google Books, Open Library) ou novos canais de notificação (Email, SMS, Webhook) não é suportada de forma modular, exigindo alterações profundas no código de domínio existente (violação do princípio *Open-Closed Principle* — OCP).
+2. **Configurabilidade (*Configurability*):**
+   * Não existe suporte para seleção condicional de componentes ou fornecedores no arranque (*setup time*) sem recompilação de binários, nem para parametrização dinâmica de regras de empréstimo em tempo de execução (*runtime*).
+3. **Testabilidade (*Testability*):**
+   * A ausência de interfaces de abstração em torno de serviços externos e a dependência direta de implementações concretas dificulta o isolamento para testes automatizados herméticos, testes de mutação (PITest) e simulação de cenários de contingência (*fallback*).
+
+Estas limitações motivam a execução do método formal **ADD 3.0** e as decisões de desenho arquitetural especificadas na pasta `system-to-be`.
