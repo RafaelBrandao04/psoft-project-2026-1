@@ -1,12 +1,5 @@
 # ARQSOFT — System-to-Be: Planeamento e Divisão de Trabalho (3 Membros)
 
-> **Unidade Curricular:** Arquitetura de Software (ARQSOFT) — 2026/2027  
-> **Projeto:** Sistema de Gestão de Biblioteca (LMS — *Library Management System*) — `psoft-g1`  
-> **Fase:** 1.3.3 Development (Desenvolvimento e Implementação da Arquitetura Alvo)  
-> **Composição do Grupo:** 3 Estudantes
-
----
-
 ## 1. Visão Geral da Arquitetura Alvo (*System-to-Be*)
 
 A fase de desenvolvimento do projeto de Arquitetura de Software visa resolver os problemas fundamentais identificados na versão inicial (*system-as-is*):
@@ -308,4 +301,18 @@ Para cada sub-tópico ser considerado concluído, cada membro deve garantir os s
 | - Execução do pipeline de testes e geração de relatórios de evidência                                 |
 +-------------------------------------------------------------------------------------------------------+
 ```
+
+---
+
+## 6. Documentação Metodológica do Processo ADD (Secção 1.3.2 do Enunciado)
+
+A fundamentação arquitetural completa do *System-to-Be* encontra-se estruturada nos seis artefactos dedicados da pasta `system-to-be`, cobrindo exaustivamente todos os tópicos estipulados na secção **1.3.2 Adoption of ADD** do Enunciado:
+
+1. **[1.3.2.1 Identification and classification of requirements and architectural factors](./architectural-factors.md):** Levantamento exaustivo de requisitos funcionais (`FR01-FR04`), cenários de atributos de qualidade (`ASR01-ASR07`), restrições técnicas (`TC01-TC05`), limitações organizacionais (`OL01-OL04`) e matriz de priorização do ADD.
+2. **[1.3.2.2 ADD process](./add-process.md):** Execução formal dos Passos 1 a 7 do ADD para as três iterações do sistema (Fontes Bibliográficas, Notificações Multicanal e Políticas de Empréstimo).
+3. **[1.3.2.3 Tactics](./architectural-tactics.md):** Catálogo formal de táticas SEI selecionadas, justificação técnica face a extensibilidade, configurabilidade e testabilidade, e análise de *trade-offs*.
+4. **[1.3.2.4 Reference architectures](./reference-architectures.md):** Análise comparativa de arquétipos candidatos (MSA vs. Monólito Tradicional vs. Monólito Modular DDD com Clean Architecture) e caracterização da arquitetura de referência adotada.
+5. **[1.3.2.5 Patterns](./architectural-patterns.md):** Catálogo de padrões macro-estruturais (Modular Monolith, Clean Architecture, Domain Events) e táticos (Adapter, Composite, Strategy, Policy Resolver, Canonical DTO).
+6. **[1.3.2.6 Architectural design alternatives and rationale (visual models)](./design-alternatives-and-rationale.md):** Análise comparativa de alternativas por sub-problema, Technical Memos formais (TM-01 a TM-03), avaliação de trade-offs e catálogo com espaços reservados para diagramas visuais (C4 e Kruchten 4+1).
+
 

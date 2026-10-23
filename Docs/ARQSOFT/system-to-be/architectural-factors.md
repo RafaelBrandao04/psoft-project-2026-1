@@ -1,14 +1,5 @@
 # ARQSOFT — Identificação e Classificação de Requisitos e Fatores Arquiteturais (System-to-Be)
 
-> **Unidade Curricular:** Arquitetura de Software (ARQSOFT) — 2026/2027  
-> **Projeto:** Sistema de Gestão de Biblioteca (LMS — *Library Management System*) — `psoft-g1`  
-> **Secção do Enunciado:** **1.3.2 Adoption of ADD** $\rightarrow$ **1.3.2.1 Identification and classification of requirements and architectural factors**  
-> **Problema Base (Enunciado 1.2):** Resolver o suporte inadequado a **Extensibility**, **Configurability** e **Testability**  
-> **Issue GitHub de Referência:** `#11 [ARQSOFT] Identification & Classification of Architectural Factors`  
-> **Estado:** Concluído (*Done*) — Especificação completa e validada para fecho da Issue #11
-
----
-
 ## 1. Enquadramento e Metodologia ADD 3.0 (Passo 1: Review Inputs)
 
 No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Institute* (SEI), a arquitetura do *System-to-Be* é orientada por um conjunto de forças motrizes (*Architectural Drivers*). 

@@ -1,13 +1,5 @@
 # ARQSOFT — Execução do Processo Attribute-Driven Design (ADD 3.0) e Iterações de Desenho (System-to-Be)
 
-> **Unidade Curricular:** Arquitetura de Software (ARQSOFT) — 2026/2027  
-> **Projeto:** Sistema de Gestão de Biblioteca (LMS — *Library Management System*) — `psoft-g1`  
-> **Secção do Enunciado:** **1.3.2 Adoption of ADD** $\rightarrow$ **1.3.2.2 ADD process**  
-> **Problema Base (Enunciado 1.2):** Resolver o suporte inadequado a **Extensibility**, **Configurability** e **Testability**  
-> **Issue GitHub de Referência:** `#12 [ARQSOFT] Execution of the ADD Process & Iterations`
-
----
-
 ## 1. Enquadramento Metodológico: Adoção do ADD 3.0 num Sistema *Brownfield*
 
 ### 1.1. Justificação do ADD 3.0 face ao ADD 2.0

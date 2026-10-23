@@ -1,14 +1,5 @@
 # ARQSOFT — Seleção de Táticas Arquiteturais (System-to-Be)
 
-> **Unidade Curricular:** Arquitetura de Software (ARQSOFT) — 2026/2027  
-> **Projeto:** Sistema de Gestão de Biblioteca (LMS — *Library Management System*) — `psoft-g1`  
-> **Secção do Enunciado:** **1.3.2 Adoption of ADD** $\rightarrow$ **1.3.2.3 Tactics**  
-> **Problema Base (Enunciado 1.2):** Resolver o suporte inadequado a **Extensibility**, **Configurability** e **Testability**  
-> **Issue GitHub de Referência:** `#13 [ARQSOFT] Architectural Tactics Selection`  
-> **Estado:** Concluído (*Done*) — Seleção e matriz de táticas SEI completa para fecho da Issue #13
-
----
-
 ## 1. Enquadramento Metodológico no ADD 3.0 (Passo 4: *Choose Design Concepts*)
 
 No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Institute* (SEI — Bass, Clements, Kazman), após a identificação e priorização dos *Architectural Drivers* (documentados em [`architectural-factors.md`](./architectural-factors.md)), o arquiteto seleciona os conceitos de desenho que permitem satisfazer os cenários de atributos de qualidade (*Quality Attribute Scenarios — ASRs*).
