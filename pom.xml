@@ -305,6 +305,27 @@
 				<jacoco-it.dataFile>${project.build.directory}/jacoco-it.exe</jacoco-it.dataFile>
 			</properties>
 		</profile>
+			<!-- Profile for PITest Mutation Testing during verify (CI/CD Pipeline) -->
+		<profile>
+			<id>mutation</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-maven</artifactId>
+						<executions>
+							<execution>
+								<id>pitest-mutation-coverage</id>
+								<phase>verify</phase>
+								<goals>
+									<goal>mutationCoverage</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 
 </project>

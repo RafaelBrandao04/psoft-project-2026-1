@@ -1,0 +1,176 @@
+// .Jenkinsfile_uat
+// Pipeline for UAT Job (Deploy to UAT + Human-in-the-Loop Approval + Promotion to PROD)
+// Parameterized project triggered by DEV Job (does NOT run on Git push)
+
+pipeline {
+    agent any
+
+    options {
+        // Grant permission to downstream PROD jobs to copy accepted artifacts
+        copyArtifactPermission('lms-prod,lms-private-prod,LMS-private-prod,LMS-prod,*')
+        disableConcurrentBuilds()
+    }
+
+    parameters {
+        string(name: 'CI_BUILD', defaultValue: '1', description: 'Build number of the upstream DEV job to validate and deploy')
+        string(name: 'CI_JOB', defaultValue: 'lms-dev', description: 'Name of the upstream DEV job that created the validated artifact')
+        string(name: 'PROD_JOB_NAME', defaultValue: 'lms-prod', description: 'Name of the downstream PROD job to trigger upon approval')
+        string(name: 'APPROVERS', defaultValue: '', description: 'Comma-separated Jenkins usernames allowed to approve (empty allows any authenticated user)')
+    }
+
+    environment {
+        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Djava.awt.headless=true'
+    }
+
+    stages {
+        stage('Deploy UAT') {
+            steps {
+                echo ">>> Stage 1: Retrieving validated artifact from DEV (Job: ${params.CI_JOB}, Build: #${params.CI_BUILD})"
+                script {
+                    // 1. Validate CI_BUILD parameter format (positive integer)
+                    if (!(params.CI_BUILD =~ /^[1-9][0-9]*$/)) {
+                        error "Invalid CI_BUILD parameter: '${params.CI_BUILD}'. Must be a positive integer."
+                    }
+
+                    // 2. Clean local artifact directory
+                    dir('artifact') {
+                        deleteDir()
+                    }
+
+                    // 3. Copy validated artifacts from upstream DEV job
+                    echo "Copying artifacts from '${params.CI_JOB}' Build #${params.CI_BUILD}..."
+                    copyArtifacts projectName: params.CI_JOB,
+                                  selector: specific(params.CI_BUILD),
+                                  filter: 'validated/**',
+                                  target: 'artifact',
+                                  flatten: true
+
+                    // 4. Validate that app.jar and release.properties were successfully retrieved
+                    if (!fileExists('artifact/app.jar')) {
+                        error "artifact/app.jar missing from upstream validated folder! Build #${params.CI_BUILD} of '${params.CI_JOB}' may have failed."
+                    }
+                    if (!fileExists('artifact/release.properties')) {
+                        error "artifact/release.properties missing from upstream validated folder!"
+                    }
+
+                    def releaseProps = readProperties file: 'artifact/release.properties'
+                    echo "Retrieved release metadata:\n  Job: ${releaseProps['job']}\n  Build: ${releaseProps['build']}\n  Commit: ${releaseProps['commit']}"
+
+                    if (releaseProps['build'] != params.CI_BUILD) {
+                        error "Mismatch: release.properties build (${releaseProps['build']}) does not match expected CI_BUILD (${params.CI_BUILD})!"
+                    }
+
+                    // 5. Deploy to UAT on DEI VM vs806 (port 8082)
+                    def common = load '.Jenkinsfile_common.groovy'
+                    common.deploy('uat')
+
+                    // 6. Stash artifacts to release Jenkins agent before waiting for human approval
+                    echo ">>> Stashing artifacts to release agent while awaiting human approval..."
+                    stash name: 'uat-artifacts', includes: 'artifact/**'
+                }
+            }
+        }
+
+        stage('UAT Acceptance') {
+            // Free agent while waiting for human input (Human Time vs Machine Time)
+            agent none
+            options {
+                timeout(time: 7, unit: 'DAYS')
+            }
+            steps {
+                script {
+                    def inputMsg = "Approve promotion of LMS (Build #${params.CI_BUILD}) from UAT to PRODUCTION?"
+                    def inputParams = [
+                        message: inputMsg,
+                        ok: 'Aceitar e promover',
+                        submitterParameter: 'APPROVER'
+                    ]
+                    if (params.APPROVERS?.trim()) {
+                        inputParams['submitter'] = params.APPROVERS.trim()
+                    }
+
+                    echo ">>> Awaiting human approval for up to 7 days..."
+                    def approverResult = input(inputParams)
+                    env.RECORDED_APPROVER = approverResult ?: 'Authorized Approver'
+                    echo ">>> Promotion APPROVED by: ${env.RECORDED_APPROVER}"
+                }
+            }
+        }
+
+        stage('Promote to PROD') {
+            agent any
+            steps {
+                echo '>>> Stage 3: Packaging Accepted Artifact and Triggering PROD Job'
+                script {
+                    // 1. Restore artifacts from stash
+                    dir('artifact') {
+                        deleteDir()
+                    }
+                    unstash 'uat-artifacts'
+
+                    // 2. Perform Recheck / Smoke Test to ensure UAT service is still healthy after human wait
+                    def common = load '.Jenkinsfile_common.groovy'
+                    common.recheck('uat')
+
+                    // 3. Generate acceptance.properties recording approval metadata
+                    def approverName = env.RECORDED_APPROVER ?: 'Authorized Approver'
+                    def nowIso = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+                    def acceptanceContent = "accepted_by=${approverName}\nuat_job=${env.JOB_NAME}\nuat_build=${env.BUILD_NUMBER}\napproval_timestamp=${nowIso}\n"
+                    writeFile file: 'artifact/acceptance.properties', text: acceptanceContent, encoding: 'UTF-8'
+                    echo "Created artifact/acceptance.properties:\n${acceptanceContent}"
+
+                    // 4. Prepare accepted directory for downstream PROD job
+                    dir('accepted') {
+                        deleteDir()
+                    }
+                    if (isUnix()) {
+                        sh '''
+                            mkdir -p accepted
+                            cp artifact/app.jar accepted/app.jar
+                            cp artifact/release.properties accepted/release.properties
+                            cp artifact/acceptance.properties accepted/acceptance.properties
+                        '''
+                    } else {
+                        bat '''
+                            if not exist accepted mkdir accepted
+                            copy artifact\\app.jar accepted\\app.jar
+                            copy artifact\\release.properties accepted\\release.properties
+                            copy artifact\\acceptance.properties accepted\\acceptance.properties
+                        '''
+                    }
+
+                    // 5. Archive accepted artifacts
+                    archiveArtifacts artifacts: 'accepted/**', fingerprint: true, allowEmptyArchive: false
+
+                    // 6. Trigger downstream PROD Job
+                    def prodJob = params.PROD_JOB_NAME ?: 'lms-prod'
+                    echo ">>> Triggering Production Job [${prodJob}] with UAT_BUILD=${env.BUILD_NUMBER} and UAT_JOB=${env.JOB_NAME}..."
+                    try {
+                        build job: "${prodJob}",
+                              parameters: [
+                                  string(name: 'UAT_BUILD', value: "${env.BUILD_NUMBER}"),
+                                  string(name: 'UAT_JOB', value: "${env.JOB_NAME}")
+                              ],
+                              wait: false
+                    } catch (Exception e) {
+                        echo "WARNING: Could not trigger downstream job '${prodJob}': ${e.message}."
+                        echo "Ensure a Pipeline job named '${prodJob}' exists and is parameterized with UAT_BUILD and UAT_JOB."
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "UAT Pipeline finished with status: ${currentBuild.currentResult}"
+        }
+        success {
+            echo "UAT Pipeline SUCCESS: Application validated, approved, and promoted toward Production."
+        }
+        failure {
+            echo "UAT Pipeline FAILED: Validation failed or approval timed out / rejected."
+        }
+    }
+}
+
