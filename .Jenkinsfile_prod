@@ -69,7 +69,7 @@ pipeline {
                     echo "  UAT Approval Time:  ${acceptanceProps['approval_timestamp']}"
                     echo "=========================================================="
 
-                    // 6. Deploy to Production on DEI VM vs806 (port 8080)
+                    // 6. Deploy to Production on DEI VM vs336 (port 8080)
                     common.deploy('prod')
 
                     // 6. Record final production deployment metadata in final_artifact/
@@ -104,7 +104,7 @@ pipeline {
         success {
             echo "=========================================================="
             echo ">>> PRODUCTION DEPLOYMENT SUCCESSFUL!"
-            echo ">>> The verified, tested, and human-approved LMS release is now LIVE on DEI VM vs806 (port 8080)!"
+            echo ">>> The verified, tested, and human-approved LMS release is now LIVE on DEI VM vs336 (port 8080)!"
             echo "=========================================================="
         }
         failure {
