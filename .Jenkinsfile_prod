@@ -55,8 +55,10 @@ pipeline {
                         error "artifact/acceptance.properties missing from accepted folder!"
                     }
 
-                    def releaseProps = readProperties file: 'artifact/release.properties'
-                    def acceptanceProps = readProperties file: 'artifact/acceptance.properties'
+                    // 5. Load common module and parse audit metadata
+                    def common = load '.Jenkinsfile_common.groovy'
+                    def releaseProps = common.parseProperties('artifact/release.properties')
+                    def acceptanceProps = common.parseProperties('artifact/acceptance.properties')
 
                     echo "=========================================================="
                     echo ">>> PRODUCTION AUDIT TRAIL:"
@@ -67,8 +69,7 @@ pipeline {
                     echo "  UAT Approval Time:  ${acceptanceProps['approval_timestamp']}"
                     echo "=========================================================="
 
-                    // 5. Deploy to Production on DEI VM vs806 (port 8080)
-                    def common = load '.Jenkinsfile_common.groovy'
+                    // 6. Deploy to Production on DEI VM vs806 (port 8080)
                     common.deploy('prod')
 
                     // 6. Record final production deployment metadata in final_artifact/
@@ -84,7 +85,8 @@ pipeline {
                     } else {
                         bat '''
                             if not exist final_artifact mkdir final_artifact
-                            copy artifact\\* final_artifact\\
+                            copy /B /Y artifact\\app.jar final_artifact\\app.jar
+                            copy /Y artifact\\*.properties final_artifact\\
                         '''
                     }
 

@@ -51,7 +51,7 @@ pipeline {
                         deleteDir()
                     }
 
-                    // 2. Locate built JAR and copy/standardize as artifact/app.jar
+                    // 2. Locate built JAR and copy/standardize as artifact/app.jar (binary mode /B to prevent EOF truncation on Windows)
                     if (isUnix()) {
                         sh '''
                             mkdir -p artifact
@@ -60,7 +60,7 @@ pipeline {
                     } else {
                         bat '''
                             if not exist artifact mkdir artifact
-                            copy target\\psoft-g1-*.jar artifact\\app.jar
+                            copy /B /Y target\\psoft-g1-*.jar artifact\\app.jar
                         '''
                     }
 
@@ -87,8 +87,8 @@ pipeline {
                     } else {
                         bat '''
                             if not exist validated mkdir validated
-                            copy artifact\\app.jar validated\\app.jar
-                            copy artifact\\release.properties validated\\release.properties
+                            copy /B /Y artifact\\app.jar validated\\app.jar
+                            copy /Y artifact\\release.properties validated\\release.properties
                         '''
                     }
 

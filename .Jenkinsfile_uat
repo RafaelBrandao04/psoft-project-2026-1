@@ -53,18 +53,19 @@ pipeline {
                         error "artifact/release.properties missing from upstream validated folder!"
                     }
 
-                    def releaseProps = readProperties file: 'artifact/release.properties'
+                    // 5. Load common module and parse release metadata
+                    def common = load '.Jenkinsfile_common.groovy'
+                    def releaseProps = common.parseProperties('artifact/release.properties')
                     echo "Retrieved release metadata:\n  Job: ${releaseProps['job']}\n  Build: ${releaseProps['build']}\n  Commit: ${releaseProps['commit']}"
 
                     if (releaseProps['build'] != params.CI_BUILD) {
                         error "Mismatch: release.properties build (${releaseProps['build']}) does not match expected CI_BUILD (${params.CI_BUILD})!"
                     }
 
-                    // 5. Deploy to UAT on DEI VM vs806 (port 8082)
-                    def common = load '.Jenkinsfile_common.groovy'
+                    // 6. Deploy to UAT on DEI VM vs806 (port 8082)
                     common.deploy('uat')
 
-                    // 6. Stash artifacts to release Jenkins agent before waiting for human approval
+                    // 7. Stash artifacts to release Jenkins agent before waiting for human approval
                     echo ">>> Stashing artifacts to release agent while awaiting human approval..."
                     stash name: 'uat-artifacts', includes: 'artifact/**'
                 }
@@ -133,9 +134,9 @@ pipeline {
                     } else {
                         bat '''
                             if not exist accepted mkdir accepted
-                            copy artifact\\app.jar accepted\\app.jar
-                            copy artifact\\release.properties accepted\\release.properties
-                            copy artifact\\acceptance.properties accepted\\acceptance.properties
+                            copy /B /Y artifact\\app.jar accepted\\app.jar
+                            copy /Y artifact\\release.properties accepted\\release.properties
+                            copy /Y artifact\\acceptance.properties accepted\\acceptance.properties
                         '''
                     }
 

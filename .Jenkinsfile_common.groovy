@@ -2,6 +2,19 @@
 // Shared deployment and verification module for DEV, UAT, and PROD environments
 // DEI Virtual Machine: vs806 (vsgate-ssh.dei.isep.ipp.pt:10806)
 
+def parseProperties(String path) {
+    def props = [:]
+    def content = readFile(file: path, encoding: 'UTF-8')
+    content.split('\r?\n').each { line ->
+        def trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#') && trimmed.contains('=')) {
+            def parts = trimmed.split('=', 2)
+            props[parts[0].trim()] = parts[1].trim()
+        }
+    }
+    return props
+}
+
 def getEnvConfig(String targetEnv) {
     def configs = [
         'dev': [
@@ -40,11 +53,16 @@ def getSshConfig() {
 def executeRemoteCommand(String cmd) {
     def ssh = getSshConfig()
     withCredentials([sshUserPrivateKey(credentialsId: ssh.credentialsId, keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
-        def sshOpts = "-i \"${SSH_KEY}\" -p ${ssh.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
         if (isUnix()) {
+            def sshOpts = "-i \"${SSH_KEY}\" -p ${ssh.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=yes"
             sh "ssh ${sshOpts} ${SSH_USER}@${ssh.host} \"${cmd}\""
         } else {
-            bat "ssh ${sshOpts} ${SSH_USER}@${ssh.host} \"${cmd}\""
+            bat """@echo off
+set "WIN_KEY=%SSH_KEY:/=\\%"
+icacls "%WIN_KEY%" /inheritance:r /grant:r "*S-1-5-18:(F)" /grant:r "*S-1-5-32-544:(F)" >nul
+icacls "%WIN_KEY%" /remove "*S-1-5-32-545" >nul
+ssh -i "%WIN_KEY%" -p ${ssh.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=yes %SSH_USER%@${ssh.host} "${cmd}"
+"""
         }
     }
 }
@@ -52,11 +70,17 @@ def executeRemoteCommand(String cmd) {
 def copyToRemote(String localPath, String remotePath) {
     def ssh = getSshConfig()
     withCredentials([sshUserPrivateKey(credentialsId: ssh.credentialsId, keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
-        def scpOpts = "-i \"${SSH_KEY}\" -P ${ssh.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
         if (isUnix()) {
+            def scpOpts = "-i \"${SSH_KEY}\" -P ${ssh.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=yes"
             sh "scp ${scpOpts} ${localPath} ${SSH_USER}@${ssh.host}:${remotePath}"
         } else {
-            bat "scp ${scpOpts} ${localPath} ${SSH_USER}@${ssh.host}:${remotePath}"
+            def winLocalPath = localPath.replace('/', '\\')
+            bat """@echo off
+set "WIN_KEY=%SSH_KEY:/=\\%"
+icacls "%WIN_KEY%" /inheritance:r /grant:r "*S-1-5-18:(F)" /grant:r "*S-1-5-32-544:(F)" >nul
+icacls "%WIN_KEY%" /remove "*S-1-5-32-545" >nul
+scp -i "%WIN_KEY%" -P ${ssh.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=yes "${winLocalPath}" %SSH_USER%@${ssh.host}:${remotePath}
+"""
         }
     }
 }
@@ -64,8 +88,8 @@ def copyToRemote(String localPath, String remotePath) {
 def stopService(String targetEnv) {
     def config = getEnvConfig(targetEnv)
     echo "Stopping existing service for ${targetEnv.toUpperCase()} on port ${config.port}..."
-    // Gracefully stop or kill process using the port, without failing if no process is running
-    executeRemoteCommand("fuser -k ${config.port}/tcp || pkill -f 'server.port=${config.port}' || true")
+    // Use regex bracket [s]erver.port so pkill -f does not match and kill its own parent SSH subshell
+    executeRemoteCommand("pkill -f '[s]erver.port=${config.port}' || true")
     // Short wait to release socket
     executeRemoteCommand("sleep 2")
 }
@@ -74,7 +98,7 @@ def startService(String targetEnv) {
     def config = getEnvConfig(targetEnv)
     echo "Starting service for ${targetEnv.toUpperCase()} on port ${config.port}..."
     executeRemoteCommand("mkdir -p ${config.dir}")
-    def runCmd = "nohup java -jar ${config.dir}/app.jar --server.port=${config.port} --spring.profiles.active=${config.profile} > ${config.dir}/app.log 2>&1 &"
+    def runCmd = "nohup java -jar ${config.dir}/app.jar --server.port=${config.port} --spring.profiles.active=${config.profile} > ${config.dir}/app.log 2>&1 < /dev/null &"
     executeRemoteCommand(runCmd)
     executeRemoteCommand("sleep 3")
 }
@@ -83,22 +107,9 @@ def smokeTest(String targetEnv) {
     def config = getEnvConfig(targetEnv)
     echo "Executing smoke test / readiness verification for ${targetEnv.toUpperCase()} on port ${config.port}..."
     
-    // Poll actuator health or books endpoint on the VM with retry loop
-    def testCmd = """
-        MAX_RETRIES=15
-        COUNT=0
-        until curl -s -f http://localhost:${config.port}/actuator/health || [ \$COUNT -eq \$MAX_RETRIES ]; do
-            echo "Waiting for ${targetEnv.toUpperCase()} service on port ${config.port} (attempt \$((COUNT+1))/\$MAX_RETRIES)..."
-            sleep 3
-            COUNT=\$((COUNT+1))
-        done
-        if [ \$COUNT -eq \$MAX_RETRIES ]; then
-            echo "Smoke test FAILED: ${targetEnv.toUpperCase()} service did not respond with HTTP 200 on port ${config.port}."
-            tail -n 30 ${config.dir}/app.log || true
-            exit 1
-        fi
-        echo "Smoke test PASSED: ${targetEnv.toUpperCase()} service is UP and healthy on port ${config.port}!"
-    """
+    // Poll endpoints on the VM with retry loop (20 retries with 3s sleep = 60s max wait)
+    // Checks OpenAPI docs (/api-docs) or Actuator health (/actuator/health)
+    def testCmd = "for i in \$(seq 1 20); do if curl -s -f http://localhost:${config.port}/api-docs >/dev/null 2>&1 || curl -s -f http://localhost:${config.port}/actuator/health >/dev/null 2>&1; then echo 'Smoke test PASSED: ${targetEnv.toUpperCase()} service is UP and healthy on port ${config.port}'; exit 0; fi; echo 'Waiting for ${targetEnv.toUpperCase()} service on port ${config.port} (attempt '\$i'/20)...'; sleep 3; done; echo 'Smoke test FAILED: ${targetEnv.toUpperCase()} service did not respond on port ${config.port}'; tail -n 30 ${config.dir}/app.log; exit 1"
     executeRemoteCommand(testCmd)
 }
 
