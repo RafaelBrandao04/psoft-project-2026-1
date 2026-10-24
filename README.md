@@ -302,13 +302,20 @@ Avalia a resiliência e eficácia dos testes eliminando mutantes introduzidos no
 
 A documentação detalhada encontra-se organizada na pasta `Docs/`:
 
-* **Arquitetura (ARQSOFT):**
-  * [Documentação Global ARQSOFT (Vistas C4 e 4+1)](Docs/ARQSOFT/arqsoft-documentation.md)
-  * [Engenharia Reversa do System-as-is](Docs/ARQSOFT/system-as-is/system-as-is.md)
-  * [Processo ADD e Decisões de Design (System-to-be)](Docs/ARQSOFT/system-to-be/add-process.md)
-  * [Fatores Arquiteturais e ASRs](Docs/ARQSOFT/system-to-be/architectural-factors.md)
-  * [Táticas Arquiteturais de Modificabilidade e Testabilidade](Docs/ARQSOFT/system-to-be/architectural-tactics.md)
-* **Engenharia de Software & CI/CD (ODSOFT):**
-  * [Estratégia e Níveis de Testes Automatizados](Docs/ODSOFT/testing-strategy/testing-strategy.md)
-  * [Pipeline CI, Cobertura, Mutação e Quality Gates](Docs/ODSOFT/pipeline/ci-testing-coverage-and-quality-gates.md)
-  * [Análise e Correções do System-as-is](Docs/ODSOFT/system-fixes/system-fixes.md)
+* **Arquitetura de Software (ARQSOFT):**
+  * [Documentação Global ARQSOFT (Índice Mestre)](Docs/ARQSOFT/arqsoft-documentation.md)
+  * [Engenharia Reversa do System-as-is (Vistas C4 N1–N4, Implementação e Processos)](Docs/ARQSOFT/system-as-is/system-as-is.md)
+  * [Processo ADD 3.0 e Iterações de Desenho (System-to-be)](Docs/ARQSOFT/system-to-be/add-process.md)
+  * [Fatores Arquiteturais e ASRs (System-to-be)](Docs/ARQSOFT/system-to-be/architectural-factors.md)
+  * [Táticas Arquiteturais (System-to-be)](Docs/ARQSOFT/system-to-be/architectural-tactics.md)
+  * [Catálogo de Padrões Arquiteturais e de Desenho (System-to-be)](Docs/ARQSOFT/system-to-be/architectural-patterns.md)
+  * [Arquiteturas de Referência (System-to-be)](Docs/ARQSOFT/system-to-be/reference-architectures.md)
+  * [Alternativas de Desenho e Racional de Decisão (System-to-be)](Docs/ARQSOFT/system-to-be/design-alternatives-and-rationale.md)
+* **Engenharia de Software, Testes & CI/CD (ODSOFT):**
+  * [Análise do System-as-is (Limitações do Processo Manual e CI/CD)](Docs/ODSOFT/system-as-is/system-as-is.md)
+  * [Correções e Melhorias ao System-as-is](Docs/ODSOFT/system-fixes/system-fixes.md)
+  * [Estratégia e Níveis de Testes Automatizados (Unitários e Integração)](Docs/ODSOFT/testing-strategy/testing-strategy.md)
+  * [Pipeline CI: Build, Empacotamento e Análise Estática SAST (Issue #17)](Docs/ODSOFT/pipeline/ci-build-and-code-analysis.md)
+  * [Pipeline CI: Testes, Cobertura JaCoCo, Mutação PITest e Quality Gates (Issue #18)](Docs/ODSOFT/pipeline/ci-testing-coverage-and-quality-gates.md)
+  * [System-to-Be: Processo Alvo de Desenvolvimento e CI/CD](Docs/ODSOFT/system-to-be/system-to-be.md)
+
