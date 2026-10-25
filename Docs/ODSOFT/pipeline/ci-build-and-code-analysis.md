@@ -26,7 +26,7 @@ flowchart LR
     SRC["Source Code<br/>(GitHub Push)"] --> WR["Webhook Relay<br/>(WSS Event)"]
     WR --> STAGE1["Stage 1: Build & Verify<br/>(compile + spotbugs + test + package + IT + PIT)"]
     STAGE1 --> STAGE2["Stage 2: Package & Deploy DEV<br/>(copy /B /Y artifact/app.jar + release.properties)"]
-    STAGE2 --> SSH["Deploy to DEI VM vs806:8081<br/>(scp + nohup java -jar + Smoke Test)"]
+    STAGE2 --> SSH["Deploy to DEI VM vs806:8081<br/>(deploy/jenkins-deploy.groovy + systemd + Smoke Test)"]
     SSH --> ARCHIVE["Archive validated/**<br/>(Fingerprinting)"]
     ARCHIVE --> UAT["Trigger Downstream<br/>Job: lms-uat"]
 
@@ -42,7 +42,7 @@ flowchart LR
 ```
 
 #### 2.2.1. Compilation & Annotation Processing (`compile`)
-* **Execution:** Executed deterministically as part of `mvnw -B -Pmutation clean verify`.
+* **Execution:** Executed deterministically as part of `mvnw -B -Pmutation clean verify -Drelease.commit="${env.GIT_COMMIT}"`.
 * **Annotation Processors:** Standardized in [`pom.xml`](../../../pom.xml) under `maven-compiler-plugin`:
   * Lombok (`1.18.30`) for boilerplate code reduction.
   * MapStruct Processor (`1.5.5.Final`) for compile-time type-safe DTO/Domain mappers.
@@ -52,17 +52,20 @@ flowchart LR
 
 #### 2.2.2. Packaging Stage (`package` & `spring-boot-maven-plugin:repackage`)
 * **Execution:** Executed automatically during the Maven `package` lifecycle phase before `verify`.
-* **Spring Boot Repackaging:** The `spring-boot-maven-plugin` repackages the compiled classes and resolved runtime dependencies into a self-contained executable archive:
+* **Spring Boot Repackaging & Build Info:** The `spring-boot-maven-plugin` repackages the compiled classes and resolved runtime dependencies into a self-contained executable archive, adding a `META-INF/build-info.properties` stamped with the Git commit hash:
   * Primary Executable Artifact: `target/psoft-g1-0.0.1-SNAPSHOT.jar` (~72 MB, includes nested `BOOT-INF/lib` dependencies and Spring Boot Loader).
   * Original Artifact: `target/psoft-g1-0.0.1-SNAPSHOT.jar.original` (thin JAR without embedded runtime dependencies).
 * **Binary Mode Copy (`copy /B /Y`):**
-  On Windows runners, the standard command line `copy` utility defaults to ASCII text mode, truncating binary ZIP/JAR streams at the first `0x1A` (ASCII 26 / Ctrl+Z EOF character). The pipeline explicitly enforces binary mode copy (`copy /B /Y target\psoft-g1-*.jar artifact\app.jar`), preserving all 72,097,526 bytes intact.
+  On Windows runners, the standard command line `copy` utility defaults to ASCII text mode, truncating binary ZIP/JAR streams at the first `0x1A` (ASCII 26 / Ctrl+Z EOF character). The pipeline explicitly enforces binary mode copy (`copy /B /Y target\psoft-g1-*.jar artifact\app.jar`), preserving all bytes intact.
 * **Release Metadata (`release.properties`):**
   Alongside `app.jar`, the pipeline generates a standardized properties file recording provenance:
   ```properties
   job=lms-dev
-  build=7
-  commit=15e074d09fa4b21602da036e38b22b6aed572d63
+  CI_JOB=lms-dev
+  build=17
+  CI_BUILD=17
+  commit=08acb15e0febd30f7e5e451686997e1a1d90e979
+  GIT_COMMIT=08acb15e0febd30f7e5e451686997e1a1d90e979
   ```
 * **Immutability Guarantee (*Single-Build Artifact Pattern*):** The generated JAR is archived in Jenkins (`archiveArtifacts`) with cryptographic fingerprinting and reused across downstream UAT and PROD stages without any recompilation.
 
@@ -110,7 +113,7 @@ Running SpotBugs on the baseline codebase identified **125 bug instances**, incl
 #### Verification Post-Remediation:
 * **Remaining High-Priority (P1) Bugs:** **0**
 * **SpotBugs Build Status:** `BUILD SUCCESS`.
-* **Unit Test Suite:** 279/279 tests pass with 0 regressions.
+* **Current Test Suite:** 330/330 Unit Tests and 44/44 Integration Tests pass with 0 regressions.
 
 ---
 
@@ -138,10 +141,11 @@ pipeline {
                 echo '>>> Stage 1: Build, Unit Tests, PIT Mutation Testing, Package & Integration Tests'
                 timeout(time: 15, unit: 'MINUTES') {
                     script {
+                        def commitArg = env.GIT_COMMIT ? "-Drelease.commit=${env.GIT_COMMIT}" : ""
                         if (isUnix()) {
-                            sh './mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30'
+                            sh "./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
                         } else {
-                            bat 'mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30'
+                            bat "mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
                         }
                     }
                 }
@@ -149,17 +153,16 @@ pipeline {
             post {
                 always {
                     echo '>>> Archiving Test, Mutation & Quality Reports as Evidence...'
-                    archiveArtifacts artifacts: 'target/pit-reports/**, target/surefire-reports/*.xml, target/failsafe-reports/*.xml, target/spotbugsXml.xml',
-                                     allowEmptyArchive: true,
-                                     fingerprint: false
-
-                    junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml',
-                          allowEmptyResults: true
+                    archiveArtifacts artifacts: 'target/pit-reports/**', allowEmptyArchive: true
+                    junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml', allowEmptyResults: true
                 }
             }
         }
 
         stage('Deploy DEV') {
+            when {
+                expression { env.GIT_BRANCH in ['origin/main', 'main'] || env.BRANCH_NAME == 'main' }
+            }
             steps {
                 echo '>>> Stage 2: Packaging and Deploying to DEV Environment'
                 script {
@@ -180,11 +183,12 @@ pipeline {
                     }
 
                     def commitSha = env.GIT_COMMIT ?: 'UNKNOWN_COMMIT'
-                    def propertiesContent = "job=${env.JOB_NAME}\nbuild=${env.BUILD_NUMBER}\ncommit=${commitSha}\n"
+                    def propertiesContent = "job=${env.JOB_NAME}\nCI_JOB=${env.JOB_NAME}\nbuild=${env.BUILD_NUMBER}\nCI_BUILD=${env.BUILD_NUMBER}\ncommit=${commitSha}\nGIT_COMMIT=${commitSha}\n"
                     writeFile file: 'artifact/release.properties', text: propertiesContent, encoding: 'UTF-8'
 
-                    def common = load '.Jenkinsfile_common.groovy'
-                    common.deploy('dev')
+                    // Load deploy module and deploy to DEV on DEI VM vs806
+                    def deploy = load 'deploy/jenkins-deploy.groovy'
+                    deploy.call('dev')
 
                     dir('validated') {
                         deleteDir()
@@ -205,12 +209,16 @@ pipeline {
 
                     archiveArtifacts artifacts: 'validated/**', fingerprint: true, allowEmptyArchive: false
 
-                    build job: "${UAT_JOB_NAME}",
-                          parameters: [
-                              string(name: 'CI_BUILD', value: "${env.BUILD_NUMBER}"),
-                              string(name: 'CI_JOB', value: "${env.JOB_NAME}")
-                          ],
-                          wait: false
+                    try {
+                        build job: "${UAT_JOB_NAME}",
+                              parameters: [
+                                  string(name: 'CI_BUILD', value: "${env.BUILD_NUMBER}"),
+                                  string(name: 'CI_JOB', value: "${env.JOB_NAME}")
+                              ],
+                              wait: false
+                    } catch (Exception e) {
+                        echo "WARNING: Could not trigger downstream job '${UAT_JOB_NAME}': ${e.message}."
+                    }
                 }
             }
         }
@@ -240,11 +248,11 @@ The pipeline establishes **Hard Gates** and **Soft Gates** as taught in the theo
 | :--- | :---: | :--- | :--- |
 | **Compilation** | **Hard Gate** | 0 compilation errors, 0 annotation processor errors | Aborts build immediately (`FAILURE`). Stops line. |
 | **Static Code Analysis (SpotBugs)** | **Hard Gate** | 0 High-Priority (P1) defects | Halts pipeline before packaging or deployment. |
-| **Unit Tests (Surefire)** | **Hard Gate** | 100% pass rate (279/279 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
-| **Integration Tests (Failsafe)** | **Hard Gate** | 100% pass rate (41/41 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
+| **Unit Tests (Surefire)** | **Hard Gate** | 100% pass rate (330/330 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
+| **Integration Tests (Failsafe)** | **Hard Gate** | 100% pass rate (44/44 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
 | **Mutation Testing (PITest)** | **Hard Gate** | Mutation threshold $\ge 30\%$ | Aborts build if mutation score degrades below threshold. |
 | **Artifact Packaging** | **Hard Gate** | Binary JAR preserved (~72 MB) via `copy /B /Y` | Aborts build if artifact missing or truncated. |
-| **Readiness Smoke Test** | **Hard Gate** | HTTP 200 on `/api-docs` or `/actuator/health` within 60s | Aborts deployment and rolls back. |
+| **Readiness Smoke Test** | **Hard Gate** | HTTP 200 and contract validation on `/info` (app, env, commit) and `/actuator/health/readiness` (status UP) within 60s (30 attempts $\times$ 2s) | Aborts deployment pipeline (`FAILURE`). |
 
 ---
 

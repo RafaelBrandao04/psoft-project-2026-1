@@ -16,9 +16,9 @@ Following the architectural segregation designed in [`Docs/ODSOFT/testing-strate
 
 ```mermaid
 flowchart TD
-    COMPILE["1. Clean Compile & SAST<br/>(Bytecode & SpotBugs)"] --> UNIT["2. Unit Tests<br/>(Surefire: 279 Tests, 100% Pass)"]
+    COMPILE["1. Clean Compile & SAST<br/>(Bytecode & SpotBugs)"] --> UNIT["2. Unit Tests<br/>(Surefire: 330 Tests, 100% Pass)"]
     UNIT --> PKG["3. Package & Repackage<br/>(Spring Boot Fat JAR)"]
-    PKG --> IT["4. Integration Tests<br/>(Failsafe: 41 Tests, 100% Pass)"]
+    PKG --> IT["4. Integration Tests<br/>(Failsafe: 44 Tests, 100% Pass)"]
     IT --> PIT["5. PIT Mutation Testing<br/>(Threshold: 30%, Test Strength: 84%)"]
     PIT --> POST["6. Post-Verification Evidence<br/>(archiveArtifacts + junit XML recording)"]
     POST --> DEV["7. Deploy DEV & Smoke Test<br/>(Port 8081 on DEI VM vs806)"]
@@ -35,18 +35,18 @@ flowchart TD
 ```
 
 ### 2.1. Level 1: Unit Tests (`maven-surefire-plugin`)
-* **Scope:** 279 isolated unit tests covering Domain Value Objects, Aggregate Roots, and Application Services using Mockito test doubles.
+* **Scope:** 330 isolated unit tests covering Domain Value Objects, Aggregate Roots, Application Services, Notification Listeners, and Configuration using Mockito test doubles.
 * **Execution:** Executed during the Maven `test` phase.
 * **Characteristics:** Runs entirely in memory without Spring context or database overhead, finishing in ~12 seconds to provide immediate developer feedback.
 * **Surefire Configuration:** Includes `**/*Test.java`, strictly excluding `**/*IT.java` and `**/*IntegrationTest.java`.
-* **Observed Result:** 279 tests executed, 0 failures, 0 errors, 0 skipped.
+* **Observed Result:** 330 tests executed, 0 failures, 0 errors, 0 skipped.
 
 ### 2.2. Level 2: Integration Tests (`maven-failsafe-plugin`)
-* **Scope:** 41 integration tests verifying Spring Data JPA repository queries, Spring Security filter chains, role-based authorization (RBAC), and database concurrency locking (`@Version` on `LendingServiceImplIT`).
+* **Scope:** 44 integration tests verifying Spring Data JPA repository queries, Spring Security filter chains, role-based authorization (RBAC), database concurrency locking (`@Version` on `LendingServiceImplIT`), and multichannel notification dispatch (`LendingNotificationIntegrationIT`).
 * **Execution:** Executed during `integration-test` and verified during `verify`.
 * **Characteristics:** Bootstraps an ephemeral in-memory H2 database (`jdbc:h2:mem:testdb`), executing in ~15 seconds.
 * **Failsafe Advantage:** Unlike Surefire, Failsafe does not prematurely abort the build during the `integration-test` phase; it guarantees that post-integration cleanup and verify phases execute, allowing complete test report collection.
-* **Observed Result:** 41 tests executed, 0 failures, 0 errors, 0 skipped.
+* **Observed Result:** 44 tests executed, 0 failures, 0 errors, 0 skipped.
 
 ---
 
@@ -58,9 +58,8 @@ Continuous integration requires automated collection and historical tracking of 
 post {
     always {
         echo '>>> Archiving Test, Mutation & Quality Reports as Evidence...'
-        archiveArtifacts artifacts: 'target/pit-reports/**, target/surefire-reports/*.xml, target/failsafe-reports/*.xml, target/spotbugsXml.xml',
-                         allowEmptyArchive: true,
-                         fingerprint: false
+        archiveArtifacts artifacts: 'target/pit-reports/**',
+                         allowEmptyArchive: true
 
         junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml',
               allowEmptyResults: true
@@ -136,16 +135,19 @@ To avoid slowing down ordinary local development compilations while strictly enf
 
 #### Pipeline Command:
 ```bash
-./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30
+./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 -Drelease.commit="${GIT_COMMIT}"
 ```
 
-#### Empirical Execution Metrics (Jenkins Build #7 Log):
-* **Mutators Active:** `IncrementsMutator` (100% killed), `VoidMethodCallMutator` (74% killed), `EmptyObjectReturnValsMutator` (40% killed), `NullReturnValsMutator` (30% killed), `NegateConditionalsMutator` (21% killed).
-* **Line Coverage (Mutated Classes):** 1186 / 2286 (52%).
-* **Total Mutations Generated:** 2,916.
-* **Mutations Killed:** 596.
+#### Empirical Execution Metrics (Jenkins Build #17 Log):
+* **Mutators Active:** `IncrementsMutator`, `VoidMethodCallMutator`, `EmptyObjectReturnValsMutator`, `NullReturnValsMutator`, `NegateConditionalsMutator`.
+* **Line Coverage (Mutated Classes):** 1404 / 2510 (56%).
+* **Total Mutations Generated:** 2,999.
+* **Mutations Killed:** 662 (22%).
+* **Mutations with No Coverage:** 2,213.
 * **Test Strength:** **84%** (percentage of mutations killed among those covered by tests).
-* **Total Execution Time:** ~2 minutes 24 seconds.
+* **Total Tests Executed by PITest:** 1,421 tests (0.47 tests per mutation).
+* **Execution Time (Mutation Analysis):** 1 min 58 s (Total stage: 3 min 17 s).
+* **Build Status:** `BUILD SUCCESS`.
 
 ---
 
@@ -156,11 +158,11 @@ In alignment with the quality gate patterns defined in *Something about Apache J
 | Gate Category | Gate Scope | Threshold / Condition | Enforcement Mechanism | Failure Action |
 | :--- | :--- | :--- | :---: | :--- |
 | **Compilation Gate** | Source code & annotations | 0 compilation errors, 0 annotation processor errors | **Hard Gate** | Halts build immediately (`FAILURE`). Stops line. |
-| **Unit Test Pass Gate** | Surefire unit test suite | 100% pass rate (279/279 tests pass) | **Hard Gate** | Halts build immediately (`FAILURE`). |
-| **Integration Test Gate**| Failsafe integration suite | 100% pass rate (41/41 tests pass against H2) | **Hard Gate** | Halts build immediately (`FAILURE`). |
+| **Unit Test Pass Gate** | Surefire unit test suite | 100% pass rate (330/330 tests pass) | **Hard Gate** | Halts build immediately (`FAILURE`). |
+| **Integration Test Gate**| Failsafe integration suite | 100% pass rate (44/44 tests pass against H2) | **Hard Gate** | Halts build immediately (`FAILURE`). |
 | **Mutation Testing Gate**| PITest mutation threshold | Mutation threshold $\ge 30\%$ | **Hard Gate** | Maven fails build in `verify` phase if threshold is unmet. |
 | **Packaging Gate** | Executable Spring Boot JAR | `psoft-g1-0.0.1-SNAPSHOT.jar` present and complete (~72 MB) | **Hard Gate** | Aborts pipeline before deployment if artifact corrupted or missing. |
-| **Readiness Smoke Test Gate** | HTTP service check | HTTP 200 on `/api-docs` or `/actuator/health` within 60s | **Hard Gate** | Halts deployment pipeline and marks build `FAILURE`. |
+| **Readiness Smoke Test Gate** | HTTP service & contract check | HTTP 200 and contract validation on `/info` (app, env, commit) and `/actuator/health/readiness` (status UP) within 60s (30 attempts $\times$ 2s) | **Hard Gate** | Halts deployment pipeline and marks build `FAILURE`. |
 
 ---
 
@@ -172,10 +174,11 @@ stage('Build') {
         echo '>>> Stage 1: Build, Unit Tests, PIT Mutation Testing, Package & Integration Tests'
         timeout(time: 15, unit: 'MINUTES') {
             script {
+                def commitArg = env.GIT_COMMIT ? "-Drelease.commit=${env.GIT_COMMIT}" : ""
                 if (isUnix()) {
-                    sh './mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30'
+                    sh "./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
                 } else {
-                    bat 'mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30'
+                    bat "mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
                 }
             }
         }
@@ -183,9 +186,8 @@ stage('Build') {
     post {
         always {
             echo '>>> Archiving Test, Mutation & Quality Reports as Evidence...'
-            archiveArtifacts artifacts: 'target/pit-reports/**, target/surefire-reports/*.xml, target/failsafe-reports/*.xml, target/spotbugsXml.xml',
-                             allowEmptyArchive: true,
-                             fingerprint: false
+            archiveArtifacts artifacts: 'target/pit-reports/**',
+                             allowEmptyArchive: true
 
             junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml',
                   allowEmptyResults: true
@@ -198,10 +200,10 @@ stage('Build') {
 
 ## 7. Verification and Evidence Checklist
 
-- [x] Surefire unit tests execute isolated in ~12s (279 tests, 0 failures, 0 errors).
-- [x] Failsafe integration tests execute against H2 in ~15s (41 tests, 0 failures, 0 errors).
+- [x] Surefire unit tests execute isolated in ~12s (330 tests, 0 failures, 0 errors).
+- [x] Failsafe integration tests execute against H2 in ~15s (44 tests, 0 failures, 0 errors).
 - [x] PITest mutation testing profile (`-Pmutation`) configured and bound to the `verify` phase.
-- [x] Mutation score and test strength (84%) successfully verified and threshold of 30% enforced.
+- [x] Mutation score and test strength (84%) successfully verified and threshold of 30% enforced (2,999 mutations generated, 662 killed).
 - [x] JUnit test results recorded in Jenkins via `junit 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml'`.
 - [x] PIT mutation and SpotBugs reports archived via `archiveArtifacts`.
 - [x] Hard quality gates enforced at compilation, test, mutation, and deployment readiness stages.
