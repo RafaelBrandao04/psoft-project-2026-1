@@ -7,7 +7,7 @@ No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Instit
 ```mermaid
 flowchart TD
     subgraph Inputs["Entradas do ADD (Passos 1 a 3)"]
-        D["Architectural Drivers (Issue #11)<br/>ASR01-ASR07 | TC01-TC05 | FR01-FR04"]
+        D["Architectural Drivers <br/>ASR01-ASR07 | TC01-TC05 | FR01-FR04"]
         TE["Elementos a Refinar (Brownfield)<br/>Backend do LMS"]
     end
 
@@ -152,11 +152,15 @@ flowchart TD
     DrivingAdapters --> AppServices
     AppServices --> DomainLayer
     AppServices --> OutputPorts
-    DrivenAdapters ..|> OutputPorts
-    DrivenAdapters --> WebClientImpl & RepoImpl
-    WebClientImpl --> GB & OL & HOOK & SMS
+    DrivenAdapters -.->|implements| OutputPorts
+    DrivenAdapters --> WebClientImpl
+    DrivenAdapters --> RepoImpl
+    WebClientImpl --> GB
+    WebClientImpl --> OL
+    WebClientImpl --> HOOK
+    WebClientImpl --> SMS
     RepoImpl --> DB
-    MAIL --- DrivenAdapters
+    DrivenAdapters --> MAIL
 ```
 
 #### As Quatro Camadas Concêntricas da Arquitetura de Referência:
