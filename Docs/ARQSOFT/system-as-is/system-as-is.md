@@ -5,7 +5,8 @@
 Este documento consolida a descrição e análise arquitetural completa do **System-as-is** da aplicação LMS, obtida por engenharia reversa do código-fonte do projeto base. 
 
 A documentação segue a abordagem combinada do modelo **4+1 Vistas de Kruchten** com os níveis de granularidade do **Modelo C4** (Nível 1 — Sistema/Contexto a Nível 4 — Código/Classes):
-* **Vista Arquitetural / Lógica (VA / VL):** Organização funcional, subsistemas, módulos de domínio e camadas internas.
+* **Vista Lógica de Negócio (VL):** Decomposição concetual pura dos subdomínios de negócio e interfaces de domínio funcionais.
+* **Vista Arquitetural (VA):** Organização funcional, subsistemas, padrões arquiteturais (Modular Monolith, Clean Architecture) e portas de interface pública.
 * **Vista de Implementação (VI):** Estrutura física do código-fonte, módulos de subdomínio, infraestrutura de persistência e pacotes Java.
 * **Mapeamento entre Vistas (*Manifestation*):** Rastreabilidade formal (`<<manifest>>`) entre conceitos lógicos abstratos e artefactos de implementação.
 * **Vista Física / Implantação (VF):** Topologia de nós computacionais e processos em execução.
@@ -74,26 +75,39 @@ Reader ─────────── Lending ──────────�
 
 ---
 
-## 3. Vista Lógica de Negócio (VL) e Vista Arquitetural (VA)
+## 3. Vista Lógica de Negócio (VL)
 
-De acordo com a matriz de vistas e granularidade da unidade curricular (*Business Logic View vs. Architecture Logic View vs. Implementation View*), distinguem-se a **Vista Lógica de Negócio (VL)** — focada na decomposição concetual pura dos subdomínios de negócio — e a **Vista Arquitetural (VA)** — que explicita os padrões arquiteturais adotados (*Modular Monolith* no Nível 3 e *Clean Architecture* no Nível 4) e os protocolos de comunicação (`REST API`).
+A Vista Lógica de Negócio (VL) foca-se na decomposição concetual pura dos subdomínios de negócio e nas respetivas interfaces de domínio internas e externas, independentemente de detalhes tecnológicos e de protocolos de comunicação.
 
-### 3.0 Vista Lógica de Negócio (VL — Níveis 1 a 3)
+### 3.1 Nível 1 — Sistema Global (VL-N1)
 
-* **Nível 1 (`VL-N1`):** Representa o sistema `LMS` como uma caixa-preta de negócio que disponibiliza a `API` funcional da biblioteca e requer a `Ninja API` externa.
-  ![VL-N1.png](Vista%20Lógica/VL-N1.png)
-* **Nível 2 (`VL-N2`):** Evidencia o componente aplicacional de negócio (`Backend`) dentro da fronteira do `LMS`, delegando a persistência de dados através da porta requerida `DB API`.
-  ![VL-N2.png](Vista%20Lógica/VL-N2.png)
-* **Nível 3 (`VL-N3`):** Decompõe o `Backend` nos seis subdomínios funcionais de negócio (`User`, `Reader`, `Genre`, `Book`, `Author`, `Lending`) e nas respetivas interfaces de domínio internas (`USER API`, `Reader API`, `Genre API`, `Book API`, `Author API`, `Lending API`), independentemente de detalhes tecnológicos.
-  ![VL-N3.png](Vista%20Lógica/VL-N3.png)
+No Nível 1, o sistema `LMS` é representado como uma caixa-preta de negócio que disponibiliza a `API` funcional da biblioteca e requer a `Ninja API` externa.
+
+![VL-N1.png](Vista%20Lógica/VL-N1.png)
 
 ---
 
-### Vista Arquitetural (VA)
+### 3.2 Nível 2 — Decomposição em Subsistemas Lógicos (VL-N2)
 
-A Vista Arquitetural descreve a decomposição funcional e concetual do sistema, evidenciando as responsabilidades de negócio, os contratos de interface pública (*ball-and-socket*) e os limites de contexto.
+No Nível 2, evidencia-se o componente aplicacional de negócio (`Backend`) dentro da fronteira do `LMS`, delegando a persistência de dados através da porta requerida `DB API`.
 
-### 3.1 Nível 1 — Sistema Global (C4 Context)
+![VL-N2.png](Vista%20Lógica/VL-N2.png)
+
+---
+
+### 3.3 Nível 3 — Decomposição em Subdomínios de Negócio (VL-N3)
+
+No Nível 3, decompõe-se o `Backend` nos seis subdomínios funcionais de negócio (`User`, `Reader`, `Genre`, `Book`, `Author`, `Lending`) e nas respetivas interfaces de domínio internas (`USER API`, `Reader API`, `Genre API`, `Book API`, `Author API`, `Lending API`), independentemente de detalhes tecnológicos.
+
+![VL-N3.png](Vista%20Lógica/VL-N3.png)
+
+---
+
+## 4. Vista Arquitetural (VA)
+
+A Vista Arquitetural descreve a decomposição funcional e concetual do sistema, evidenciando as responsabilidades de negócio, os contratos de interface pública (*ball-and-socket*), os limites de contexto e os padrões arquiteturais adotados (*Modular Monolith* no Nível 3 e *Clean Architecture* no Nível 4) com os respetivos protocolos de comunicação (`REST API`).
+
+### 4.1 Nível 1 — Sistema Global (C4 Context)
 
 No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
@@ -105,7 +119,7 @@ No Nível 1, o LMS é visto como um bloco concetual único (*C4 System*).
 
 ---
 
-### 3.2 Nível 2 — Decomposição em Subsistemas (C4 Container)
+### 4.2 Nível 2 — Decomposição em Subsistemas (C4 Container)
 
 No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
@@ -120,7 +134,7 @@ No Nível 2, o LMS decompõe-se nos seus dois subsistemas lógicos fundamentais.
 
 ---
 
-### 3.3 Nível 3 — Módulos de Domínio (Modular Monolith)
+### 4.3 Nível 3 — Módulos de Domínio (Modular Monolith)
 
 No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais, adotando o padrão arquitetural **Modular Monolith** orientado por domínios (DDD).
 
@@ -147,7 +161,7 @@ No Nível 3, o `Backend` é decomposto nos seus módulos de domínio funcionais,
 
 ---
 
-### 3.4 Nível 4 — Estrutura Interna de um Módulo (Organização em Camadas)
+### 4.4 Nível 4 — Estrutura Interna de um Módulo (Organização em Camadas)
 
 No Nível 4, realiza-se o detalhe concetual interno de um módulo específico — **`UserManagement`** (`pt.psoft.g1.psoftg1.usermanagement`) — decompondo-o na sua organização interna em camadas concêntricas.
 
@@ -159,11 +173,11 @@ No Nível 4, realiza-se o detalhe concetual interno de um módulo específico �
 
 ---
 
-## 4. Vista de Implementação (VI)
+## 5. Vista de Implementação (VI)
 
 A Vista de Implementação descreve a organização estática do código-fonte, das unidades de compilação, dos subsistemas de empacotamento e da infraestrutura tecnológica concreta.
 
-### 4.1 Nível 1 — Artefato Executável Global
+### 5.1 Nível 1 — Artefato Executável Global
 
 No Nível 1, a aplicação é empacotada num único artefato executável JAR gerado pelo Apache Maven (`psoft-g1-0.0.1-SNAPSHOT.jar`), incorporando o Spring Boot Starter e o servidor Tomcat embutido.
 
@@ -173,7 +187,7 @@ No Nível 1, a aplicação é empacotada num único artefato executável JAR ger
 
 ---
 
-### 4.2 Nível 2 — Subsistemas de Implementação
+### 5.2 Nível 2 — Subsistemas de Implementação
 
 No Nível 2, a arquitetura de implementação divide-se entre a base de código Java (`Backend`) e a unidade de gestão de dados relacional (`DB`).
 
@@ -183,7 +197,7 @@ No Nível 2, a arquitetura de implementação divide-se entre a base de código 
 
 ---
 
-### 4.3 Nível 3 — Módulos de Subdomínio e Subsistema de Persistência
+### 5.3 Nível 3 — Módulos de Subdomínio e Subsistema de Persistência
 
 No Nível 3, a base de código do `Backend` organiza-se em subsistemas de código correspondentes aos subdomínios funcionais e destaca o componente técnico de suporte transversal **`Persistência`**.
 
@@ -203,7 +217,7 @@ No Nível 3, a base de código do `Backend` organiza-se em subsistemas de códig
 
 ---
 
-### 4.4 Nível 4 — Decomposição Física em Pacotes Java
+### 5.4 Nível 4 — Decomposição Física em Pacotes Java
 
 No Nível 4, a estrutura de implementação descreve a árvore física de pacotes e tipos Java de um módulo de subdomínio (exemplificado em `usermanagement`):
 
@@ -211,11 +225,11 @@ No Nível 4, a estrutura de implementação descreve a árvore física de pacote
 
 ---
 
-## 5. Mapeamento e Rastreabilidade entre Vistas (*Manifestation*)
+## 6. Mapeamento e Rastreabilidade entre Vistas (*Manifestation*)
 
 A rastreabilidade arquitetural assegura que cada conceito lógico abstrato da Vista Arquitetural encontra correspondência direta e inequívoca nos artefactos de software da Vista de Implementação através de relações `<<manifest>>`.
 
-### 5.1 Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3)
+### 6.1 Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3)
 
 O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógicos) com os módulos de código e com o subsistema técnico de persistência.
 
@@ -225,7 +239,7 @@ O mapeamento de Nível 3 correlaciona os módulos de domínio funcionais (lógic
   * Cada módulo de subdomínio na VI manifesta o seu módulo funcional correspondente na VA (`VI: UserManagement` $\xrightarrow{\text{<<manifest>>}}$ `VA: UserManagement`, etc.).
   * O componente **`Persistência`** da VI manifesta a capacidade de persistência de **todos os módulos lógicos da VA**. Justifica como uma arquitetura monolítica modular partilha uma stack tecnológica comum de ORM e transações (Spring Data JPA / Hibernate) sem que cada módulo necessite de gerir uma base de dados autónoma.
 
-### 5.2 Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
+### 6.2 Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
 
 O mapeamento de Nível 4 correlaciona as camadas concêntricas internas do módulo com os pacotes Java reais.
 
@@ -238,16 +252,16 @@ O mapeamento de Nível 4 correlaciona as camadas concêntricas internas do módu
 
 ---
 
-## 6. Vista Física / Implantação (VF)
+## 7. Vista Física / Implantação (VF)
 
 A Vista Física (ou de Implantação) descreve a topologia de nós computacionais físicos/lógicos onde os subsistemas e artefactos de software executam em ambiente real ou de desenvolvimento.
 
-### 6.1 Nível 1
+### 7.1 Nível 1
 No Nível 1, o sistema é representado no seu nó de execução de topo (*Server*), alojando o bloco concetual único do sistema de gestão de biblioteca (`<<C4System>> LMS`).
 
 ![VF_N1.png](Vista%20Fisica/VF_N1.png)
 
-### 6.2 Nível 2
+### 7.2 Nível 2
 No Nível 2, a topologia de implantação detalha os nós de execução físicos/lógicos, processos em execução, portas e canais de comunicação em tempo de execução:
 * **`Server (localhost)`:**
   * **`JVM 17`:** Processo de execução da aplicação Spring Boot (`Backend`), escutando requisições REST na porta HTTP `8080`.
@@ -260,11 +274,11 @@ No Nível 2, a topologia de implantação detalha os nós de execução físicos
 
 ---
 
-## 7. Vista de Processos (VP)
+## 8. Vista de Processos (VP)
 
 A realização dinâmica das operações é ilustrada através de diagramas de sequência para quatro cenários representativos do sistema.
 
-### 7.1 Cenário 1: Criar Empréstimo (*Create Lending*)
+### 8.1 Cenário 1: Criar Empréstimo (*Create Lending*)
 Fluxo de criação de um novo empréstimo por parte de um bibliotecário (`POST /api/lendings`), incluindo a validação de empréstimos pendentes e atrasos do leitor, obtenção dos dados do livro e leitor, apuramento da contagem anual, instanciação e persistência da entidade `Lending`.
 
 * **Nível 1:**  
@@ -274,7 +288,7 @@ Fluxo de criação de um novo empréstimo por parte de um bibliotecário (`POST 
 * **Nível 3:**  
   ![VP_N3_CreateLending.png](Vista%20Processos/png/VP_N3_CreateLending.png)
 
-### 7.2 Cenário 2: Registar Livro (*Register Book*)
+### 8.2 Cenário 2: Registar Livro (*Register Book*)
 Fluxo de registo de um novo livro no catálogo (`PUT /api/books/{isbn}`), compreendendo a verificação da disponibilidade do ISBN, pesquisa dos autores associados, consulta do género literário, instanciação da entidade `Book` e persistência no repositório.
 
 * **Nível 1:**  
@@ -284,7 +298,7 @@ Fluxo de registo de um novo livro no catálogo (`PUT /api/books/{isbn}`), compre
 * **Nível 3:**  
   ![VP_N3_CreateBook.png](Vista%20Processos/png/VP_N3_CreateBook.png)
 
-### 7.3 Cenário 3: Devolver Empréstimo (*Return Lending*)
+### 8.3 Cenário 3: Devolver Empréstimo (*Return Lending*)
 Fluxo de devolução de um empréstimo (`PATCH /api/lendings/{year}/{seq}`), envolvendo a obtenção do leitor autenticado, verificação de concorrência através do cabeçalho `If-Match`, marcação da devolução na entidade `Lending`, criação e persistência opcional de multa (`Fine`) se existirem dias em atraso, e atualização do estado do empréstimo.
 
 * **Nível 1:**  
@@ -294,7 +308,7 @@ Fluxo de devolução de um empréstimo (`PATCH /api/lendings/{year}/{seq}`), env
 * **Nível 3:**  
   ![VP_N3_ReturnLending.png](Vista%20Processos/png/VP_N3_ReturnLending.png)
 
-### 7.4 Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
+### 8.4 Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
 Fluxo de consulta analítica (`GET /api/books/top5`), demonstrando a definição do período temporal relativo ao último ano (`minusYears(1)`), aplicação da regra de paginação para os 5 registos mais frequentes e retorno da lista de livros.
 
 * **Nível 1:**  
@@ -306,14 +320,14 @@ Fluxo de consulta analítica (`GET /api/books/top5`), demonstrando a definição
 
 ---
 
-## 8. Preocupações Transversais & Infraestrutura Técnica
+## 9. Preocupações Transversais & Infraestrutura Técnica
 
-### 8.1 Persistência e Acesso a Dados
+### 9.1 Persistência e Acesso a Dados
 * A persistência relacional assenta em Spring Data JPA e Hibernate sobre base de dados H2.
 * O desacoplamento é garantido por interfaces de repositório no pacote `repositories`, implementadas na camada `infrastructure` através de adaptadores Spring Data JPA.
 * A base de dados é partilhada entre os módulos (modelo de base de dados única do Monólito Modular), assegurando integridade referencial relacional entre tabelas (`LENDING`, `BOOK`, `READER`, `USER`, etc.).
 
-### 8.2 Segurança e Controlo de Acesso
+### 9.2 Segurança e Controlo de Acesso
 * A autenticação baseia-se em **JWT (JSON Web Tokens)** e **Spring Security**.
 * O controlo de autorização é efetuado por papéis (*Roles*): `ADMIN`, `LIBRARIAN` e `READER`.
 * Fluxo de autenticação:
@@ -321,17 +335,17 @@ Fluxo de consulta analítica (`GET /api/books/top5`), demonstrando a definição
   Credenciais → Autenticação → JWT Token → Pedido HTTP com Bearer Token → Filtro Spring Security → Autorização RBAC
   ```
 
-### 8.3 Integrações Externas
+### 9.3 Integrações Externas
 * A comunicação com serviços externos no *System-as-is* resume-se ao serviço `ApiNinjasService` no pacote `external`.
 * O serviço consome uma API REST exterior via Spring `WebClient` para obter citações literárias e factos históricos associados aos perfis dos leitores.
 
-### 8.4 Configuração e Regras de Negócio
+### 9.4 Configuração e Regras de Negócio
 * Parâmetros operacionais da biblioteca encontram-se definidos no ficheiro `application.properties` (ex.: duração padrão de empréstimos, valor da multa diária, limites de idade).
 * A configuração é lida no arranque da aplicação pelo Spring Boot.
 
 ---
 
-## 9. Limitações Identificadas e Motivação para a Evolução (System-to-Be)
+## 10. Limitações Identificadas e Motivação para a Evolução (System-to-Be)
 
 A análise crítica de engenharia reversa do *System-as-is* evidenciou as três fragilidades centrais identificadas na **Secção 1.2 do Enunciado**:
 

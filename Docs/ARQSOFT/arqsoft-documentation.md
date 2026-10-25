@@ -62,7 +62,8 @@ O detalhe exaustivo de engenharia reversa encontra-se formalmente documentado em
 * **Paradigma:** Monólito Modular (*Modular Monolith*) orientado a domínios de negócio (DDD).
 * **Camadas Internas:** Cada módulo de domínio (`bookmanagement`, `lendingmanagement`, `readermanagement`, `usermanagement`, etc.) adota internamente uma organização em camadas (`api`, `services`, `model`, `infrastructure/repositories`), isolando o núcleo de domínio de detalhes tecnológicos.
 * **Vistas Documentadas:**
-  * **Vista Arquitetural / Lógica (VA):** 4 níveis C4 detalhando portas de interface pública (*ball-and-socket*), limites de contexto e desacoplamento via DIP.
+  * **Vista Lógica de Negócio (VL):** 3 níveis de decomposição concetual pura dos subdomínios de negócio e interfaces de domínio funcionais.
+  * **Vista Arquitetural (VA):** 4 níveis C4 detalhando portas de interface pública (*ball-and-socket*), limites de contexto e desacoplamento via DIP.
   * **Vista de Implementação (VI):** Empacotamento Maven JAR, módulos de código Java e centralização técnica da `Persistência` (Spring Data JPA / Hibernate).
   * **Mapeamento de Manifestação:** Relações formais `<<manifest>>` entre a VA e a VI nos Níveis 3 e 4.
   * **Vista Física (VF):** Topologia de nós (`Server localhost`, `Client Workstation`, `Cloud Ninja API`).
@@ -159,7 +160,7 @@ Esta secção detalha os requisitos funcionais primários e a especificação fo
 * **Estímulo:** Falha temporária, latência excessiva (*timeout*) ou resposta de erro HTTP (ex.: 503 *Service Unavailable*) por parte de uma API externa (Google Books, Open Library, gateway SMS ou Webhook).
 * **Fonte do Estímulo:** Fornecedores de serviços externos na cloud ou rede pública.
 * **Ambiente:** Tempo de execução normal (*Runtime*).
-* **Artefacto:** Módulos de integração externa (`bookmanagement.infrastructure.gateways`, `shared.services.notifications`).
+* **Artefacto:** Módulos de integração externa (`bookmanagement.infrastructure.gateways`, `readermanagement.infrastructure.notifications`).
 * **Resposta:**
   * No caso das fontes bibliográficas, o sistema ativa uma cadeia de contingência (*fallback*), consultando a fonte alternativa configurada sem propagar erro ao utilizador;
   * No caso das notificações, a falha no envio para um canal é registada em log de forma isolada, não abortando os restantes canais configurados nem provocando *rollback* da transação de empréstimo na base de dados.
@@ -317,7 +318,7 @@ A qualidade da solução é sustentada por cinco níveis de testes herméticos e
 * **Regras de Negócio Centrais:** Teste estrutural exaustivo dos métodos de negócio em `Lending.java` e `Fine.java`, garantindo cobertura de 100% de branches em `getDaysDelayed()`, cálculo de dias em atraso e apuramento do montante da multa diária.
 
 #### 3. Mutation Tests com SUT = Classes (1.3.3.4.3)
-* Execução da framework **PITest** incidindo sobre os pacotes críticos de negócio (`bookmanagement.infrastructure.gateways`, `shared.services.notifications`, `lendingmanagement.policies` e `lendingmanagement.model`).
+* Execução da framework **PITest** incidindo sobre os pacotes críticos de negócio (`bookmanagement.infrastructure.gateways`, `readermanagement.infrastructure.notifications`, `lendingmanagement.policies` e `lendingmanagement.model`).
 * Eliminação de mutantes gerados por substituição de operadores relacionais (`>`, `>=`, `==`), operadores aritméticos e inversão de condicionais, com meta obrigatória de $\ge 60\%$ de mutantes mortos.
 
 #### 4. Functional Opaque-Box com SUT = Controller + Service + Gateways (1.3.3.4.4)
@@ -348,6 +349,6 @@ Os testes automatizados desenvolvidos fornecem a prova empírica de conformidade
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | **Opaque-Box (Classes — 1.3.3.4.1)** | Fontes Bibliográficas (`GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig`) e Notificações (`CompositeNotificationSender`, `Email`, `SMS`, `Webhook`) | 46 (29 Books + 17 Notif.) | **46/46 Aprovados (100%)** | 100% sucesso | Concluído |
 | **Transparent-Box (Domínio/DTOs — 1.3.3.4.2)** | `BookDetailsDTO`, `BookServiceImpl`, Eventos de Domínio (`Lending*Event`) e `LendingNotificationListener` | 45 (30 Books + 15 Notif.) | **45/45 Aprovados (100%)** | $\ge 70\%$ ramos | Concluído |
-| **Testes de Mutação (PITest — 1.3.3.4.3)** | `bookmanagement.infrastructure.gateways.*`, `shared.services.notifications.*` e `lendingmanagement.events.*` | Suite PITest | **$> 90\%$ mutantes mortos** (superando a meta mínima de 60%) | $\ge 60\%$ mortos | Superado largamente |
+| **Testes de Mutação (PITest — 1.3.3.4.3)** | `bookmanagement.infrastructure.gateways.*`, `readermanagement.infrastructure.notifications.*` e `lendingmanagement.events.*` | Suite PITest | **$> 90\%$ mutantes mortos** (superando a meta mínima de 60%) | $\ge 60\%$ mortos | Superado largamente |
 | **Integração Vertical (`Controller+Service+Gateways` — 1.3.3.4.4)** | `BookControllerIntegrationTest` (8 testes) e `LendingNotificationIntegrationIT` (3 testes — fluxos multicanal e tolerância a falhas ASR06) | 11 | **11/11 Aprovados (100%)** | 100% sucesso | Concluído |
 | **Sistema Global (`SUT = System` — 1.3.3.4.5)** | `BookExternalInfoIT` (2 testes E2E) e `SystemEndToEndTest` (jornada completa dos 6 passos) | Suite E2E | `BookExternalInfoIT` concluído (2/2); jornada global em integração final | 100% sucesso | Em curso (aguarda 1.3.3.3) |
