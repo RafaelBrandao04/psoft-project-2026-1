@@ -1,0 +1,22 @@
+[Unit]
+Description=LMS Application (%i)
+After=network.target
+
+[Service]
+User=psoft-g1-%i
+Group=psoft-g1-%i
+WorkingDirectory=/opt/psoft-g1/%i
+EnvironmentFile=/etc/psoft-g1/%i.env
+ExecStart=/usr/bin/java -jar /opt/psoft-g1/%i/app.jar
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/psoft-g1/%i
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+

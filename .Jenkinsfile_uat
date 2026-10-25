@@ -56,10 +56,13 @@ pipeline {
                     // 5. Load common module and parse release metadata
                     def common = load '.Jenkinsfile_common.groovy'
                     def releaseProps = common.parseProperties('artifact/release.properties')
-                    echo "Retrieved release metadata:\n  Job: ${releaseProps['job']}\n  Build: ${releaseProps['build']}\n  Commit: ${releaseProps['commit']}"
+                    def ciBuild = releaseProps['CI_BUILD'] ?: releaseProps['build']
+                    def ciJob = releaseProps['CI_JOB'] ?: releaseProps['job']
+                    def gitCommit = releaseProps['GIT_COMMIT'] ?: releaseProps['commit']
+                    echo "Retrieved release metadata:\n  Job: ${ciJob}\n  Build: ${ciBuild}\n  Commit: ${gitCommit}"
 
-                    if (releaseProps['build'] != params.CI_BUILD) {
-                        error "Mismatch: release.properties build (${releaseProps['build']}) does not match expected CI_BUILD (${params.CI_BUILD})!"
+                    if (ciBuild != params.CI_BUILD) {
+                        error "Mismatch: release.properties build (${ciBuild}) does not match expected CI_BUILD (${params.CI_BUILD})!"
                     }
 
                     // 6. Deploy to UAT on DEI VM vs806 (port 8082)
@@ -116,7 +119,7 @@ pipeline {
                     // 3. Generate acceptance.properties recording approval metadata
                     def approverName = env.RECORDED_APPROVER ?: 'Authorized Approver'
                     def nowIso = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-                    def acceptanceContent = "accepted_by=${approverName}\nuat_job=${env.JOB_NAME}\nuat_build=${env.BUILD_NUMBER}\napproval_timestamp=${nowIso}\n"
+                    def acceptanceContent = "CI_JOB=${params.CI_JOB}\nCI_BUILD=${params.CI_BUILD}\nUAT_JOB=${env.JOB_NAME}\nuat_job=${env.JOB_NAME}\nUAT_BUILD=${env.BUILD_NUMBER}\nuat_build=${env.BUILD_NUMBER}\nACCEPTED_BY=${approverName}\naccepted_by=${approverName}\napproval_timestamp=${nowIso}\n"
                     writeFile file: 'artifact/acceptance.properties', text: acceptanceContent, encoding: 'UTF-8'
                     echo "Created artifact/acceptance.properties:\n${acceptanceContent}"
 

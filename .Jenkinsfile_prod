@@ -60,21 +60,28 @@ pipeline {
                     def releaseProps = common.parseProperties('artifact/release.properties')
                     def acceptanceProps = common.parseProperties('artifact/acceptance.properties')
 
+                    def ciJob = releaseProps['CI_JOB'] ?: releaseProps['job']
+                    def ciBuild = releaseProps['CI_BUILD'] ?: releaseProps['build']
+                    def gitCommit = releaseProps['GIT_COMMIT'] ?: releaseProps['commit']
+                    def acceptedBy = acceptanceProps['ACCEPTED_BY'] ?: acceptanceProps['accepted_by']
+                    def approvalTime = acceptanceProps['approval_timestamp'] ?: 'N/A'
+
                     echo "=========================================================="
                     echo ">>> PRODUCTION AUDIT TRAIL:"
-                    echo "  Original CI Job:    ${releaseProps['job']}"
-                    echo "  Original CI Build:  #${releaseProps['build']}"
-                    echo "  Git Commit Hash:    ${releaseProps['commit']}"
-                    echo "  Accepted In UAT By: ${acceptanceProps['accepted_by']}"
-                    echo "  UAT Approval Time:  ${acceptanceProps['approval_timestamp']}"
+                    echo "  Original CI Job:    ${ciJob}"
+                    echo "  Original CI Build:  #${ciBuild}"
+                    echo "  Git Commit Hash:    ${gitCommit}"
+                    echo "  Accepted In UAT By: ${acceptedBy}"
+                    echo "  UAT Approval Time:  ${approvalTime}"
                     echo "=========================================================="
 
                     // 6. Deploy to Production on DEI VM vs336 (port 8080)
                     common.deploy('prod')
 
-                    // 6. Record final production deployment metadata in final_artifact/
+                    // 7. Record final production deployment metadata in final_artifact/
                     def nowIso = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-                    def prodContent = "deployed_to=prod\nprod_job=${env.JOB_NAME}\nprod_build=${env.BUILD_NUMBER}\ndeployment_timestamp=${nowIso}\n"
+                    def prodContent = "UAT_JOB=${params.UAT_JOB}\nUAT_BUILD=${params.UAT_BUILD}\nPROD_JOB=${env.JOB_NAME}\nPROD_BUILD=${env.BUILD_NUMBER}\ndeployed_to=prod\ndeployment_timestamp=${nowIso}\n"
+                    writeFile file: 'artifact/production.properties', text: prodContent, encoding: 'UTF-8'
                     writeFile file: 'artifact/prod_deployment.properties', text: prodContent, encoding: 'UTF-8'
 
                     if (isUnix()) {

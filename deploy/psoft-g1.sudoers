@@ -1,0 +1,2 @@
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl stop psoft-g1@dev.service, /usr/bin/systemctl stop psoft-g1@uat.service, /usr/bin/systemctl stop psoft-g1@prod.service, /usr/bin/systemctl start psoft-g1@dev.service, /usr/bin/systemctl start psoft-g1@uat.service, /usr/bin/systemctl start psoft-g1@prod.service, /usr/bin/systemctl is-active psoft-g1@dev.service, /usr/bin/systemctl is-active psoft-g1@uat.service, /usr/bin/systemctl is-active psoft-g1@prod.service
+

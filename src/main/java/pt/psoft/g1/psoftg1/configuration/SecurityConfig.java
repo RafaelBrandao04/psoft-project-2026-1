@@ -112,7 +112,8 @@ public class SecurityConfig {
 
         // Set permissions on endpoints
         http.authorizeHttpRequests()
-                // Swagger endpoints must be publicly accessible
+                // Public info, health and swagger endpoints
+                .requestMatchers("/info").permitAll().requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/").permitAll().requestMatchers(format("%s/**", restApiDocPath)).permitAll()
                 .requestMatchers(format("%s/**", swaggerPath)).permitAll()
                 // H2 console endpoint for local development

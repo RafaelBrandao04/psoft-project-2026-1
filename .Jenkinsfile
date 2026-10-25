@@ -22,10 +22,11 @@ pipeline {
                 echo '>>> Stage 1: Build, Unit Tests, PIT Mutation Testing, Package & Integration Tests'
                 timeout(time: 15, unit: 'MINUTES') {
                     script {
+                        def commitArg = env.GIT_COMMIT ? "-Drelease.commit=${env.GIT_COMMIT}" : ""
                         if (isUnix()) {
-                            sh './mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30'
+                            sh "./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
                         } else {
-                            bat 'mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30'
+                            bat "mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
                         }
                     }
                 }
@@ -66,7 +67,7 @@ pipeline {
 
                     // 3. Generate release.properties metadata file for traceability
                     def commitSha = env.GIT_COMMIT ?: 'UNKNOWN_COMMIT'
-                    def propertiesContent = "job=${env.JOB_NAME}\nbuild=${env.BUILD_NUMBER}\ncommit=${commitSha}\n"
+                    def propertiesContent = "job=${env.JOB_NAME}\nCI_JOB=${env.JOB_NAME}\nbuild=${env.BUILD_NUMBER}\nCI_BUILD=${env.BUILD_NUMBER}\ncommit=${commitSha}\nGIT_COMMIT=${commitSha}\n"
                     writeFile file: 'artifact/release.properties', text: propertiesContent, encoding: 'UTF-8'
                     echo "Created artifact/release.properties:\n${propertiesContent}"
 
