@@ -335,7 +335,7 @@ class LendingServiceImplTest {
     @Test
     void testSearchLendings_NullQuery() {
         List<Lending> expected = List.of(mock(Lending.class));
-        when(lendingRepository.searchLendings(any(Page.class), eq(""), eq(""), isNull(), any(LocalDate.class), isNull()))
+        when(lendingRepository.searchLendings(any(Page.class), eq(""), eq(""), isNull(), isNull(), isNull()))
                 .thenReturn(expected);
 
         List<Lending> result = lendingService.searchLendings(null, null);
