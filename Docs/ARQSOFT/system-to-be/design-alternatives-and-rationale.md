@@ -46,7 +46,7 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 
 ---
 
-### 2.1. Sub-Problema 1: Recuperação e Agregação de Fontes Bibliográficas Heterogéneas (Enunciado 1.3.3.1 / Iteração 1)
+### 2.1. Sub-Problema 1: Recuperação e Agregação de Fontes Bibliográficas Heterogéneas (1.3.3.1 / Iteração 1)
 
 * **Contexto do Problema:** O serviço de livros necessita de obter metadados bibliográficos a partir de APIs externas (Google Books e Open Library). Estas APIs expõem estruturas de dados heterogéneas; deve ser possível selecionar em *setup time* uma ou ambas as fontes ativas, realizar contingência (*fallback*) automática caso a primária falhe ou tenha dados incompletos, e permitir adicionar novas fontes futuras com impacto nulo na lógica existente (cumprimento estrito do OCP).
 
@@ -73,7 +73,7 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 
 ---
 
-### 2.2. Sub-Problema 2: Sistema de Notificações a Leitores Desacoplado e Multicanal (Enunciado 1.3.3.2 / Iteração 2)
+### 2.2. Sub-Problema 2: Sistema de Notificações a Leitores Desacoplado e Multicanal (1.3.3.2 / Iteração 2)
 
 * **Contexto do Problema:** Quando ocorrem eventos no ciclo de vida de empréstimos (criação, devolução, prazo limite, atraso com multa), os leitores devem ser notificados através de canais distintos (**Email**, **SMS** e **Webhook**), funcionando individualmente ou em qualquer combinação configurada em *setup time*. A indisponibilidade de um canal externo não pode bloquear outros canais nem provocar o *rollback* da transação do empréstimo na base de dados (`ASR06`). Novos canais devem ser suportados sem modificar `lendingmanagement`.
 
@@ -100,7 +100,7 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 
 ---
 
-### 2.3. Sub-Problema 3: Motor de Políticas de Empréstimo Parametrizáveis e Dinâmicas (Enunciado 1.3.3.3 / Iteração 3)
+### 2.3. Sub-Problema 3: Motor de Políticas de Empréstimo Parametrizáveis e Dinâmicas (1.3.3.3 / Iteração 3)
 
 * **Contexto do Problema:** No *system-as-is*, as regras de empréstimo encontram-se fixas no código (*hardcoded* em `LendingServiceImpl`): limite global de 3 livros, bloqueio ao 1.º atraso, duração e taxas de multa imutáveis. O *System-to-Be* exige:
   1. Parametrização em *setup time* de limites, prazos e multas sem alterar código (`ASR02`);
@@ -175,7 +175,7 @@ No rigor do método ADD, distingue-se explicitamente duas fases da garantia de q
    * Avaliada analiticamente nos Passos 4 a 7 de cada iteração.
    * Conclui que a combinação de táticas e padrões (Inversão de Dependências, Padrão Composite, Eventos de Domínio) **fornece os mecanismos estruturais adequados** para satisfazer as medidas de resposta dos cenários (`S1.1`, `S2.1`, `S3.1`).
 2. **Verificação Empírica / Experimental (*Empirical Verification* — Fase 1.3.3.4 Testing):**
-   * A plausibilidade concetual é uma hipótese que tem de ser comprovada na prática através de evidências empíricas e executáveis, correspondendo aos cinco níveis de testes exigidos no Enunciado (1.3.3.4):
+   * A plausibilidade concetual é uma hipótese que tem de ser comprovada na prática através de evidências empíricas e executáveis, correspondendo aos cinco níveis de testes:
 
 | Nível de Teste Exigido (1.3.3.4) | SUT (*System Under Test*) | Decisão Arquitetural Subjacente | Estratégia de Verificação Empírica & Evidência |
 | :--- | :--- | :--- | :--- |

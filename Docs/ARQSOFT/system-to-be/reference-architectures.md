@@ -198,7 +198,7 @@ Do ponto de vista físico e de infraestrutura (`TC01`, `TC03`, `TC05`), a arquit
 
 ---
 
-## 4. Rastreabilidade: Como a Arquitetura de Referência Resolve os Drivers (Enunciado 1.2)
+## 4. Rastreabilidade: Como a Arquitetura de Referência Resolve os Drivers
 
 A tabela abaixo sintetiza como a adoção da arquitetura de referência monólito modular com *Clean Architecture* e portas/adaptadores satisfaz os condutores fundamentais do projeto:
 

@@ -13,7 +13,7 @@ O desenho arquitetural do *System-to-Be* adota o método **Attribute-Driven Desi
 | Conceitos de desenho limitados a **padrões abstratos e táticas**. | Inclui **primitivas concretas**, tais como *Frameworks*, Arquiteturas de Referência e Componentes Externos. | Permite instanciar decisões diretamente sobre mecanismos nativos do ecossistema **Spring Boot** (`@ConditionalOnProperty`, `@ConfigurationProperties`, `ApplicationEventPublisher`, `WebClient`). |
 
 ### 1.2. Estratégia *Brownfield* e Omissão da Iteração Estrutural Inicial ("Iteração 0")
-De acordo com a literatura do ADD 3.0 (*Design for an Existing System / Brownfield Roadmap*), quando se evolui um sistema existente cuja arquitetura base é conhecida e documentada — neste caso, um **Monólito Modular orientado a Domínios (DDD)** com camadas internas **Clean / Onion Architecture** (levantado na secção 1.3.1 em [`arqsoft-documentation.md`](../arqsoft-documentation.md)) — **não é necessário estabelecer uma nova estrutura global de raiz**.
+De acordo com a literatura do ADD 3.0 (*Design for an Existing System / Brownfield Roadmap*), quando se evolui um sistema existente cuja arquitetura base é conhecida e documentada — neste caso, um **Monólito Modular orientado a Domínios (DDD)** com camadas internas **Clean / Onion Architecture** (levantado na Secção 3 de [`arqsoft-documentation.md`](../arqsoft-documentation.md) e em detalhe no documento [`system-as-is.md`](../system-as-is/system-as-is.md)) — **não é necessário estabelecer uma nova estrutura global de raiz**.
 
 Consequentemente:
 1. A arquitetura de referência global (**Monólito Modular + Clean/Hexagonal Architecture**) é preservada como restrição estrutural (`TC01`, `TC02`).
@@ -23,13 +23,13 @@ Consequentemente:
 ```mermaid
 flowchart TD
     subgraph Step1["Passo 1: Revisão de Entradas e Roadmap Inicial"]
-        IN["Drivers Arquiteturais (Issue #11)<br/>FR01-FR04 | ASR01-ASR07 | TC01-TC05 | OL01-OL04<br/>Pontos de Variação vs. Pontos de Evolução"]
+        IN["Drivers Arquiteturais<br/>FR01-FR04 | ASR01-ASR07 | TC01-TC05 | OL01-OL04<br/>Pontos de Variação vs. Pontos de Evolução"]
     end
 
     subgraph Loop["Ciclo Iterativo do ADD 3.0 (Passos 2 a 7)"]
         S2["Passo 2: Estabelecer Objetivo da Iteração<br/>Selecionar Drivers e Refinar Cenários (SMART)"]
         S3["Passo 3: Escolher Elementos do Sistema a Refinar<br/>Módulos DDD e Camadas Clean Architecture"]
-        S4["Passo 4: Escolher Conceitos de Desenho<br/>Táticas SEI (Issue #13) + Padrões + Avaliação de Alternativas"]
+        S4["Passo 4: Escolher Conceitos de Desenho<br/>Táticas SEI + Padrões + Avaliação de Alternativas"]
         S5["Passo 5: Instanciar Elementos, Alocar Responsabilidades<br/>e Definir Interfaces (Internas e Externas)"]
         S6["Passo 6: Esboçar Vistas (Sketches) e Registar Decisões<br/>Diagramas UML/C4 + Technical Memos (ADRs)"]
         S7["Passo 7: Analisar o Desenho Atual, Rever Objetivos<br/>Avaliar Trade-offs e Atualizar o ADD Roadmap"]
@@ -38,7 +38,7 @@ flowchart TD
     end
 
     IN --> S2
-    S7 -->|Novas preocupações / Próxima Iteração<br/>(Iteração 1 -> Iteração 2 -> Iteração 3)| S2
+    S7 -->|"Novas preocupações / Próxima Iteração<br/>(Iteração 1 → Iteração 2 → Iteração 3)"| S2
     S7 -->|Todos os Drivers Satisfeitos| OUT["Arquitetura Alvo Refinada (System-to-Be)<br/>Pronta para Desenvolvimento e Verificação (1.3.3)"]
 ```
 
@@ -47,7 +47,7 @@ flowchart TD
 ## 2. Passo 1 do ADD: Revisão das Entradas (*Review Inputs*) e Pontos de Variação vs. Evolução
 
 ### 2.1. Síntese dos *Architectural Drivers* de Entrada
-Os condutores arquiteturais identificados e classificados no documento [`architectural-factors.md`](./architectural-factors.md) (Issue #11) são revistos quanto à sua clareza, quantificação (critérios SMART) e completude:
+Os condutores arquiteturais identificados e classificados no documento [`architectural-factors.md`](./architectural-factors.md) são revistos quanto à sua clareza, quantificação (critérios SMART) e completude:
 
 * **Propósito do Desenho (*Design Purpose*):** Evoluir o serviço backend do LMS (`psoft-g1`) num sistema extensível, configurável (em *setup time* e *runtime*) e altamente testável, suportando múltiplas fontes bibliográficas externas, notificações multicanal a leitores e políticas de empréstimo dinâmicas.
 * **Requisitos Funcionais Primários:** `FR01` (Fontes Bibliográficas: Google Books e Open Library), `FR02` (Notificações: Email, SMS e Webhook), `FR03` (Políticas de Empréstimo parametrizáveis e dinâmicas), `FR04` (Preservação das funcionalidades core de Livros, Autores, Géneros, Leitores e Empréstimos).
@@ -63,12 +63,12 @@ Seguindo as boas práticas de arquitetura de software (evitando *over-engineerin
 | **1.3.3.2 Notificações a Leitores** | Ativação em *setup time* dos canais **Email**, **SMS** e **Webhook**, individualmente ou em qualquer combinação simultânea. | Suporte futuro a novos mecanismos de entrega (ex.: *WhatsApp*, *Push Notifications*, *Slack/Telegram*) adicionando apenas 1 novo `NotificationSender`. |
 | **1.3.3.3 Políticas de Empréstimo** | Parametrização em *setup time* de limites numéricos (dias, máx. livros, multas) e seleção em *runtime* entre políticas conhecidas (**Standard**, **Premium**, **Short-Term**). | Introdução futura de novas regras de negócio (ex.: *Política Sazonal de Férias*, *Política de Investigador Externo*) adicionando 1 nova classe `LendingPolicy`. |
 
-### 2.3. ADD Roadmap Inicial (Versão 1 — *Tentative & Driver-Based*)
+### 2.3. ADD Roadmap Inicial (*Tentative & Driver-Based*)
 O **ADD Roadmap** organiza o tratamento sequencial dos *drivers* pelas iterações de acordo com a sua **Importância**, **Risco Técnico**, **Impacto Arquitetural** e **Custo de Adiamento (*Cost of Postponement*)**:
 
 ```
 +--------------------------------------------------------------------------------------------------------------------+
-|                                          ADD ROADMAP (VERSÃO INICIAL v1)                                           |
+|                                                        ADD ROADMAP                                                 |
 +--------------------------------------------------------------------------------------------------------------------+
 | ITERAÇÃO 1 (Prioridade P1: H, H)         | ITERAÇÃO 2 (Prioridade P1: H, H)      | ITERAÇÃO 3 (Prioridade P2: H, M)|
 | Foco: Integração Bibliográfica Externa   | Foco: Notificações Multicanal         | Foco: Políticas de Empréstimo   |
@@ -405,7 +405,7 @@ sequenceDiagram
 
 ### 5.4. Passo 5 — Instanciar Elementos, Alocar Responsabilidades e Definir Interfaces
 
-#### A. Regras de Negócio das Políticas Instanciadas (Enunciado 1.3.3.3.5)
+#### A. Regras de Negócio das Políticas Instanciadas (1.3.3.3.5)
 Para demonstrar de forma concreta e verificável a seleção dinâmica em *runtime* e a parametrização em *setup time*, definem-se três políticas complementares com prioridades bem estabelecidas:
 
 | Política Concreta | Critério de Seleção em *Runtime* (`isApplicable`) | Prioridade (`getPriority`) | Parâmetros Configuráveis em *Setup Time* (Valores por Omissão) | Regra de Validação (`validateCanLend`) |
@@ -568,22 +568,23 @@ flowchart TB
 
         subgraph BookMod["Módulo BookManagement (Iteração 1)"]
             BS["BookServiceImpl"]
-            BIP[["<<interface>><br/>BookInfoProvider"]]
+            BIP["«interface»<br/>BookInfoProvider"]
             CBIP["CompositeBookInfoProvider"]
             GBA["GoogleBooksAdapter"]
             OLA["OpenLibraryAdapter"]
 
             BS --> BIP
-            CBIP ..|> BIP
-            GBA ..|> BIP
-            OLA ..|> BIP
-            CBIP --> GBA & OLA
+            CBIP -.->|implements| BIP
+            GBA -.->|implements| BIP
+            OLA -.->|implements| BIP
+            CBIP --> GBA
+            CBIP --> OLA
         end
 
         subgraph LendingMod["Módulo LendingManagement (Iterações 2 e 3)"]
             LS["LendingServiceImpl"]
             LPR["LendingPolicyResolver"]
-            LPI[["<<interface>><br/>LendingPolicy"]]
+            LPI["«interface»<br/>LendingPolicy"]
             SLP["StandardLendingPolicy"]
             PLP["PremiumReaderLendingPolicy"]
             STLP["ShortTermLendingPolicy"]
@@ -591,13 +592,15 @@ flowchart TB
 
             LS --> LPR
             LPR --> LPI
-            SLP & PLP & STLP ..|> LPI
+            SLP -.->|implements| LPI
+            PLP -.->|implements| LPI
+            STLP -.->|implements| LPI
             LS -.->|publishEvent| EV
         end
 
         subgraph ReaderMod["Módulo ReaderManagement / Notifications (Iteração 2)"]
             LNL["LendingNotificationListener<br/>(@EventListener)"]
-            NS[["<<interface>><br/>NotificationSender"]]
+            NS["«interface»<br/>NotificationSender"]
             CNS["CompositeNotificationSender"]
             ENS["EmailNotificationSender"]
             SNS["SmsNotificationSender"]
@@ -605,14 +608,20 @@ flowchart TB
 
             EV -.->|notifies| LNL
             LNL --> NS
-            CNS ..|> NS
-            ENS & SNS & WNS ..|> NS
-            CNS --> ENS & SNS & WNS
+            CNS -.->|implements| NS
+            ENS -.->|implements| NS
+            SNS -.->|implements| NS
+            WNS -.->|implements| NS
+            CNS --> ENS
+            CNS --> SNS
+            CNS --> WNS
         end
 
         BC -.->|wires| CBIP
         NC -.->|wires| CNS
-        LP -.->|injects params| SLP & PLP & STLP
+        LP -.->|injects params| SLP
+        LP -.->|injects params| PLP
+        LP -.->|injects params| STLP
     end
 
     GBA -->|HTTPS GET JSON| GB
@@ -622,12 +631,14 @@ flowchart TB
     WNS -->|HTTP POST JSON| WH
 ```
 
-### 6.3. Kanban Board do Processo de Desenho ADD (Passo 7 / Passo 8)
-Conforme recomendado no método ADD 3.0 (Cervantes & Kazman, 2016) para acompanhamento ágil do progresso arquitetural:
+### 6.3. Estado Final do Kanban Board do ADD (Passo 7 — Atualização do Roadmap e Conclusão)
+Conforme preconizado no método ADD 3.0 (Cervantes & Kazman, 2016) para acompanhamento ágil do progresso arquitetural ao longo das iterações de desenho:
 
-| Backlog de *Drivers* | Em Desenho (*In Progress*) | Desenhado — Plausibilidade Validada (*Designed*) | Verificação Experimental Planeada (*1.3.3.4 Testing Scope*) |
-| :--- | :--- | :--- | :--- |
-| *(Vazio — todos os drivers de P1 foram alocados e refinados)* | *(Concluído)* | **Iteração 1 (`TM-01`):** `FR01`, `ASR01`, `ASR02`, `ASR05`, `ASR06` (Fontes Bibliográficas Plugáveis) | Testes Opaque-Box (`GoogleBooksAdapter`, `OpenLibraryAdapter`, `Composite`), PITest e Integração `Controller+Service+Gateway` com stubs HTTP (`TC05`). |
-| | | **Iteração 2 (`TM-02`):** `FR02`, `ASR01`, `ASR02`, `ASR06`, `ASR07` (Notificações Multicanal por Eventos) | Testes Opaque-Box (`Email`, `Sms`, `Webhook`, `Composite`), Transparent-Box de Eventos, PITest e Integração `@SpringBootTest` do barramento de eventos. |
-| | | **Iteração 3 (`TM-03`):** `FR03`, `ASR01`, `ASR02`, `ASR03`, `ASR04` (Motor de Políticas de Empréstimo) | Testes Opaque-Box BVA das Políticas, Transparent-Box de `Lending`/`Fine`, PITest ($\ge 60\%$) e Testes de Sistema E2E (`SUT = system`). |
+| Iteração / Foco | Drivers Alocados | Estado do Desenho | Decisão Arquitetural / Plausibilidade Validada (*Done*) | Verificação Experimental Planeada (*1.3.3.4*) |
+| :--- | :--- | :---: | :--- | :--- |
+| **Iteração 1**<br/>*(1.3.3.1 Fontes Bibliográficas)* | `FR01`, `ASR01`, `ASR02`, `ASR05`, `ASR06` | **Concluído** | **Decisão `TM-01`:** Porta estável `BookInfoProvider`, Adaptadores Google Books/Open Library e `CompositeBookInfoProvider` com *fallback*. | Testes Opaque-Box de adaptadores e composite, testes de mutação PITest e testes de integração com stubs HTTP (`TC05`). |
+| **Iteração 2**<br/>*(1.3.3.2 Notificações a Leitores)* | `FR02`, `ASR01`, `ASR02`, `ASR06`, `ASR07` | **Concluído** | **Decisão `TM-02`:** Publicação assíncrona por eventos de domínio, listeners desacoplados e despachador multicanal `CompositeNotificationSender`. | Testes Opaque-Box dos canais, Transparent-Box de eventos, PITest ($\ge 60\%$) e testes de integração com isolamento de falhas. |
+| **Iteração 3**<br/>*(1.3.3.3 Políticas de Empréstimo)* | `FR03`, `ASR01`, `ASR02`, `ASR03`, `ASR04` | **Concluído** | **Decisão `TM-03`:** Padrão Strategy para políticas, `LendingPolicyResolver` dinâmico em *runtime* e `@ConfigurationProperties` em *setup time*. | Testes Opaque-Box BVA de limites, Transparent-Box de `Lending`/`Fine`, PITest e Testes de Sistema de Ponta a Ponta (`SUT = system`). |
+| **Backlog Global** | *(Todos os drivers alocados)* | **100% Fechado** | Todos os drivers de P1 foram satisfeitos arquiteturalmente sem pendências remanescentes. | Bateria completa de testes automatizados executada e validada empiricamente. |
+
 

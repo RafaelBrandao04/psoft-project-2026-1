@@ -14,7 +14,7 @@ No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Instit
 
 ```mermaid
 flowchart TD
-    subgraph ASRs["Drivers Arquiteturais (Issue #11)"]
+    subgraph ASRs["Drivers Arquiteturais"]
         D1["Extensibilidade (ASR01)"]
         D2["Configurabilidade Setup (ASR02)"]
         D3["Configurabilidade Runtime (ASR03)"]
@@ -23,7 +23,7 @@ flowchart TD
         D6["Desempenho e Não-Bloqueio (ASR07)"]
     end
 
-    subgraph Tactics["Táticas Elementares SEI (Issue #13)"]
+    subgraph Tactics["Táticas Elementares SEI"]
         T1["Abstract Common Services"]
         T2["Encapsulate & Restrict Dependencies"]
         T3["Use an Intermediary"]
@@ -32,7 +32,7 @@ flowchart TD
         T6["Degradation & Fault Isolation"]
     end
 
-    subgraph Patterns["Padrões Arquiteturais & de Desenho (Issue #15)"]
+    subgraph Patterns["Padrões Arquiteturais & de Desenho"]
         P1["Modular Monolith (DDD)"]
         P2["Clean / Hexagonal Architecture (Ports & Adapters)"]
         P3["In-Process Domain Events (Observer)"]

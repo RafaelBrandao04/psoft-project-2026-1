@@ -13,12 +13,12 @@ As **Táticas Arquiteturais (*Architectural Tactics*)** constituem os blocos de 
 
 ```mermaid
 flowchart LR
-    subgraph Drivers["1. Drivers Arquiteturais (Issue #11)"]
+    subgraph Drivers["1. Drivers Arquiteturais"]
         P["Problemas 1.2:<br/>Extensibility, Configurability, Testability"]
         ASR["Cenários ASR01 a ASR07<br/>+ Restrições TC01 a TC05"]
     end
 
-    subgraph Tactics["2. Táticas Arquiteturais (Issue #13)"]
+    subgraph Tactics["2. Táticas Arquiteturais"]
         TM["Táticas de Modificabilidade<br/>(Reduce Coupling, Increase Coherence)"]
         TC["Táticas de Configurabilidade<br/>(Defer Binding: Setup & Runtime)"]
         TT["Táticas de Testabilidade<br/>(Control/Observe State, Limit Complexity)"]
@@ -40,7 +40,7 @@ flowchart LR
 
 ## 2. Seleção e Justificação de Táticas por Atributo de Qualidade (Taxonomia SEI)
 
-Abaixo apresenta-se a seleção sistemática das táticas arquiteturais a partir do catálogo oficial do SEI (*Software Architecture in Practice*), agrupadas pelos atributos de qualidade que resolvem o problema enunciado na secção 1.2 do projeto.
+Abaixo apresenta-se a seleção sistemática das táticas arquiteturais a partir do catálogo oficial do SEI (*Software Architecture in Practice*), agrupadas pelos atributos de qualidade que resolvem os problemas descritos.
 
 ---
 
@@ -247,7 +247,7 @@ flowchart TD
 
 ## 4. Matriz Global de Rastreabilidade (Drivers $\leftrightarrow$ Táticas SEI $\leftrightarrow$ Padrões $\leftrightarrow$ LMS)
 
-A tabela seguinte estabelece a rastreabilidade completa exigida no ponto **1.3.1.4** do enunciado, ligando os requisitos e ASRs ([`architectural-factors.md`](./architectural-factors.md)), as **Táticas Arquiteturais SEI** selecionadas neste documento e a sua realização através de padrões e componentes de código ([`system-to-be.md`](./system-to-be.md)):
+A tabela seguinte estabelece a rastreabilidade completa, ligando os requisitos e ASRs ([`architectural-factors.md`](./architectural-factors.md)), as **Táticas Arquiteturais SEI** selecionadas neste documento e a sua realização através de padrões e componentes de código.
 
 | Driver / ASR | Atributo de Qualidade | Categoria da Tática (SEI) | Tática Arquitetural Selecionada | Padrão / Mecanismo de Realização | Artefactos Concretos no LMS (`psoft-g1`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |

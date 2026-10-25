@@ -1,4 +1,4 @@
-# ARQSOFT — Documentação Global de Arquitetura (P1)
+# ARQSOFT — Documentação Global de Arquitetura
 
 ## 1. Enquadramento e Objetivos do Projeto (P1)
 
@@ -52,10 +52,10 @@ Docs/ARQSOFT/
 
 ---
 
-## 3. Síntese do System-as-is (1.3.1)
+## 3. Síntese do System-as-is (1.3.1.1)
 
 O detalhe exaustivo de engenharia reversa encontra-se formalmente documentado em:
-👉 **[Documentação Completa do System-as-is](./system-as-is/system-as-is.md)**
+**[Documentação Completa do System-as-is](./system-as-is/system-as-is.md)**
 
 ### Principais Características do Sistema Inicial
 * **Paradigma:** Monólito Modular (*Modular Monolith*) orientado a domínios de negócio (DDD).
@@ -71,7 +71,7 @@ O detalhe exaustivo de engenharia reversa encontra-se formalmente documentado em
 
 ## 4. Requisitos de Significância Arquitetural (ASR) & Táticas ADD (1.3.1.2)
 
-Em estrito cumprimento do **Tópico 1.3.1.2 do Enunciado (*Requirements, especially ASR*)**, esta secção detalha os requisitos funcionais primários e a especificação formal dos cenários de atributos de qualidade (*Quality Attribute Scenarios*) segundo a metodologia de referência do *Software Engineering Institute* (SEI — Bass, Clements, Kazman).
+Esta secção detalha os requisitos funcionais primários e a especificação formal dos cenários de atributos de qualidade (*Quality Attribute Scenarios*) segundo a metodologia de referência do *Software Engineering Institute* (SEI — Bass, Clements, Kazman).
 
 ### 4.1 Requisitos Funcionais Globais (FR)
 
@@ -89,7 +89,7 @@ Em estrito cumprimento do **Tópico 1.3.1.2 do Enunciado (*Requirements, especia
 
 #### ASR01: Extensibilidade de Fontes Bibliográficas
 * **Atributo de Qualidade:** Modificabilidade (*Modifiability / Extensibility*)
-* **Estímulo:** Necessidade de suportar um novo fornecedor de metadados bibliográficos (ex.: WorldCat, Biblioteca Nacional).
+* **Estímulo:** Necessidade de suportar um novo fornecedor de metadados bibliográficos
 * **Fonte do Estímulo:** Equipa de desenvolvimento / Operações.
 * **Ambiente:** Tempo de desenho/desenvolvimento (*Design time*).
 * **Artefacto:** Módulo de integração bibliográfica / Serviços externos.
@@ -225,34 +225,128 @@ O desenho da arquitetura alvo (*System-to-Be*) seguiu as diretrizes metodológic
 
 ## 6. Matriz Global de Rastreabilidade e Consistência (1.3.1.4)
 
+### 6.1 Matriz de Rastreabilidade Bidirecional
+
 A matriz seguinte assegura a rastreabilidade e consistência bidirecional entre requisitos, decisões de desenho, modelos arquiteturais e a solução implementada:
 
-| Requisito / Problema | ASR | Decisão Arquitetural (ADD) | Padrões de Desenho | Artefactos / Módulos de Código | Modelos Visuais Associados |
+| Requisito / Problema | ASR | Decisão ADD | Padrões | Artefactos / Módulos de Código | Modelos Visuais |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1.3.3.1 Fontes Bibliográficas** | ASR01, ASR02, ASR05, ASR06 | Desacoplamento via portas e adaptadores; agregação com fallback; ativação condicional em setup time. | **Adapter**, **Gateway**, **Composite / Chain**, **Canonical DTO** | `BookInfoProvider`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig` | C4 Component (N3) do `bookmanagement`; Diagrama de Sequência de Consulta Externa |
-| **1.3.3.2 Notificações a Leitores** | ASR02, ASR03, ASR07 | Publicação orientada a eventos de domínio; despachador multicanal assíncrono; ativação por propriedades. | **Observer / Domain Events**, **Strategy**, **Composite** | `LendingCreatedEvent`, `LendingReturnedEvent`, `NotificationSender`, `CompositeNotificationSender`, `NotificationConfig` | C4 Component (N3) do `readermanagement`; Diagrama de Sequência de Despacho de Eventos |
-| **1.3.3.3 Políticas de Empréstimo** | ASR02, ASR04, ASR05 | Encapsulamento de regras variáveis em estratégias polimórficas; resolução dinâmica em runtime; propriedades tipadas. | **Strategy**, **Policy Resolver / Factory**, **Specification** | `LendingPolicy`, `StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyProperties` | C4 Class/Design (N4) de `lendingmanagement`; Diagrama de Classes de Políticas |
-| **1.3.3.4 Testes Automatizados** | ASR05 | Arquitetura hermética e inversão de controlo para injeção de mocks/stubs em todos os níveis de teste. | **Inversion of Control (IoC)**, **Dependency Injection** | Testes de unidade, Transparent-box de domínio, PITest Mutation, `@SpringBootTest`, `SystemEndToEndTest` | Rastreabilidade formal em `architectural-factors.md` e suítes de teste em `src/test/java` |
+| **1.3.3.1 Fontes Bibliográficas** | ASR01, ASR02, ASR05, ASR06 | Desacoplamento via portas e adaptadores; agregação com fallback; ativação condicional em setup time. | **Adapter**, **Gateway**, **Composite / Chain**, **Canonical DTO** | `BookInfoProvider`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig` | C4 Component (N3) `bookmanagement`; Sequence Diagram Consulta Externa |
+| **1.3.3.2 Notificações a Leitores** | ASR02, ASR03, ASR07 | Publicação orientada a eventos de domínio; despachador multicanal assíncrono; ativação por propriedades. | **Observer / Domain Events**, **Strategy**, **Composite** | `LendingCreatedEvent`, `LendingReturnedEvent`, `NotificationSender`, `CompositeNotificationSender`, `NotificationConfig` | C4 Component (N3) `readermanagement`; Sequence Diagram Despacho Eventos |
+| **1.3.3.3 Políticas de Empréstimo** | ASR02, ASR04, ASR05 | Encapsulamento de regras variáveis em estratégias polimórficas; resolução dinâmica em runtime; propriedades tipadas. | **Strategy**, **Policy Resolver / Factory**, **Specification** | `LendingPolicy`, `StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyProperties` | C4 Class (N4) `lendingmanagement`; Diagrama de Classes Políticas |
+| **1.3.3.4 Testes Automatizados** | ASR05 | Arquitetura hermética e inversão de controlo para injeção de mocks/stubs em todos os níveis de teste. | **Inversion of Control (IoC)**, **Dependency Injection** | Testes unitários, Transparent-box domínio, PITest Mutation, `@SpringBootTest`, `SystemEndToEndTest` | Rastreabilidade formal em `architectural-factors.md` e `src/test/java` |
+
+### 6.2 Contrato e Matriz de Interdependência entre Módulos
+
+Para garantir a coerência arquitetural e viabilizar o desenvolvimento paralelo e desacoplado dos três pilares funcionais sem bloqueios entre membros da equipa, foram estabelecidos contratos estáveis de interface na fronteira de cada módulo:
+
+```mermaid
+graph TB
+    subgraph Core["Core: Serviços Aplicacionais"]
+        direction TB
+        BS["BookServiceImpl"]
+        LS["LendingServiceImpl"]
+    end
+
+    subgraph M1["Fontes Bibliográficas (1.3.3.1)"]
+        direction TB
+        BIP["BookInfoProvider"]
+        BDTO["BookDetailsDTO"]
+        BIP -->|Retorna| BDTO
+    end
+
+    subgraph M3["Políticas de Empréstimo (1.3.3.3)"]
+        direction TB
+        LPR["LendingPolicyResolver"]
+        LP["LendingPolicy"]
+        LPR -->|Resolve| LP
+    end
+
+    subgraph M2["Notificações a Leitores (1.3.3.2)"]
+        direction TB
+        EVT["Domain Events"]
+        NOTIF["NotificationSender"]
+        EVT -->|Despacha para| NOTIF
+    end
+
+    BS -->|1. Consome| BIP
+    LS -->|2. Invoca| LPR
+    LS -->|3. Publica| EVT
+```
+
+* **Ponto de Sincronização 1 (Catálogo $\rightarrow$ Fontes Externas):** O serviço de catálogo (`BookServiceImpl`) depende exclusivamente da interface abstrata `BookInfoProvider` e do DTO canónico `BookDetailsDTO`, operando de forma transparente independentemente das fontes ativas (`GoogleBooksAdapter`, `OpenLibraryAdapter`) ou do intermediário `CompositeBookInfoProvider`.
+* **Ponto de Sincronização 2 (Empréstimos $\rightarrow$ Políticas de Negócio):** O serviço `LendingServiceImpl` delega a validação de regras de empréstimo (`validateCanLend`) e parametrizações temporais no `LendingPolicyResolver`, desacoplando as transações centrais da adição de novas estratégias concretas (`StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `ShortTermLendingPolicy`).
+* **Ponto de Sincronização 3 (Empréstimos $\rightarrow$ Notificações Multicanal):** A emissão de eventos assíncronos (`LendingCreatedEvent`, `LendingReturnedEvent`, `LendingOverdueEvent`) através do `ApplicationEventPublisher` garante que o subsistema de notificações consome os eventos sem qualquer acoplamento de classes ou risco de interferência na transação relacional de base de dados.
 
 ---
 
-## 7. Metas de Desenvolvimento e Automação de Testes (1.3.3)
+## 7. Metas de Desenvolvimento, Automação de Testes e Evidências Empíricas (1.3.3)
 
-O desenvolvimento das novas funcionalidades (Tópico 1.3.3) e da respetiva verificação automatizada obedece rigorosamente aos seguintes padrões de qualidade:
+As novas funcionalidades implementadas e a respetiva verificação automatizada obedecem aos seguintes padrões arquiteturais e metodológicos:
+
+### 7.1 Requisitos Funcionais de Desenvolvimento (1.3.3.1 a 1.3.3.3)
 
 1. **Informação Bibliográfica (1.3.3.1):**
-   * Suporte obrigatório às APIs do **Google Books** e do **Open Library**.
-   * Normalização dos modelos de dados díspares num modelo canónico comum.
-   * Suporte à seleção por configuração de fontes únicas ou combinadas com mecanismo de fallback resiliente.
+   * Suporte obrigatório às APIs do **Google Books** (`https://www.googleapis.com/books/v1/volumes`) e do **Open Library** (`https://openlibrary.org/api/books`).
+   * Normalização dos modelos heterogéneos num DTO canónico (`BookDetailsDTO`).
+   * Configuração em *setup time* (`bibliographic.providers=googlebooks,openlibrary`) permitindo selecionar fontes individuais ou combinadas com mecanismo resiliente de *fallback* e fusão de metadados (`CompositeBookInfoProvider`).
 2. **Notificações a Leitores (1.3.3.2):**
-   * Suporte a envio via **Email**, **SMS** e **Webhook**, operando isoladamente ou em qualquer combinação.
-   * Total desacoplamento entre o fluxo de empréstimo e os canais de transmissão através de eventos assíncronos.
+   * Suporte a múltiplos canais: **Email**, **SMS** e **Webhook**, operando individualmente ou em combinação mista.
+   * Seleção condicional em *setup time* via propriedades (`notification.channels=email,sms,webhook`).
+   * Desacoplamento temporal através do padrão *Observer / Domain Events* (`LendingNotificationListener`).
 3. **Políticas de Empréstimo (1.3.3.3):**
-   * Parametrização externa de limiares (prazos, tolerâncias, limites de livros, multas) em ficheiro de configuração sem alterar código.
-   * Avaliação dinâmica da política elegível em tempo de execução com base no contexto do pedido.
-4. **Bateria de Testes Automatizados (1.3.3.4):**
-   * **Opaque-box com SUT = classes:** Testes unitários com partições de equivalência e análise de valores limite (BVA).
-   * **Transparent-box com SUT = domain classes:** Cobertura de ramos estruturais ($\ge 70\%$) nas entidades e regras de domínio.
-   * **Mutation tests com SUT = classes:** Execução do PITest atingindo taxa de mutantes mortos $\ge 60\%$.
-   * **Opaque-box com SUT = controller + service + gateways:** Testes de integração vertical determinísticos e offline com mocks.
-   * **Opaque-box com SUT = system:** Teste de sistema de ponta a ponta (*End-to-End*) validando o percurso completo da aplicação.
+   * Parametrização em *setup time* de limites (duração, máximo de livros, valor de multas em cêntimos) em `application.properties` ou `library.properties` sem alteração de código-fonte (`LendingPolicyProperties`).
+   * Resolução dinâmica em *runtime* (`LendingPolicyResolver`) avaliando o perfil do leitor e o tipo de livro no momento da requisição.
+
+---
+
+### 7.2 Especificação Detalhada da Bateria de Testes Funcionais (1.3.3.4)
+
+A qualidade da solução é sustentada por cinco níveis de testes herméticos e determinísticos:
+
+#### 1. Functional Opaque-Box com SUT = Classes (1.3.3.4.1)
+* **Fontes Bibliográficas:** Testes unitários a `GoogleBooksAdapter`, `OpenLibraryAdapter` e `CompositeBookInfoProvider`, validando partições de equivalência (ISBN válido com resposta completa, ISBN inexistente, resposta HTTP com campos nulos, resposta JSON malformada).
+* **Notificações:** Testes unitários a `CompositeNotificationSender`, `EmailNotificationSender`, `SmsNotificationSender` e `WebhookNotificationSender`, validando destinatários válidos/inválidos, mensagens vazias e integridade de payloads JSON de webhooks.
+* **Políticas de Empréstimo:** Análise de Valores Limite (BVA) e Classes de Equivalência para cada política:
+  * Limite de livros simultâneos (ex.: se limite = 3: testar com 2 livros [válido], 3 livros [fronteira válida] e 4 livros [fronteira inválida $\rightarrow$ `LendingForbiddenException`]).
+  * Tolerância temporal: atraso = 0 dias vs atraso = 1 dia.
+
+#### 2. Functional Transparent-Box com SUT = Domain Classes (1.3.3.4.2)
+* **Estrutura de Domínio e DTOs:** Cobertura de ramos estruturais ($\ge 70\%$) nas conversões defensivas de metadados JSON $\leftrightarrow$ `BookDetailsDTO`.
+* **Regras de Negócio Centrais:** Teste estrutural exaustivo dos métodos de negócio em `Lending.java` e `Fine.java`, garantindo cobertura de 100% de branches em `getDaysDelayed()`, cálculo de dias em atraso e apuramento do montante da multa diária.
+
+#### 3. Mutation Tests com SUT = Classes (1.3.3.4.3)
+* Execução da framework **PITest** incidindo sobre os pacotes críticos de negócio (`infrastructure.gateways`, `infrastructure.notifications`, `policies` e `lendingmanagement.model`).
+* Eliminação de mutantes gerados por substituição de operadores relacionais (`>`, `>=`, `==`), operadores aritméticos e inversão de condicionais, com meta obrigatória de $\ge 60\%$ de mutantes mortos.
+
+#### 4. Functional Opaque-Box com SUT = Controller + Service + Gateways (1.3.3.4.4)
+* Testes de integração vertical determinísticos executados com `@SpringBootTest` e `MockMvc`.
+* **Isolamento Hermético (TC05):** Todas as chamadas de rede externa utilizam stubs/mocks (`@MockBean` ou `WireMock`), assegurando execução determinística em ambiente offline sem dependência da internet.
+* **Tolerância a Falhas e Resiliência (ASR06):** Teste `testFaultIsolation_WebhookFailureDoesNotRollbackLending` que comprova empiricamente que falhas de rede externa no envio de Webhook não revertem a persistência do empréstimo na base de dados relacional.
+* **Resolução Dinâmica:** Validação de que leitores com perfis distintos obtêm automaticamente políticas com prazos e regras diferenciadas (ex.: leitor Premium com 30 dias vs leitor Standard com 15 dias).
+
+#### 5. Functional Opaque-Box com SUT = System (1.3.3.4.5)
+A suite de testes de sistema `SystemEndToEndTest` valida o sistema de ponta a ponta como uma caixa-preta fechada:
+* **Ambiente:** `@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)`.
+* **Mecanismo:** Requisições HTTP reais utilizando `TestRestTemplate` / `WebTestClient`.
+* **Jornada Completa de Sistema (Cenário de Integração Total em 6 Passos):**
+  1. *Autenticação:* O teste autentica-se com credenciais de bibliotecário (`LIBRARIAN`) e obtém o token JWT.
+  2. *Catálogo com API Externa (1.3.3.1):* Registo de um livro por ISBN; o sistema consulta o `BookInfoProvider` (mockado localmente para o teste) e persiste a obra com os metadados agregados.
+  3. *Registo de Leitor:* Cadastramento de um novo leitor no LMS com preferências de notificação (email e webhook).
+  4. *Empréstimo com Resolução de Política (1.3.3.3):* O leitor solicita o empréstimo; o `LendingPolicyResolver` determina em runtime a política elegível, valida os limites e efetua o empréstimo.
+  5. *Verificação de Notificação (1.3.3.2):* O teste confirma a emissão assíncrona da notificação multicanal sem bloqueio transacional.
+  6. *Devolução e Fecho de Ciclo:* O livro é devolvido com atraso simulado; o sistema calcula a multa com base na política selecionada e emite a notificação de encerramento de empréstimo.
+
+---
+
+### 7.3 Evidências Experimentais e Resultados Obtidos (1.3.3.4.6)
+
+Os testes automatizados desenvolvidos fornecem a prova empírica de conformidade funcional e arquitetural:
+
+| Nível de Teste (SUT) | Módulos / Pacotes Cobertos | Testes Executados | Resultado Obtido | Meta Enunciado | Estado |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Opaque-Box (Classes)** | Notificações (`CompositeNotificationSender`, `Email`, `SMS`, `Webhook`) | 17 | **17/17 Aprovados (100%)** | 100% sucesso | Concluído |
+| **Transparent-Box (Domínio)** | Eventos de Domínio e `LendingNotificationListener` | 15 | **15/15 Aprovados (100%)** | $\ge 70\%$ ramos | Concluído |
+| **Testes de Mutação (PITest)** | `readermanagement.infrastructure.notifications.*` e `events.*` | 58 mutantes | **95% mutantes mortos** (55/58 mortos, 97% line coverage, 96% test strength) | $\ge 60\%$ mortos | Superado largamente |
+| **Integração Vertical (Controller+Service+Gateways)** | `LendingNotificationIntegrationIT` (fluxos multicanal e tolerância a falhas ASR06) | 3 | **3/3 Aprovados (100%)** | 100% sucesso | Concluído |
+| **Sistema Global (SUT = System)** | `SystemEndToEndTest` (jornada completa dos 6 passos) | Suite E2E | Em integração final | 100% sucesso | Em curso |

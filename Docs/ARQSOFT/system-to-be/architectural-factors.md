@@ -4,7 +4,7 @@
 
 No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Institute* (SEI), a arquitetura do *System-to-Be* é orientada por um conjunto de forças motrizes (*Architectural Drivers*). 
 
-Conforme preconizado na literatura de referência (Bass, Clements, Kazman) e estipulado no **Tópico 1.3.2.1 do Enunciado**, estes condutores de desenho estruturam-se em duas grandes vertentes:
+Conforme preconizado na literatura de referência (Bass, Clements, Kazman), estes condutores de desenho estruturam-se em duas grandes vertentes:
 1. **Requisitos de Software (*Requirements*):**
    * **Requisitos Funcionais com Significância Arquitetural (*Architecturally Significant Functional Requirements — ASR/FR*):** Funcionalidades requeridas na secção 1.3.3 do enunciado que moldam as interfaces e a modularidade.
    * **Requisitos de Atributos de Qualidade (*Quality Attribute Requirements — QAR / ASR*):** Requisitos não funcionais prioritários, com especial destaque para a tríade identificada na **secção 1.2 (Problem)** do enunciado: **Extensibilidade (*Extensibility*)**, **Configurabilidade (*Configurability*)** e **Testabilidade (*Testability*)**.
@@ -16,23 +16,23 @@ Conforme preconizado na literatura de referência (Bass, Clements, Kazman) e est
 
 ## 2. Parte I — Identificação e Classificação de Requisitos (*Requirements*)
 
-### 2.1. Requisitos Funcionais Primários (FR — do Enunciado 1.3.3)
+### 2.1. Requisitos Funcionais Primários (FR — 1.3.3)
 
-* **FR01 — Recuperação de Informação Bibliográfica Heterogénea (Enunciado 1.3.3.1):**
+* **FR01 — Recuperação de Informação Bibliográfica Heterogénea (1.3.3.1):**
   * O sistema deve obter informação bibliográfica a partir de múltiplos sistemas externos heterogéneos, suportando obrigatoriamente a **Google Books API** e a **Open Library API**.
   * Deve permitir agregação de modelos de dados distintos e estratégia de contingência (*fallback*).
-* **FR02 — Notificação a Leitores sobre Eventos de Empréstimo (Enunciado 1.3.3.2):**
+* **FR02 — Notificação a Leitores sobre Eventos de Empréstimo (1.3.3.2):**
   * O sistema deve notificar os leitores acerca de eventos críticos do ciclo de vida dos empréstimos (novo empréstimo, aviso de prazo de devolução, notificação de atraso com apuramento de multas e confirmação de devolução).
   * Deve suportar mecanismos distintos de notificação: **Email**, **SMS** e **Webhook**, operando individualmente ou em qualquer combinação configurada.
-* **FR03 — Aplicação de Políticas de Empréstimo Parametrizáveis (Enunciado 1.3.3.3):**
+* **FR03 — Aplicação de Políticas de Empréstimo Parametrizáveis (1.3.3.3):**
   * O sistema deve aplicar políticas de empréstimo flexíveis (duração, número máximo de livros em simultâneo, valor de multas por dia), eliminando regras fixas (*hardcoded*) no código.
   * O sistema deve avaliar dinamicamente em tempo de execução a política aplicável com base no leitor e na obra requisitada.
-* **FR04 — Catálogo e Serviços Globais de Biblioteca (Enunciado 1.1 Context):**
+* **FR04 — Catálogo e Serviços Globais de Biblioteca (1.1 Context):**
   * Manutenção dos serviços existentes de gestão do ciclo de vida de Livros, Géneros, Autores, Leitores e Empréstimos.
 
 ---
 
-### 2.2. Requisitos de Atributos de Qualidade (QAR / ASR — Enunciado 1.2 Problem)
+### 2.2. Requisitos de Atributos de Qualidade (QAR / ASR — 1.2 Problem)
 
 Estes requisitos respondem diretamente aos problemas estruturais identificados no *system-as-is*:
 
@@ -42,7 +42,7 @@ Estes requisitos respondem diretamente aos problemas estruturais identificados n
   * *Contexto:* Capacidade de selecionar e parametrizar quais os fornecedores bibliográficos ativos, quais os canais de notificação em uso e quais os limiares numéricos das políticas de empréstimo através de ficheiros externos (`application.properties` / `library.properties`), sem necessidade de recompilação do código.
 * **ASR03 — Configurabilidade em Runtime (*Dynamic Runtime Flexibility*) — [Problema 1.2.2]:**
   * *Contexto:* Capacidade de selecionar e resolver em tempo de execução (*runtime*) a política de empréstimo aplicável em cada requisição (com base em regras de perfil do leitor, idade ou tipo de livro), sem interrupção de serviço.
-* **ASR04 — Testabilidade Automatizada (*Testability*) — [Problema 1.2.3 / Enunciado 1.3.3.4]:**
+* **ASR04 — Testabilidade Automatizada (*Testability*) — [Problema 1.2.3 / 1.3.3.4]:**
   * *Contexto:* Estruturação modular orientada a *Inversion of Control* (IoC) que permite testes funcionais em caixa-opaca (SUT = classes, controller+service+gateways, e system global E2E), caixa-transparente de domínio, e testes de mutação com PITest ($\ge 60\%$ de mutantes eliminados e cobertura $\ge 70\%$).
 * **ASR05 — Interoperabilidade de Dados Heterogéneos (*Interoperability*):**
   * *Contexto:* Capacidade de normalizar esquemas de dados externos díspares (Google Books vs. Open Library) para um modelo canónico interno (*Canonical Data Model*).
@@ -75,7 +75,7 @@ Estes requisitos respondem diretamente aos problemas estruturais identificados n
 * **OL01 — Dimensão e Organização da Equipa:**
   * Desenvolvimento realizado por uma equipa de 3 estudantes, exigindo a definição rigorosa de contratos de interface prévios (APIs e DTOs) para viabilizar trabalho paralelo sem bloqueios entre membros.
 * **OL02 — Prazos de Entrega Académicos:**
-  * Submissão e primeira avaliação presencial obrigatória agendada para **2026-11-01** (Enunciado 1.4).
+  * Submissão e primeira avaliação presencial obrigatória agendada para **2026-11-01**.
 * **OL03 — Rigor Metodológico e Notacional:**
   * Adoção obrigatória do método formal **ADD 3.0** e documentação arquitetural no modelo **C4 + 4+1 Vistas de Kruchten**, garantindo rastreabilidade formal (`<<manifest>>`).
 * **OL04 — Critérios Quantitativos de Qualidade de Código:**
@@ -116,11 +116,11 @@ No **Passo 2 do método ADD (Categorização e Priorização dos Drivers)**, os 
 1. **Importância para os Stakeholders / Negócio (*Business Importance*):** Alta (H), Média (M), Baixa (L)
 2. **Impacto no Desenho Arquitetural / Risco Técnico (*Architectural Impact / Risk*):** Alto (H), Médio (M), Baixo (L)
 
-Esta priorização determina a ordem de execução das **Iterações do ADD (Enunciado 1.3.2.2 / Issue #12)**:
+Esta priorização determina a ordem de execução das **Iterações do ADD (1.3.2.2)**:
 
 ### 5.1. Matriz de Priorização
 
-| Driver Arquitetural | Importância Negócio | Impacto Arquitetural | Prioridade Global | Mapeamento no Processo ADD (Issue #12) |
+| Driver Arquitetural | Importância Negócio | Impacto Arquitetural | Prioridade Global | Mapeamento no Processo ADD |
 | :--- | :---: | :---: | :---: | :--- |
 | **ASR01 + FR01** (Fontes Bibliográficas Heterogéneas Plugáveis) | **H** | **H** | **(H, H) — Crítica (P1)** | **Iteração 1 do ADD** (Mapeamento canónico, Adapter & Composite) |
 | **ASR01 + FR02** (Notificações Multicanal Desacopladas) | **H** | **H** | **(H, H) — Crítica (P1)** | **Iteração 2 do ADD** (Domain Events, Observer & Multichannel Dispatcher) |
@@ -135,20 +135,20 @@ Esta priorização determina a ordem de execução das **Iterações do ADD (Enu
 
 ---
 
-## 6. Rastreabilidade com as Iterações do ADD (Issue #12)
+## 6. Rastreabilidade com as Iterações do ADD
 
 A priorização formal acima estabelecida justifica diretamente as três iterações do processo ADD:
 
 ```mermaid
 flowchart TD
-    subgraph Inputs["Entradas do ADD (1.3.2.1 / Issue #11)"]
+    subgraph Inputs["Entradas do ADD (1.3.2.1)"]
         F1["Fatores (H,H): ASR01, FR01 (Fontes Bibliográficas)"]
         F2["Fatores (H,H): ASR01, FR02 (Notificações Multicanal)"]
         F3["Fatores (H,M): ASR03, FR03 (Políticas Dinâmicas)"]
         FTrans["Transversais: ASR02 (Setup Time), ASR04 (Testabilidade), TC01/TC02 (Spring Boot)"]
     end
 
-    subgraph Iterations["Iterações do ADD (1.3.2.2 / Issue #12)"]
+    subgraph Iterations["Iterações do ADD (1.3.2.2)"]
         IT1["Iteração 1: Suporte a Fontes Externas Plugáveis<br/>(Google Books, Open Library, Composite Fallback)"]
         IT2["Iteração 2: Notificações Multicanal Desacopladas<br/>(Domain Events, Email, SMS, Webhook Dispatcher)"]
         IT3["Iteração 3: Políticas de Empréstimo Dinâmicas<br/>(Strategy, Policy Resolver em Runtime, External Limits)"]
