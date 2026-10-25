@@ -74,7 +74,22 @@ Reader ─────────── Lending ──────────�
 
 ---
 
-## 3. Vista Arquitetural / Lógica (VA)
+## 3. Vista Lógica de Negócio (VL) e Vista Arquitetural (VA)
+
+De acordo com a matriz de vistas e granularidade da unidade curricular (*Business Logic View vs. Architecture Logic View vs. Implementation View*), distinguem-se a **Vista Lógica de Negócio (VL)** — focada na decomposição concetual pura dos subdomínios de negócio — e a **Vista Arquitetural (VA)** — que explicita os padrões arquiteturais adotados (*Modular Monolith* no Nível 3 e *Clean Architecture* no Nível 4) e os protocolos de comunicação (`REST API`).
+
+### 3.0 Vista Lógica de Negócio (VL — Níveis 1 a 3)
+
+* **Nível 1 (`VL-N1`):** Representa o sistema `LMS` como uma caixa-preta de negócio que disponibiliza a `API` funcional da biblioteca e requer a `Ninja API` externa.
+  ![VL-N1.png](Vista%20Lógica/VL-N1.png)
+* **Nível 2 (`VL-N2`):** Evidencia o componente aplicacional de negócio (`Backend`) dentro da fronteira do `LMS`, delegando a persistência de dados através da porta requerida `DB API`.
+  ![VL-N2.png](Vista%20Lógica/VL-N2.png)
+* **Nível 3 (`VL-N3`):** Decompõe o `Backend` nos seis subdomínios funcionais de negócio (`User`, `Reader`, `Genre`, `Book`, `Author`, `Lending`) e nas respetivas interfaces de domínio internas (`USER API`, `Reader API`, `Genre API`, `Book API`, `Author API`, `Lending API`), independentemente de detalhes tecnológicos.
+  ![VL-N3.png](Vista%20Lógica/VL-N3.png)
+
+---
+
+### Vista Arquitetural (VA)
 
 A Vista Arquitetural descreve a decomposição funcional e concetual do sistema, evidenciando as responsabilidades de negócio, os contratos de interface pública (*ball-and-socket*) e os limites de contexto.
 
@@ -325,6 +340,7 @@ A análise crítica de engenharia reversa do *System-as-is* evidenciou as três 
 2. **Configurabilidade (*Configurability*):**
    * Não existe suporte para seleção condicional de componentes ou fornecedores no arranque (*setup time*) sem recompilação de binários, nem para parametrização dinâmica de regras de empréstimo em tempo de execução (*runtime*).
 3. **Testabilidade (*Testability*):**
-   * A ausência de interfaces de abstração em torno de serviços externos e a dependência direta de implementações concretas dificulta o isolamento para testes automatizados herméticos, testes de mutação (PITest) e simulação de cenários de contingência (*fallback*).
+   * A ausência de interfaces de abstração em torno de serviços externos e a dependência direta de implementações concretas dificulta o isolamento do **SUT (*System Under Test*)** através de *Test Doubles* (*Mocks/Stubs*) para testes unitários herméticos, testes de mutação (PITest) e simulação de cenários de contingência (*fallback*).
+   * **Indefinição de Fronteiras do SUT na Bateria de Testes Base:** No código herdado, testes de integração de fatia de persistência como `AuthorRepositoryIntegrationTest` (anotado com `@DataJpaTest` e recorrendo a `TestEntityManager.persist()`, `flush()` e `clear()` para forçar a reconstrução da entidade a partir do motor H2, onde $\text{SUT} = \text{AuthorRepository} + \text{JPA/Hibernate} + \text{H2} + \text{Entidade Author}$) e testes de contexto completo como `LendingRepositoryIntegrationTest` (anotado com `@SpringBootTest`, onde o $\text{SUT}$ engloba toda a *stack* aplicacional Spring Boot) executavam misturados na fase de testes unitários (`mvn test`), sem separação clara entre testes unitários isolados ($\text{SUT} = \text{classes}$ / $\text{domain classes}$) e testes de integração de subsistemas/sistema.
 
 Estas limitações motivam a execução do método formal **ADD 3.0** e as decisões de desenho arquitetural especificadas na pasta `system-to-be`.

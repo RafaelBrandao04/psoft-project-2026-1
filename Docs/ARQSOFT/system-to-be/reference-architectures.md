@@ -123,15 +123,15 @@ flowchart TD
 
     subgraph ModuleBoundary["Fronteira do Módulo (Clean Architecture)"]
         subgraph FrameworksLayer["Camada 4: Frameworks & Drivers (Externo)"]
-            Controllers["REST Controllers<br/>(Spring Web)"]
-            RepoImpl["Spring Data JPA<br/>Repositories"]
-            WebClientImpl["WebClient HTTP<br/>Adapters"]
+            Controllers["HTTP REST Routers<br/>(Spring MVC / Tomcat)"]
+            RepoImpl["ORM & DB Drivers<br/>(Hibernate / JDBC)"]
+            WebClientImpl["HTTP & Mail Drivers<br/>(Spring WebClient / JavaMailSender)"]
             ConfigBeans["@Configuration<br/>Beans"]
         end
 
         subgraph AdaptersLayer["Camada 3: Interface Adapters (Portas Concretas)"]
-            DrivingAdapters["Driving Adapters:<br/>BookController, LendingController"]
-            DrivenAdapters["Driven Adapters:<br/>GoogleBooksAdapter, OpenLibraryAdapter,<br/>NotificationSenders, JpaRepositories"]
+            DrivingAdapters["Driving Adapters (Controllers):<br/>BookController, LendingController"]
+            DrivenAdapters["Driven Adapters (Gateways & Repos):<br/>GoogleBooksAdapter, OpenLibraryAdapter,<br/>NotificationSenders, SpringData*Repository"]
         end
 
         subgraph UseCasesLayer["Camada 2: Application Business Rules (Serviços)"]
