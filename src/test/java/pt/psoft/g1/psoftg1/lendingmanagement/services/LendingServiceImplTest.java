@@ -6,11 +6,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.exceptions.LendingForbiddenException;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
+import pt.psoft.g1.psoftg1.lendingmanagement.events.LendingCreatedEvent;
+import pt.psoft.g1.psoftg1.lendingmanagement.events.LendingReturnedEvent;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Fine;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.FineRepository;
@@ -47,6 +50,9 @@ class LendingServiceImplTest {
 
     @Mock
     private ReaderRepository readerRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private LendingServiceImpl lendingService;
@@ -163,6 +169,7 @@ class LendingServiceImplTest {
         Lending capturedLending = lendingCaptor.getValue();
         assertThat(capturedLending).isNotNull();
         assertThat(capturedLending.getLendingNumber()).endsWith("/6");
+        verify(eventPublisher).publishEvent(any(LendingCreatedEvent.class));
     }
 
     @Test
@@ -176,6 +183,7 @@ class LendingServiceImplTest {
         assertThat(exception.getMessage()).isEqualTo("Cannot update lending with this lending number");
         verify(fineRepository, never()).save(any());
         verify(lendingRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -192,6 +200,7 @@ class LendingServiceImplTest {
         verify(lending).setReturned(1L, "Returned intact");
         verify(fineRepository, never()).save(any());
         verify(lendingRepository).save(lending);
+        verify(eventPublisher).publishEvent(any(LendingReturnedEvent.class));
     }
 
     @Test
@@ -210,6 +219,7 @@ class LendingServiceImplTest {
         verify(lending).setReturned(1L, "Returned late");
         verify(fineRepository).save(any(Fine.class));
         verify(lendingRepository).save(lending);
+        verify(eventPublisher).publishEvent(any(LendingReturnedEvent.class));
     }
 
     @Test
