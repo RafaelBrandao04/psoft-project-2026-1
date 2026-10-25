@@ -2,11 +2,14 @@ package pt.psoft.g1.psoftg1.lendingmanagement.services;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 import pt.psoft.g1.psoftg1.bookmanagement.repositories.BookRepository;
 import pt.psoft.g1.psoftg1.exceptions.LendingForbiddenException;
 import pt.psoft.g1.psoftg1.exceptions.NotFoundException;
+import pt.psoft.g1.psoftg1.lendingmanagement.events.LendingCreatedEvent;
+import pt.psoft.g1.psoftg1.lendingmanagement.events.LendingReturnedEvent;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Fine;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.FineRepository;
@@ -22,12 +25,13 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@PropertySource({"classpath:config/library.properties"})
-public class LendingServiceImpl implements LendingService{
+@PropertySource({ "classpath:config/library.properties" })
+public class LendingServiceImpl implements LendingService {
     private final LendingRepository lendingRepository;
     private final FineRepository fineRepository;
     private final BookRepository bookRepository;
     private final ReaderRepository readerRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${lendingDurationInDays}")
     private int lendingDurationInDays;
@@ -35,18 +39,18 @@ public class LendingServiceImpl implements LendingService{
     private int fineValuePerDayInCents;
 
     @Override
-    public Optional<Lending> findByLendingNumber(String lendingNumber){
+    public Optional<Lending> findByLendingNumber(String lendingNumber) {
         return lendingRepository.findByLendingNumber(lendingNumber);
     }
 
     @Override
-    public List<Lending> listByReaderNumberAndIsbn(String readerNumber, String isbn, Optional<Boolean> returned){
+    public List<Lending> listByReaderNumberAndIsbn(String readerNumber, String isbn, Optional<Boolean> returned) {
         List<Lending> lendings = lendingRepository.listByReaderNumberAndIsbn(readerNumber, isbn);
-        if(returned.isEmpty()){
+        if (returned.isEmpty()) {
             return lendings;
-        }else{
-            for(int i = 0; i < lendings.size(); i++){
-                if ((lendings.get(i).getReturnedDate() == null) == returned.get()){
+        } else {
+            for (int i = 0; i < lendings.size(); i++) {
+                if ((lendings.get(i).getReturnedDate() == null) == returned.get()) {
                     lendings.remove(i);
                     i--;
                 }
@@ -61,12 +65,14 @@ public class LendingServiceImpl implements LendingService{
 
         Iterable<Lending> lendingList = lendingRepository.listOutstandingByReaderNumber(resource.getReaderNumber());
         for (Lending lending : lendingList) {
-            //Business rule: cannot create a lending if user has late outstanding books to return.
+            // Business rule: cannot create a lending if user has late outstanding books to
+            // return.
             if (lending.getDaysDelayed() > 0) {
                 throw new LendingForbiddenException("Reader has book(s) past their due date");
             }
             count++;
-            //Business rule: cannot create a lending if user already has 3 outstanding books to return.
+            // Business rule: cannot create a lending if user already has 3 outstanding
+            // books to return.
             if (count >= 3) {
                 throw new LendingForbiddenException("Reader has three books outstanding already");
             }
@@ -76,32 +82,78 @@ public class LendingServiceImpl implements LendingService{
                 .orElseThrow(() -> new NotFoundException("Book not found"));
         final var r = readerRepository.findByReaderNumber(resource.getReaderNumber())
                 .orElseThrow(() -> new NotFoundException("Reader not found"));
-        int seq = lendingRepository.getCountFromCurrentYear()+1;
-        final Lending l = new Lending(b,r,seq, lendingDurationInDays, fineValuePerDayInCents );
+        int seq = lendingRepository.getCountFromCurrentYear() + 1;
+        final Lending l = new Lending(b, r, seq, lendingDurationInDays, fineValuePerDayInCents);
 
-        return lendingRepository.save(l);
+        final Lending saved = lendingRepository.save(l);
+        if (eventPublisher != null) {
+            String bookTitle = (b != null && b.getTitle() != null) ? b.getTitle().getTitle() : "Book";
+            String isbn = (b != null && b.getIsbn() != null) ? b.getIsbn()
+                    : (resource.getIsbn() != null ? resource.getIsbn() : "N/A");
+            String lendingNumber = (saved != null && saved.getLendingNumber() != null) ? saved.getLendingNumber()
+                    : "N/A";
+            LocalDate limitDate = (saved != null && saved.getLimitDate() != null) ? saved.getLimitDate()
+                    : LocalDate.now();
+
+            eventPublisher.publishEvent(new LendingCreatedEvent(
+                    lendingNumber,
+                    resource.getReaderNumber(),
+                    bookTitle,
+                    isbn,
+                    limitDate));
+        }
+
+        return saved;
     }
 
     @Override
-    public Lending setReturned(final String lendingNumber, final SetLendingReturnedRequest resource, final long desiredVersion) {
+    public Lending setReturned(final String lendingNumber, final SetLendingReturnedRequest resource,
+            final long desiredVersion) {
 
         var lending = lendingRepository.findByLendingNumber(lendingNumber)
                 .orElseThrow(() -> new NotFoundException("Cannot update lending with this lending number"));
 
         lending.setReturned(desiredVersion, resource.getCommentary());
 
-        if(lending.getDaysDelayed() > 0){
+        if (lending.getDaysDelayed() > 0) {
             final var fine = new Fine(lending);
             fineRepository.save(fine);
         }
 
-        return lendingRepository.save(lending);
+        final Lending saved = lendingRepository.save(lending);
+        if (eventPublisher != null) {
+            String lendingNum = (saved != null && saved.getLendingNumber() != null) ? saved.getLendingNumber()
+                    : lendingNumber;
+            String readerNum = (saved != null && saved.getReaderDetails() != null
+                    && saved.getReaderDetails().getReaderNumber() != null)
+                            ? saved.getReaderDetails().getReaderNumber().toString()
+                            : "N/A";
+            String bookTitle = (saved != null && saved.getBook() != null && saved.getBook().getTitle() != null)
+                    ? saved.getBook().getTitle().getTitle()
+                    : "Book";
+            LocalDate retDate = (saved != null && saved.getReturnedDate() != null) ? saved.getReturnedDate()
+                    : LocalDate.now();
+            int daysDelayed = saved != null ? saved.getDaysDelayed() : 0;
+            int fineCents = (saved != null && saved.getFineValueInCents() != null)
+                    ? saved.getFineValueInCents().orElse(0)
+                    : 0;
+
+            eventPublisher.publishEvent(new LendingReturnedEvent(
+                    lendingNum,
+                    readerNum,
+                    bookTitle,
+                    retDate,
+                    daysDelayed,
+                    fineCents));
+        }
+
+        return saved;
     }
 
     @Override
-    public Double getAverageDuration(){
+    public Double getAverageDuration() {
         Double avg = lendingRepository.getAverageDuration();
-        return Double.valueOf(String.format(Locale.US,"%.1f", avg));
+        return Double.valueOf(String.format(Locale.US, "%.1f", avg));
     }
 
     @Override
@@ -113,13 +165,13 @@ public class LendingServiceImpl implements LendingService{
     }
 
     @Override
-    public Double getAvgLendingDurationByIsbn(String isbn){
+    public Double getAvgLendingDurationByIsbn(String isbn) {
         Double avg = lendingRepository.getAvgLendingDurationByIsbn(isbn);
-        return Double.valueOf(String.format(Locale.US,"%.1f", avg));
+        return Double.valueOf(String.format(Locale.US, "%.1f", avg));
     }
 
     @Override
-    public List<Lending> searchLendings(Page page, SearchLendingQuery query){
+    public List<Lending> searchLendings(Page page, SearchLendingQuery query) {
         LocalDate startDate = null;
         LocalDate endDate = null;
 
@@ -134,9 +186,9 @@ public class LendingServiceImpl implements LendingService{
                     null);
 
         try {
-            if(query.getStartDate()!=null)
+            if (query.getStartDate() != null)
                 startDate = LocalDate.parse(query.getStartDate());
-            if(query.getEndDate()!=null)
+            if (query.getEndDate() != null)
                 endDate = LocalDate.parse(query.getEndDate());
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("Expected format is YYYY-MM-DD");
@@ -150,7 +202,5 @@ public class LendingServiceImpl implements LendingService{
                 endDate);
 
     }
-
-
 
 }
