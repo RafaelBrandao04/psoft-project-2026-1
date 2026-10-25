@@ -71,9 +71,9 @@ pipeline {
                     writeFile file: 'artifact/release.properties', text: propertiesContent, encoding: 'UTF-8'
                     echo "Created artifact/release.properties:\n${propertiesContent}"
 
-                    // 4. Load common deploy script and deploy to DEV on DEI VM vs806
-                    def common = load '.Jenkinsfile_common.groovy'
-                    common.deploy('dev')
+                    // 4. Load deploy script and deploy to DEV on DEI VM vs806
+                    def deploy = load 'deploy/jenkins-deploy.groovy'
+                    deploy.call('dev')
 
                     // 5. Prepare validated shared folder for downstream UAT job
                     dir('validated') {

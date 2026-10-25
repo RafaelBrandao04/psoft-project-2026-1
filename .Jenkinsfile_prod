@@ -55,10 +55,10 @@ pipeline {
                         error "artifact/acceptance.properties missing from accepted folder!"
                     }
 
-                    // 5. Load common module and parse audit metadata
-                    def common = load '.Jenkinsfile_common.groovy'
-                    def releaseProps = common.parseProperties('artifact/release.properties')
-                    def acceptanceProps = common.parseProperties('artifact/acceptance.properties')
+                    // 5. Load deploy module and parse audit metadata
+                    def deploy = load 'deploy/jenkins-deploy.groovy'
+                    def releaseProps = deploy.parseProperties('artifact/release.properties')
+                    def acceptanceProps = deploy.parseProperties('artifact/acceptance.properties')
 
                     def ciJob = releaseProps['CI_JOB'] ?: releaseProps['job']
                     def ciBuild = releaseProps['CI_BUILD'] ?: releaseProps['build']
@@ -76,7 +76,7 @@ pipeline {
                     echo "=========================================================="
 
                     // 6. Deploy to Production on DEI VM vs336 (port 8080)
-                    common.deploy('prod')
+                    deploy.call('prod')
 
                     // 7. Record final production deployment metadata in final_artifact/
                     def nowIso = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")

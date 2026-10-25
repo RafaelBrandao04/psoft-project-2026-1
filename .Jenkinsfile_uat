@@ -53,9 +53,9 @@ pipeline {
                         error "artifact/release.properties missing from upstream validated folder!"
                     }
 
-                    // 5. Load common module and parse release metadata
-                    def common = load '.Jenkinsfile_common.groovy'
-                    def releaseProps = common.parseProperties('artifact/release.properties')
+                    // 5. Load deploy module and parse release metadata
+                    def deploy = load 'deploy/jenkins-deploy.groovy'
+                    def releaseProps = deploy.parseProperties('artifact/release.properties')
                     def ciBuild = releaseProps['CI_BUILD'] ?: releaseProps['build']
                     def ciJob = releaseProps['CI_JOB'] ?: releaseProps['job']
                     def gitCommit = releaseProps['GIT_COMMIT'] ?: releaseProps['commit']
@@ -66,7 +66,7 @@ pipeline {
                     }
 
                     // 6. Deploy to UAT on DEI VM vs806 (port 8082)
-                    common.deploy('uat')
+                    deploy.call('uat')
 
                     // 7. Stash artifacts to release Jenkins agent before waiting for human approval
                     echo ">>> Stashing artifacts to release agent while awaiting human approval..."
@@ -113,8 +113,8 @@ pipeline {
                     unstash 'uat-artifacts'
 
                     // 2. Perform Recheck / Smoke Test to ensure UAT service is still healthy after human wait
-                    def common = load '.Jenkinsfile_common.groovy'
-                    common.recheck('uat')
+                    def deploy = load 'deploy/jenkins-deploy.groovy'
+                    deploy.recheck('uat')
 
                     // 3. Generate acceptance.properties recording approval metadata
                     def approverName = env.RECORDED_APPROVER ?: 'Authorized Approver'

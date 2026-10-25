@@ -24,7 +24,7 @@ def settings(String environment) {
     if (envLower == 'prod') {
         return [
             target: env.DEMO_PROD_SSH_TARGET ?: env.DEMO_SSH_TARGET ?: 'root@vsgate-ssh.dei.isep.ipp.pt',
-            port: env.DEMO_PROD_SSH_PORT ?: (env.DEMO_SSH_TARGET ? (env.DEMO_SSH_PORT ?: '22') : '10336'),
+            port: env.DEMO_PROD_SSH_PORT ?: env.DEMO_SSH_PORT ?: '10336',
             credentialsId: env.DEI_PROD_VM_CREDENTIALS_ID ?: 'dei-prod-vm-ssh-key',
             url: (env.DEMO_PROD_URL ?: 'http://localhost:8080').replaceAll('/$', ''),
             vmName: 'vs336 (PROD VM)',
@@ -35,7 +35,7 @@ def settings(String environment) {
         def customUrl = (envLower == 'dev') ? env.DEMO_DEV_URL : env.DEMO_UAT_URL
         return [
             target: env.DEMO_DEV_SSH_TARGET ?: env.DEMO_SSH_TARGET ?: 'root@vsgate-ssh.dei.isep.ipp.pt',
-            port: env.DEMO_DEV_SSH_PORT ?: (env.DEMO_SSH_TARGET ? (env.DEMO_SSH_PORT ?: '22') : '10806'),
+            port: env.DEMO_DEV_SSH_PORT ?: env.DEMO_SSH_PORT ?: '10806',
             credentialsId: env.DEI_DEV_VM_CREDENTIALS_ID ?: 'dei-vm-ssh-key',
             url: (customUrl ?: "http://localhost:${defaultPort}").replaceAll('/$', ''),
             vmName: 'vs806 (DEV/UAT VM)',
@@ -104,26 +104,28 @@ def call(String environment) {
         copyRemote(config, "deploy/smoke-test.sh", "/opt/psoft-g1/${envLower}/smoke-test.sh")
     }
 
-    // 4. Executa a substituição e reinício do serviço no servidor
-    // Se o serviço systemd estiver instalado, utiliza systemctl; caso contrário, arranca via processo direto
-    def remoteRestartCmd = """
-cd /opt/psoft-g1/${envLower}
+    // 4. Cria e transfere script de reinício remoto (evita conflitos de caracteres/newlines no cmd.exe em Windows)
+    def deployScript = """#!/bin/sh
+set -eu
+cd "/opt/psoft-g1/${envLower}"
 test -s app.jar.new
-if systemctl list-unit-files | grep -q 'psoft-g1@'; then
-    systemctl stop psoft-g1@${envLower}.service || true
-    mv app.jar.new app.jar
+if systemctl list-unit-files 2>/dev/null | grep -q 'psoft-g1@'; then
+    systemctl stop "psoft-g1@${envLower}.service" || true
+    mv -f app.jar.new app.jar
     chmod 644 app.jar
-    systemctl start psoft-g1@${envLower}.service
+    systemctl start "psoft-g1@${envLower}.service"
 else
-    pkill -f '[s]erver.port=${config.appPort}' || true
+    pkill -f '[s]erver.port=${config.appPort}' || pkill -f '[D]EMO_ENVIRONMENT=${envLower}' || true
     sleep 2
-    mv app.jar.new app.jar
+    mv -f app.jar.new app.jar
     chmod 644 app.jar
-    nohup java -jar /opt/psoft-g1/${envLower}/app.jar --server.port=${config.appPort} --demo.environment=${envLower} > /opt/psoft-g1/${envLower}/app.log 2>&1 < /dev/null &
+    nohup java -jar "/opt/psoft-g1/${envLower}/app.jar" --server.port=${config.appPort} --demo.environment=${envLower} > "/opt/psoft-g1/${envLower}/app.log" 2>&1 < /dev/null &
 fi
-mv deployment.txt.new deployed-build.txt
+mv -f deployment.txt.new deployed-build.txt
 """
-    executeRemote(config, remoteRestartCmd)
+    writeFile file: 'artifact/deploy-remote.sh', text: deployScript, encoding: 'UTF-8'
+    copyRemote(config, "artifact/deploy-remote.sh", "/opt/psoft-g1/${envLower}/deploy-remote.sh")
+    executeRemote(config, "sed -i 's/\\r\$//' /opt/psoft-g1/${envLower}/deploy-remote.sh && chmod +x /opt/psoft-g1/${envLower}/deploy-remote.sh && /bin/sh /opt/psoft-g1/${envLower}/deploy-remote.sh")
 
     // 5. Verifica a instalação e executa o smoke test
     verify(envLower, deployment)
@@ -141,12 +143,13 @@ def verify(String environment, String deployment) {
     withCredentials([sshUserPrivateKey(credentialsId: config.credentialsId, keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
         def targetUserHost = config.target.contains('@') ? config.target : "${SSH_USER}@${config.target}"
         if (isUnix()) {
-            actual = sh(script: "ssh -i \"${SSH_KEY}\" -p ${config.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${targetUserHost} \"cat /opt/psoft-g1/${envLower}/deployed-build.txt\"", returnStdout: true).trim()
+            actual = sh(script: "ssh -i \"${SSH_KEY}\" -p ${config.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=yes ${targetUserHost} \"cat /opt/psoft-g1/${envLower}/deployed-build.txt\"", returnStdout: true).trim()
         } else {
-            def winKey = "${SSH_KEY}".replace('/', '\\')
             actual = bat(script: """@echo off
 set "WIN_KEY=%SSH_KEY:/=\\%"
-ssh -i "%WIN_KEY%" -p ${config.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${targetUserHost} "cat /opt/psoft-g1/${envLower}/deployed-build.txt"
+icacls "%WIN_KEY%" /inheritance:r /grant:r "*S-1-5-18:(F)" /grant:r "*S-1-5-32-544:(F)" >nul
+icacls "%WIN_KEY%" /remove "*S-1-5-32-545" >nul
+ssh -i "%WIN_KEY%" -p ${config.port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o BatchMode=yes ${targetUserHost} "cat /opt/psoft-g1/${envLower}/deployed-build.txt"
 """, returnStdout: true).trim()
             // Remove echo artifacts
             def lines = actual.split('\r?\n')
@@ -165,26 +168,10 @@ ssh -i "%WIN_KEY%" -p ${config.port} -o StrictHostKeyChecking=no -o UserKnownHos
         expectedCommit = releaseProps['commit'] ?: releaseProps['GIT_COMMIT'] ?: 'local'
     }
 
-    // Executa o script de smoke test oficial no servidor, com diagnóstico de logs em caso de falha
-    def smokeCmd = """
-if [ -f /opt/psoft-g1/${envLower}/smoke-test.sh ]; then
-    chmod +x /opt/psoft-g1/${envLower}/smoke-test.sh
-    sh /opt/psoft-g1/${envLower}/smoke-test.sh http://localhost:${config.appPort} ${envLower} ${expectedCommit}
-else
-    for i in \$(seq 1 20); do
-        if curl -s -f http://localhost:${config.appPort}/info >/dev/null 2>&1 || curl -s -f http://localhost:${config.appPort}/actuator/health >/dev/null 2>&1; then
-            echo 'Smoke test PASSED: ${envLower.toUpperCase()} service is UP on port ${config.appPort}'
-            exit 0
-        fi
-        echo 'Waiting for ${envLower.toUpperCase()} service on port ${config.appPort} (attempt '\$i'/20)...'
-        sleep 3
-    done
-    echo 'Smoke test FAILED: ${envLower.toUpperCase()} service did not respond on port ${config.appPort}'
-    exit 1
-fi
-"""
+    // Executa o script de smoke test oficial no servidor, com sanitização de CRLF e diagnóstico de logs em caso de falha
+    def smokeTestCmd = "sed -i 's/\\r\$//' /opt/psoft-g1/${envLower}/smoke-test.sh && chmod +x /opt/psoft-g1/${envLower}/smoke-test.sh && /bin/sh /opt/psoft-g1/${envLower}/smoke-test.sh http://localhost:${config.appPort} ${envLower} ${expectedCommit}"
     try {
-        executeRemote(config, smokeCmd)
+        executeRemote(config, smokeTestCmd)
     } catch (Exception e) {
         executeRemote(config, "journalctl -u psoft-g1@${envLower}.service -n 30 --no-pager 2>/dev/null || if [ -f /opt/psoft-g1/${envLower}/app.log ]; then tail -n 30 /opt/psoft-g1/${envLower}/app.log; fi")
         throw e

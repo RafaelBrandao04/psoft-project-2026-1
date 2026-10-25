@@ -1,14 +1,16 @@
 // .Jenkinsfile_common.groovy
-// Bridge module delegating to deploy/jenkins-deploy.groovy for full compatibility with professor's reference architecture
+// Bridge module delegating to deploy/jenkins-deploy.groovy
 
-def deployModule = load 'deploy/jenkins-deploy.groovy'
+def getModule() {
+    return load('deploy/jenkins-deploy.groovy')
+}
 
 def parseProperties(String path) {
-    return deployModule.parseProperties(path)
+    return getModule().parseProperties(path)
 }
 
 def getEnvConfig(String targetEnv) {
-    def cfg = deployModule.settings(targetEnv)
+    def cfg = getModule().settings(targetEnv)
     return [
         port: cfg.appPort,
         dir: "/opt/psoft-g1/${targetEnv.toLowerCase()}",
@@ -17,19 +19,19 @@ def getEnvConfig(String targetEnv) {
 }
 
 def getSshConfig(String targetEnv = 'dev') {
-    return deployModule.settings(targetEnv)
+    return getModule().settings(targetEnv)
 }
 
 def deploy(String targetEnv) {
-    return deployModule.call(targetEnv)
+    return getModule().call(targetEnv)
 }
 
 def recheck(String targetEnv) {
-    return deployModule.recheck(targetEnv)
+    return getModule().recheck(targetEnv)
 }
 
 def call(String targetEnv) {
-    return deployModule.call(targetEnv)
+    return getModule().call(targetEnv)
 }
 
 return this

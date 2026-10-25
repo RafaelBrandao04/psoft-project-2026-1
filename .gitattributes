@@ -1,2 +1,4 @@
-# Ensure Maven Wrapper shell script uses LF line endings
+# Ensure shell scripts always use LF line endings across all platforms
 mvnw text eol=lf
+*.sh text eol=lf
+deploy/*.sh text eol=lf

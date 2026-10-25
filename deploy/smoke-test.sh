@@ -10,14 +10,19 @@ PY_CMD=$(command -v python3 2>/dev/null || command -v python)
 
 fetch() {
     response=$(curl --fail --silent --show-error --connect-timeout 2 --max-time 3 \
-        --write-out '\n%{http_code}' "$1") || return 1
+        --write-out '\n%{http_code}' "$1" 2>/dev/null) || return 1
     status=$(printf '%s' "$response" | tail -n 1)
     [ "$status" = 200 ] || return 1
     printf '%s\n' "$response" | sed '$d'
 }
 
 attempt=1
+info=""
+health=""
+
 while [ "$attempt" -le 30 ]; do
+    info=""
+    health=""
     if info=$(fetch "$url/info") && \
        printf '%s' "$info" | "$PY_CMD" -c '
 import json, sys
@@ -30,7 +35,7 @@ except (ValueError, TypeError):
     valid = False
 sys.exit(0 if valid else 1)
 ' "$environment" "$commit" && \
-       (health=$(fetch "$url/actuator/health/readiness") || health=$(fetch "$url/actuator/health")) && \
+       health=$(fetch "$url/actuator/health/readiness" || fetch "$url/actuator/health") && \
        printf '%s' "$health" | "$PY_CMD" -c '
 import json, sys
 try:
@@ -47,6 +52,6 @@ sys.exit(0 if valid else 1)
     sleep 2
     attempt=$((attempt + 1))
 done
+
 printf 'Smoke test failed: %s (expected psoft-g1, %s, %s)\n' "$url" "$environment" "$commit" >&2
 exit 1
-
