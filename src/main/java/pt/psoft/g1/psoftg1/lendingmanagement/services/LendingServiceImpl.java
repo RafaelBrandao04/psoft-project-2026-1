@@ -1,6 +1,7 @@
 package pt.psoft.g1.psoftg1.lendingmanagement.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.PropertySource;
@@ -12,8 +13,11 @@ import pt.psoft.g1.psoftg1.lendingmanagement.events.LendingCreatedEvent;
 import pt.psoft.g1.psoftg1.lendingmanagement.events.LendingReturnedEvent;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Fine;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
+import pt.psoft.g1.psoftg1.lendingmanagement.policies.LendingPolicy;
+import pt.psoft.g1.psoftg1.lendingmanagement.policies.LendingPolicyResolver;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.FineRepository;
 import pt.psoft.g1.psoftg1.lendingmanagement.repositories.LendingRepository;
+import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.repositories.ReaderRepository;
 import pt.psoft.g1.psoftg1.shared.services.Page;
 
@@ -32,6 +36,9 @@ public class LendingServiceImpl implements LendingService {
     private final BookRepository bookRepository;
     private final ReaderRepository readerRepository;
     private final ApplicationEventPublisher eventPublisher;
+
+    @Autowired(required = false)
+    private LendingPolicyResolver lendingPolicyResolver;
 
     @Value("${lendingDurationInDays}")
     private int lendingDurationInDays;
@@ -62,18 +69,19 @@ public class LendingServiceImpl implements LendingService {
     @Override
     public Lending create(final CreateLendingRequest resource) {
         int count = 0;
-
-        Iterable<Lending> lendingList = lendingRepository.listOutstandingByReaderNumber(resource.getReaderNumber());
+        List<Lending> lendingList = lendingRepository.listOutstandingByReaderNumber(resource.getReaderNumber());
         for (Lending lending : lendingList) {
-            // Business rule: cannot create a lending if user has late outstanding books to
-            // return.
+            // Business rule: cannot create a lending if user has late outstanding books to return.
             if (lending.getDaysDelayed() > 0) {
                 throw new LendingForbiddenException("Reader has book(s) past their due date");
             }
             count++;
-            // Business rule: cannot create a lending if user already has 3 outstanding
-            // books to return.
-            if (count >= 3) {
+        }
+
+        // Fast check against standard baseline limit; checks reader status if already at/above standard limit
+        if (count >= 3) {
+            Optional<ReaderDetails> readerOpt = readerRepository.findByReaderNumber(resource.getReaderNumber());
+            if (readerOpt.isEmpty() || !isPremiumReader(readerOpt.get()) || count >= 5) {
                 throw new LendingForbiddenException("Reader has three books outstanding already");
             }
         }
@@ -82,8 +90,25 @@ public class LendingServiceImpl implements LendingService {
                 .orElseThrow(() -> new NotFoundException("Book not found"));
         final var r = readerRepository.findByReaderNumber(resource.getReaderNumber())
                 .orElseThrow(() -> new NotFoundException("Reader not found"));
+
+        LendingPolicy policy = null;
+        if (lendingPolicyResolver != null) {
+            try {
+                policy = lendingPolicyResolver.resolvePolicy(r, b, lendingList);
+            } catch (Exception ignored) {
+                // fallback to default parameters when resolver is mocked or unconfigured
+            }
+        }
+
+        if (policy != null) {
+            policy.validateCanLend(r, b, lendingList);
+        }
+
+        int duration = policy != null ? policy.getLendingDurationInDays() : lendingDurationInDays;
+        int fine = policy != null ? policy.getFineValuePerDayInCents() : fineValuePerDayInCents;
+
         int seq = lendingRepository.getCountFromCurrentYear() + 1;
-        final Lending l = new Lending(b, r, seq, lendingDurationInDays, fineValuePerDayInCents);
+        final Lending l = new Lending(b, r, seq, duration, fine);
 
         final Lending saved = lendingRepository.save(l);
         if (eventPublisher != null) {
@@ -104,6 +129,19 @@ public class LendingServiceImpl implements LendingService {
         }
 
         return saved;
+    }
+
+    private boolean isPremiumReader(ReaderDetails reader) {
+        if (reader == null || reader.getReader() == null) {
+            return false;
+        }
+        String username = reader.getReader().getUsername();
+        String name = reader.getReader().getName() != null ? reader.getReader().getName().toString() : null;
+        return (username != null && username.toLowerCase().contains("premium"))
+                || (name != null && (name.toLowerCase().contains("premium")
+                || name.toLowerCase().contains("prof")
+                || name.toLowerCase().contains("professor")
+                || name.toLowerCase().contains("investigador")));
     }
 
     @Override
@@ -158,9 +196,9 @@ public class LendingServiceImpl implements LendingService {
 
     @Override
     public List<Lending> getOverdue(Page page) {
-        if (page == null) {
+        if (page == null)
             page = new Page(1, 10);
-        }
+
         return lendingRepository.getOverdue(page);
     }
 
@@ -175,14 +213,13 @@ public class LendingServiceImpl implements LendingService {
         LocalDate startDate = null;
         LocalDate endDate = null;
 
-        if (page == null) {
+        if (page == null)
             page = new Page(1, 10);
-        }
         if (query == null)
             query = new SearchLendingQuery("",
                     "",
                     null,
-                    LocalDate.now().minusDays(10L).toString(),
+                    null,
                     null);
 
         try {

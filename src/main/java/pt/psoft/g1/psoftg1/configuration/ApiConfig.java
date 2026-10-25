@@ -36,8 +36,12 @@ public class ApiConfig {
      */
     @Bean
     public OpenAPI openApi() {
-        return new OpenAPI().addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
-                .components(new Components().addSecuritySchemes("Bearer Authentication", createAPIKeyScheme()))
+        return new OpenAPI()
+                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
+                .addSecurityItem(new SecurityRequirement().addList("Basic Authentication"))
+                .components(new Components()
+                        .addSecuritySchemes("Bearer Authentication", createAPIKeyScheme())
+                        .addSecuritySchemes("Basic Authentication", createBasicScheme()))
                 .info(new Info().title("ApiDePsoft").description("ApiDePsoft").version("v1.0")
                         .contact(new Contact().name("QualquerCoisa").email("email@something.noemail")).termsOfService("TOC")
                         .license(new License().name("MIT").url("#")));
@@ -45,6 +49,10 @@ public class ApiConfig {
 
     private SecurityScheme createAPIKeyScheme() {
         return new SecurityScheme().type(SecurityScheme.Type.HTTP).bearerFormat("JWT").scheme("bearer");
+    }
+
+    private SecurityScheme createBasicScheme() {
+        return new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("basic");
     }
 
 }

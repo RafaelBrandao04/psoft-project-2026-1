@@ -175,6 +175,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH,"/api/lendings/{year}/{seq}").hasRole(Role.READER)
                 .requestMatchers(HttpMethod.POST,"/api/lendings/search").hasAnyRole(Role.LIBRARIAN)
                 //end lendings
+                .requestMatchers("/api/admin/lending-policies/**").hasAnyRole(Role.ADMIN, Role.LIBRARIAN)
                 // Admin has access to all endpoints
                 .requestMatchers("/**").hasRole(Role.ADMIN)
                 .anyRequest().authenticated()
@@ -230,3 +231,4 @@ public class SecurityConfig {
     }
 
 }
+
