@@ -1,0 +1,49 @@
+# ==============================================================================
+# Docker Compose Orchestration for Library Management System (LMS - psoft-g1)
+#
+# Provides one-command repeatable local execution:
+#   docker compose up --build -d
+#
+# View logs:
+#   docker compose logs -f app
+#
+# Stop service:
+#   docker compose down
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  app:
+    container_name: psoft-lms-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: psoft-g1:latest
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - PORT=8080
+      - DEMO_ENVIRONMENT=${DEMO_ENVIRONMENT:-docker}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev,bootstrap}
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:-jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;IGNORECASE=TRUE}
+      - FILE_UPLOAD_DIR=/app/uploads-psoft-g1
+      - SPRING_H2_CONSOLE_ENABLED=${SPRING_H2_CONSOLE_ENABLED:-true}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # Persistent host volume for photo uploads across container lifecycles
+      - uploads_data:/app/uploads-psoft-g1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 25s
+
+volumes:
+  uploads_data:
+    name: psoft_g1_uploads_data
+

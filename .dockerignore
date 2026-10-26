@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE & Tooling
+.idea
+.vscode
+.jpb
+*.iml
+
+# Build & Dependencies
+target/
+*.log
+
+# Deployment & Documentation (not needed in Docker build context)
+deploy/
+Docs/
+*.md
+
+# Local runtime uploads & binaries
+uploads-psoft-g1/
+*.jar
+
