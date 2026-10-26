@@ -120,10 +120,10 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 | Campo | Especificação Técnica e Racional Arquitetural |
 | :--- | :--- |
 | **Issue / ID** | **TM-03:** Motor de Políticas de Empréstimo Dinâmicas e Parametrizáveis Externamente (1.3.3.3). |
-| **Problem** | Como aplicar políticas de empréstimo distintas (Standard, Premium, Short-Term), permitindo calibrar prazos, limites e multas em *setup time* sem alterar código, selecionar a regra adequada em *runtime* por requisição, e adicionar novas políticas com esforço mínimo? |
+| **Problem** | Como aplicar políticas de empréstimo distintas (`StandardLendingPolicy` e `AdaptiveLendingPolicy`, segundo a *Lending Policies Specification v1.0*), permitindo calibrar todos os parâmetros quantitativos (`MaxActiveLendings`, `LendingPeriod`, `FirstThreshold`, `SecondThreshold`, `HistoryPeriod`, `MinCompletedLendings`, `MinOnTimeRatio`, etc.) em *setup time* sem alterar código, selecionar a regra adequada em *runtime* por requisição/renovação, e adicionar novas políticas com esforço mínimo? |
 | **Summary of Solution** | Adotar as táticas **Split Module**, **Abstract Common Services**, **Use an Intermediary**, **Polymorphism**, **Dynamic Resolution / Runtime Registration** e **Configuration Files**, materializadas nos padrões **Strategy**, **Policy Resolver** e **Externalized Configuration Binding**. |
 | **Factors (Drivers)** | `FR03` (Políticas de empréstimo), `ASR01` (Extensibilidade OCP), `ASR02` (Parâmetros em *setup time*), `ASR03` (Seleção em *runtime*), `ASR04` (Testabilidade BVA e mutação PITest $\ge 60\%$). |
-| **Solution** | 1. Isolar o contrato `LendingPolicy` num novo pacote `lendingmanagement.policies`, contendo os métodos `isApplicable(reader, book)`, `validateCanLend(reader, book, activeLendings)`, `getLendingDurationInDays()`, `getMaxSimultaneousLendings()`, `getFineValuePerDayInCents()`, `getPriority()` e `getPolicyName()`.<br/>2. Implementar `StandardLendingPolicy` (prioridade 10), `PremiumReaderLendingPolicy` (prioridade 20) e `ShortTermLendingPolicy` (prioridade 30).<br/>3. Implementar `LendingPolicyResolver` que interroga as políticas injetadas e retorna a de maior prioridade aplicável.<br/>4. Mapear as propriedades externas de `application.properties` via `LendingPolicyProperties` (`@ConfigurationProperties`). |
+| **Solution** | 1. Isolar o contrato `LendingPolicy` num novo pacote `lendingmanagement.policies`, contendo os métodos `isApplicable(reader, book)`, `validateCanLend(reader, book, activeLendings)`, `getLendingDurationInDays(...)`, `getMaxSimultaneousLendings()`, `getFineValuePerDayInCents()`, `getPriority()` e `getPolicyName()`.<br/>2. Implementar `StandardLendingPolicy` (prioridade 10, política por omissão com `MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`) e `AdaptiveLendingPolicy` (prioridade 20, selecionada quando nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}$ a tempo e sem atrasos ativos, adaptando o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` consoante `FirstThreshold` e `SecondThreshold`).<br/>3. Implementar `LendingPolicyResolver` que interroga as políticas injetadas e retorna a de maior prioridade aplicável.<br/>4. Mapear e validar as restrições das propriedades externas via `LendingPolicyProperties` (`@ConfigurationProperties`). |
 | **Motivation** | Separa de forma irrevogável três preocupações distintas: (a) a calibração de valores numéricos (propriedades); (b) a lógica de cada regra de negócio (classes de política); e (c) o fluxo transacional de emissão de empréstimos (`LendingServiceImpl`). Permite testes unitários de domínio transparentes e execução determinística de testes de mutação. |
 | **Alternatives Considered** | Ramificações condicionais internas em `LendingServiceImpl` (rejeitada por violação do OCP e complexidade) e motor Drools (rejeitada por quebra do ambiente de mutação Java). |
 | **Pending Issues / Carry-forward** | Garantir que a bateria de testes de unidade de domínio (`1.3.3.4.1`) e mutação (`1.3.3.4.3`) testa exaustivamente os valores de fronteira (Análise de Valores Limite — BVA: $N-1$, $N$, $N+1$) para matar mutantes relacionais gerados pelo PITest (`ConditionalsBoundaryMutator`). |
@@ -149,7 +149,7 @@ Conforme estipulado no Passo 5 do método ADD 3.0 (*Instantiate architectural el
 | **`EmailNotificationSender`** / **`Sms...`** / **`Webhook...`** | Camada 3: *Interface Adapters* (`readermanagement.infrastructure.notifications`) | Estratégias concretas de entrega de mensagens via SMTP, gateway de telecomunicações e HTTP POST. | Implementam `NotificationSender`; utilizam MailSender e WebClient. | `FR02`, `ASR01`, `ASR02`. |
 | **`NotificationConfig`** *(Classe)* | Camada 4: *Frameworks* (`configuration`) | Cria o bean primário `CompositeNotificationSender` injetando apenas os canais ativados em `notification.channels`. | `@Configuration` do Spring; suporte a seleção individual ou em combinação. | `ASR02` (Configuração em setup time). |
 | **`LendingPolicy`** *(Interface)* | Camada 1: *Enterprise Business Rules* (`lendingmanagement.policies`) | Encapsula as regras de elegibilidade, cálculo de duração, limite máximo de requisições e taxa diária de multa. | Estratégia de domínio pura (Java puro sem frameworks); métodos sem efeitos colaterais. | `FR03`, `ASR01`, `ASR04` (Testabilidade BVA e PITest). |
-| **`StandardLendingPolicy`** / **`Premium...`** / **`ShortTerm...`** | Camada 1: *Enterprise Business Rules* (`lendingmanagement.policies`) | Implementações concretas de regras de empréstimo calibradas por propriedades externas. | `@Component`; alimentadas por `LendingPolicyProperties`. | `FR03`, `ASR01`, `ASR02`, `ASR04`. |
+| **`StandardLendingPolicy`** / **`AdaptiveLendingPolicy`** | Camada 1: *Enterprise Business Rules* (`lendingmanagement.policies`) | Implementações concretas das políticas de empréstimo padrão e adaptativa calibradas por propriedades externas. | `@Component`; alimentadas por `LendingPolicyProperties`. | `FR03`, `ASR01`, `ASR02`, `ASR04`. |
 | **`LendingPolicyResolver`** *(Classe)* | Camada 2: *Application Services* (`lendingmanagement.policies`) | Avalia dinamicamente as políticas injetadas e seleciona a regra de maior prioridade em tempo de execução. | Intermediário de resolução dinâmica; avalia `isApplicable` e desempata por `getPriority()`. | `FR03`, `ASR03` (Seleção dinâmica em runtime). |
 | **`LendingPolicyProperties`** *(Classe)* | Camada 4: *Frameworks* (`configuration`) | Mapeamento tipado e validado de limiares de empréstimo (dias, multas, limites de livros) definidos em ficheiro externo. | `@ConfigurationProperties(prefix = "lending.policies")`; imutável e validado no arranque. | `ASR02` (Configurabilidade externa sem alteração de código). |
 
@@ -189,44 +189,41 @@ No rigor do método ADD, distingue-se explicitamente duas fases da garantia de q
 
 ## 5. Catálogo de Modelos Visuais de Arquitetura (System-to-Be)
 
-> [!NOTE]
-> Esta secção apresenta a **relação completa e exata dos 27 modelos visuais do *System-to-Be***, correspondendo rigorosamente à mesma quantidade e estrutura de vistas documentadas no *System-as-is*, atualizadas com as novas decisões arquiteturais de extensibilidade, configurabilidade e testabilidade.
->
-> Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT/system-to-be/`:
-> * `Vista Arquitetural/` (4 diagramas)
-> * `Vista Lógica/` (3 diagramas)
-> * `Vista Implementação/` (4 diagramas)
-> * `Manifestação/` (2 diagramas)
-> * `Vista_Fisica/` (2 diagramas)
-> * `Vista Processos/` (12 diagramas de sequência: 4 cenários $\times$ 3 níveis)
+Esta secção apresenta a **relação completa e exata dos 27 modelos visuais do *System-to-Be***, correspondendo rigorosamente à mesma quantidade e estrutura de vistas documentadas no *System-as-is*, atualizadas com as novas decisões arquiteturais de extensibilidade, configurabilidade e testabilidade.
+
+Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT/system-to-be/`:
+* `Vista Arquitetural/` (4 diagramas)
+* `Vista Lógica/` (3 diagramas)
+* `Vista Implementação/` (4 diagramas)
+* `Manifestação/` (2 diagramas)
+* `Vista Fisica/` (2 diagramas)
+* `Vista Processos/` (12 diagramas de sequência: 4 cenários $\times$ 3 níveis)
 
 ---
 
-### 5.1. Vista Arquitetural (VA — 4 Diagramas)
+### 5.1. Vista Arquitetural (VA)
 
-#### 5.1.1. Nível 1 — Sistema Global (C4 Context / System-to-Be)
+#### 5.1.1. Nível 1 — Sistema Global
 * **Objetivo:** Representar o LMS como sistema único no seu contexto operacional, identificando os atores e as novas interfaces externas introduzidas.
 * **Alterações no System-to-Be:** Expansão das fronteiras do sistema. Para além da `REST API` e da `NINJA API`, são incluídas as interfaces externas requeridas com a **Google Books API**, **Open Library API**, **Servidores SMTP**, **Gateways SMS** e **Endpoints HTTP Webhook**.
 
 ![VA_N1.png](Vista%20Arquitetural/VA_N1.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VA_N1.png — VISTA ARQUITETURAL NÍVEL 1 (CONTEXTO)]**  
 > *Elementos a representar:* LMS Backend, Clientes REST (Leitor, Bibliotecário, Administrador), Google Books API, Open Library API, Servidor SMTP, Gateway SMS, Webhook Endpoints, Ninja API.
 
 ---
 
-#### 5.1.2. Nível 2 — Decomposição em Subsistemas (C4 Container / System-to-Be)
+#### 5.1.2. Nível 2 — Decomposição em Subsistemas
 * **Objetivo:** Representar os contentores de alto nível que compõem o LMS e as suas portas de ligação.
 * **Alterações no System-to-Be:** O container `Backend` assume a responsabilidade de gerir as novas portas de integração bibliográfica externa e os canais de despacho de notificações, mantendo a ligação relacional à base de dados `DB` (H2 Database) através da interface `BD API`.
 
 ![VA_N2.png](Vista%20Arquitetural/VA_N2.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VA_N2.png — VISTA ARQUITETURAL NÍVEL 2 (CONTENTORES)]**  
 > *Elementos a representar:* Container `Backend` (Spring Boot), Container `DB` (H2 Database Engine), portas de entrada `REST API`, portas de saída bibliográficas, de notificação e persistência.
 
 ---
 
-#### 5.1.3. Nível 3 — Módulos de Domínio (Modular Monolith / System-to-Be)
+#### 5.1.3. Nível 3 — Módulos de Domínio (Modular Monolith)
 * **Objetivo:** Representar a decomposição do Backend nos seus módulos de subdomínio e a malha de comunicação inter-módulos.
 * **Alterações no System-to-Be:**
   * `BookManagement`: Adição das portas de saída para Google Books API e Open Library API via adaptador e composite;
@@ -236,86 +233,79 @@ No rigor do método ADD, distingue-se explicitamente duas fases da garantia de q
 
 ![VA_N3.png](Vista%20Arquitetural/VA_N3.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VA_N3.png — VISTA ARQUITETURAL NÍVEL 3 (MÓDULOS DE DOMÍNIO)]**  
 > *Elementos a representar:* 6 Módulos DDD, contratos de serviço inter-módulos (*ball-and-socket*), barramento de eventos de domínio e conectores para as novas APIs externas.
 
 ---
 
-#### 5.1.4. Nível 4 — Estrutura Interna dos Módulos Refinados (Clean Architecture / System-to-Be)
+#### 5.1.4. Nível 4 — Estrutura Interna dos Módulos Refinados (Clean Architecture)
 * **Objetivo:** Ilustrar a organização concêntrica interna dos módulos de subdomínio refinados segundo o padrão Clean Architecture / Portas e Adaptadores.
 * **Alterações no System-to-Be:** Evidencia as 4 camadas concêntricas aplicadas aos módulos refinados (`bookmanagement`, `lendingmanagement`, `readermanagement`):
-  * *Camada 1 (Enterprise Business Rules):* Entidades puras (`Book`, `Lending`, `ReaderDetails`) e estratégias de política (`StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `ShortTermLendingPolicy`);
+  * *Camada 1 (Enterprise Business Rules):* Entidades puras (`Book`, `Lending`, `ReaderDetails`) e estratégias de política (`StandardLendingPolicy`, `AdaptiveLendingPolicy`);
   * *Camada 2 (Application Business Rules):* Serviços (`BookServiceImpl`, `LendingServiceImpl`), DTOs canónicos (`BookDetailsDTO`) e contratos abstratos de saída (`BookInfoProvider`, `NotificationSender`, `LendingPolicyResolver`);
   * *Camada 3 (Interface Adapters):* REST Controllers, adaptadores HTTP (`GoogleBooksAdapter`, `OpenLibraryAdapter`), despachadores (`CompositeBookInfoProvider`, `CompositeNotificationSender`), senders (`Email`, `SMS`, `Webhook`) e repositórios JPA;
   * *Camada 4 (Frameworks & Drivers):* Spring Boot, Spring Web, Spring Data JPA, H2, Spring Events, WebClient.
 
 ![VA_N4.png](Vista%20Arquitetural/VA_N4.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VA_N4.png — VISTA ARQUITETURAL NÍVEL 4 (CLEAN ARCHITECTURE INTERNA)]**  
 > *Elementos a representar:* Os 4 círculos concêntricos da Clean Architecture, a regra de dependência de fora para dentro e a inversão de controlo através das interfaces de porta.
 
 ---
 
-### 5.2. Vista Lógica (VL — 3 Diagramas)
+### 5.2. Vista Lógica (VL)
 
-#### 5.2.1. Nível 1 — Visão Lógica Global (System-to-Be)
+#### 5.2.1. Nível 1 — Visão Lógica Global
 * **Objetivo:** Representar concetualmente os limites lógicos do LMS e as suas interações funcionais de alto nível com utilizadores e sistemas externos.
 * **Alterações no System-to-Be:** Inclusão dos fluxos lógicos de metadados bibliográficos e de entrega de mensagens a leitores.
 
 ![VL-N1.png](Vista%20Lógica/VL-N1.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VL-N1.png — VISTA LÓGICA NÍVEL 1]**  
 > *Elementos a representar:* Fronteira lógica do LMS, fluxos de informação de utilizadores e interações com serviços externos.
 
 ---
 
-#### 5.2.2. Nível 2 — Subsistemas Lógicos (System-to-Be)
+#### 5.2.2. Nível 2 — Subsistemas Lógicos
 * **Objetivo:** Representar a divisão lógica entre a aplicação de serviços de negócio (Backend) e a persistência relacional (DB).
 * **Alterações no System-to-Be:** Integração das portas lógicas de comunicação externa no Backend.
 
 ![VL-N2.png](Vista%20Lógica/VL-N2.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VL-N2.png — VISTA LÓGICA NÍVEL 2]**  
 > *Elementos a representar:* Decomposição lógica em Backend e DB, especificando interfaces lógicas de entrada e saída.
 
 ---
 
-#### 5.2.3. Nível 3 — Subdomínios Lógicos e Barramento de Eventos (System-to-Be)
+#### 5.2.3. Nível 3 — Subdomínios Lógicos e Barramento de Eventos
 * **Objetivo:** Ilustrar a topologia lógica dos subdomínios, evidenciando o desacoplamento promovido pelo barramento de eventos de domínio.
 * **Alterações no System-to-Be:** O subdomínio de empréstimos emite eventos de ciclo de vida que são transmitidos logicamente ao subdomínio de leitores para acionamento das notificações, eliminando o acoplamento direto entre eles.
 
 ![VL-N3.png](Vista%20Lógica/VL-N3.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VL-N3.png — VISTA LÓGICA NÍVEL 3]**  
 > *Elementos a representar:* Subdomínios lógicos, portas lógicas e barramento de eventos aplicacionais.
 
 ---
 
-### 5.3. Vista de Implementação (VI — 4 Diagramas)
+### 5.3. Vista de Implementação (VI)
 
-#### 5.3.1. Nível 1 — Artefato Executável Global (System-to-Be)
+#### 5.3.1. Nível 1 — Artefato Executável Global
 * **Objetivo:** Descrever o artefato físico executável resultante do processo de compilação e empacotamento Maven (`.jar`).
 * **Alterações no System-to-Be:** O executável incorpora as novas dependências de infraestrutura: Spring WebFlux / `WebClient` para chamadas HTTP não-bloqueantes, barramento Spring Events, e classes de binding de propriedades.
 
 ![VI_N1.png](Vista%20Implementação/VI_N1.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VI_N1.png — VISTA DE IMPLEMENTAÇÃO NÍVEL 1 (ARTEFATO EXECUTÁVEL)]**  
 > *Elementos a representar:* Artefato `psoft-g1-0.0.1-SNAPSHOT.jar`, Spring Boot Starter, Embedded Tomcat, conectores HTTP REST e WebClient.
 
 ---
 
-#### 5.3.2. Nível 2 — Subsistemas de Implementação (System-to-Be)
+#### 5.3.2. Nível 2 — Subsistemas de Implementação
 * **Objetivo:** Evidenciar a divisão entre a base de código da aplicação e a base de dados relacional H2.
 * **Alterações no System-to-Be:** O subsistema de código incorpora o novo módulo transversal de configuração (`configuration`) para leitura externa de propriedades (`application.properties`).
 
 ![VI_N2.png](Vista%20Implementação/VI_N2.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VI_N2.png — VISTA DE IMPLEMENTAÇÃO NÍVEL 2]**  
 > *Elementos a representar:* Subsistema de código Backend (Java/Spring Boot), subsistema DB (H2 Engine via driver JDBC).
 
 ---
 
-#### 5.3.3. Nível 3 — Módulos de Subdomínio e Persistência Técnica (System-to-Be)
+#### 5.3.3. Nível 3 — Módulos de Subdomínio e Persistência Técnica
 * **Objetivo:** Representar os pacotes de código correspondentes aos subdomínios e a infraestrutura técnica partilhada de persistência.
 * **Alterações no System-to-Be:**
   * Pacote `bookmanagement`: inclusão de `infrastructure.gateways`;
@@ -326,77 +316,79 @@ No rigor do método ADD, distingue-se explicitamente duas fases da garantia de q
 
 ![VI_N3.png](Vista%20Implementação/VI_N3.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VI_N3.png — VISTA DE IMPLEMENTAÇÃO NÍVEL 3 (SUBDOMÍNIOS DE CÓDIGO)]**  
 > *Elementos a representar:* Pacotes Java de subdomínio, componente técnico de Persistência e interfaces de biblioteca.
 
 ---
 
-#### 5.3.4. Nível 4 — Decomposição Física em Pacotes Java dos Novos Módulos (System-to-Be)
+#### 5.3.4. Nível 4 — Decomposição Física em Pacotes Java dos Novos Módulos
 * **Objetivo:** Detalhar a árvore física de pacotes e tipos Java nos subdomínios modificados.
 * **Alterações no System-to-Be:** Mapeia a hierarquia física completa dos pacotes Java refinados (`policies`, `gateways`, `notifications`, `events`, `configuration`), exibindo as interfaces abstratas e as classes de implementação concreta.
 
 ![VI_N4.png](Vista%20Implementação/VI_N4.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VI_N4.png — VISTA DE IMPLEMENTAÇÃO NÍVEL 4 (PACOTES FÍSICOS)]**  
 > *Elementos a representar:* Estrutura detalhada de diretórios e ficheiros `.java` nos novos pacotes criados pelas iterações do ADD.
 
 ---
 
-### 5.4. Manifestação entre Vistas (VA $\to$ VI — 2 Diagramas)
+### 5.4. Manifestação entre Vistas (VA $\to$ VI)
 
-#### 5.4.1. Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3 / System-to-Be)
+#### 5.4.1. Mapeamento Nível 3 (VA N3 $\leftrightarrow$ VI N3)
 * **Objetivo:** Estabelecer a rastreabilidade formal `<<manifest>>` entre os módulos funcionais da Vista Arquitetural e os pacotes de código da Vista de Implementação.
 * **Alterações no System-to-Be:** Atualização dos mapeamentos `<<manifest>>` para refletir as novas responsabilidades de integração bibliográfica, notificações e políticas de negócio.
 
 ![VA_to_VI_N3.png](Manifestação/VA_to_VI_N3.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VA_to_VI_N3.png — MANIFESTAÇÃO NÍVEL 3]**  
-> *Elementos a representar:* Módulos conceituais da VA N3 mapeados com estereótipo `<<manifest>>` para os pacotes de código da VI N3 e componente técnico de persistência.
-
 ---
 
-#### 5.4.2. Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4 / System-to-Be)
+#### 5.4.2. Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
 * **Objetivo:** Mapear os círculos da Clean Architecture (VA N4) para os pacotes de código reais Java (VI N4).
 * **Alterações no System-to-Be:** Rastreabilidade entre *Enterprise Business Rules* e os pacotes `model`/`policies`, *Application Business Rules* e `services`, *Interface Adapters* e `api`/`gateways`/`notifications`, e *Frameworks* e `configuration`.
 
 ![VA_to_VI_N4.png](Manifestação/VA_to_VI_N4.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VA_to_VI_N4.png — MANIFESTAÇÃO NÍVEL 4]**  
-> *Elementos a representar:* Correspondência explícita entre as camadas da Clean Architecture e as classes/pacotes Java implementados.
-
 ---
 
-### 5.5. Vista Física / Implantação (VF — 2 Diagramas)
+### 5.5. Vista Física / Implantação (VF)
 
-#### 5.5.1. Nível 1 — Nó Computacional Global (System-to-Be)
-* **Objetivo:** Representar o nó físico global do servidor onde executa o sistema.
-* **Alterações no System-to-Be:** Mapeamento do nó servidor do LMS *System-to-Be*.
+A Vista Física (ou de Implantação) descreve a topologia de nós computacionais físicos e lógicos, processos de software em tempo de execução (*runtime*), canais de comunicação e protocolos de rede onde os subsistemas e artefactos da solução executam e interagem com a infraestrutura em nuvem.
+
+#### 5.5.1. Nível 1 — Nó Computacional Global
+* **Objetivo:** Representar a topologia física global de topo do sistema no seu nó hospedeiro principal (*Host/Server*), tratando o sistema como uma unidade concetual única em execução.
+* **Descrição da Implantação:** O sistema LMS é implantado no nó físico `Server`, alojando o bloco concetual central de gestão de biblioteca.
+* **Alterações no System-to-Be:** Mantém-se a topologia monolítica num único nó hospedeiro de topo (*Server*), preservando a coerência com a restrição `TC02` (Monólito Modular DDD executado como uma aplicação centralizada).
 
 ![VF_N1.png](Vista%20Fisica/VF_N1.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VF_N1.png — VISTA FÍSICA NÍVEL 1]**  
-> *Elementos a representar:* Nó `Server (Host)` contendo o sistema LMS global.
-
 ---
 
-#### 5.5.2. Nível 2 — Topologia de Nós Físicos/Lógicos e Ambiente Hermético (System-to-Be)
-* **Objetivo:** Descrever os processos de software, portas de rede e nós computacionais físicos e na cloud.
-* **Alterações no System-to-Be:** Detalhe dos nós em nuvem externos:
-  * `Google Cloud / Google Books API Server` (HTTPS :443);
-  * `Open Library API Server` (HTTPS :443);
-  * `SMTP Server` (TCP :587 / :25);
-  * `SMS Gateway Provider` (HTTPS :443);
-  * `Webhook Target Servers` (HTTPS / HTTP);
-  * Representação explícita do ambiente de teste hermético e offline (`TC05`), demonstrando que a execução de testes executa 100% isolada sem cabos de rede externos.
+#### 5.5.2. Nível 2 — Topologia de Nós Físicos/Lógicos e Comunicação Externa
+* **Objetivo:** Descrever a topologia de implantação detalhada em tempo de execução (*runtime*), mapeando os processos de software, subsistemas locais, canais de comunicação e a malha de serviços externos em nuvem.
+* **Descrição da Topologia de Implantação:**
+  * **`Client Workstation` (Estação de Trabalho do Cliente):**
+    * Representa o nó computacional dos utilizadores do sistema (leitores, bibliotecários, administradores);
+    * Aloja o componente `Web Browser` (ou ferramentas de API client como o Postman);
+    * Comunica diretamente com o nó servidor através do canal `HTTP/REST:8080`.
+  * **`Server (localhost)` (Nó Computacional Central):**
+    * **`JVM 17`:** Processo de máquina virtual Java que executa a aplicação Spring Boot (`Backend`), escutando requisições REST na porta HTTP `8080`.
+    * **`H2 DBMS`:** Processo/subsistema de gestão de base de dados relacional alojando o componente `H2 Database`, acedido pelo `Backend` através do protocolo `JDBC`.
+    * **`Local Storage`:** Sistema de ficheiros local (`uploads-psoft-g1`), utilizado pelo `Backend` para persistência de ficheiros e imagens através de operações `FILE I/O`.
+  * **`Cloud` (Infraestrutura de Serviços em Nuvem):**
+    * Agrupa os múltiplos fornecedores externos de serviços com os quais o `Backend` comunica através de canais seguros:
+      * **`Google Books API`:** Fornecedor primário de metadados bibliográficos, consumido via `HTTPS:443` (`ASR01`);
+      * **`Open Library API`:** Fornecedor secundário/contingência (*fallback*) de metadados bibliográficos, consumido via `HTTPS:443` (`ASR01`);
+      * **`Ninja API`:** Serviço externo legado para consulta e enriquecimento de dados de autores, consumido via `HTTPS:443` (mantido do *System-as-is*);
+      * **`SMTP Server`:** Servidor de correio eletrónico transacional acedido via `TCP:587` para envio de emails de notificação (`ASR03`);
+      * **`SMS Gateway`:** Fornecedor de telecomunicações móveis acedido via `HTTPS:443` para envio de mensagens SMS a leitores (`ASR03`);
+      * **`Weebhook Target Server`:** Servidores de destinos externos acedidos via chamadas HTTP *push* seguras `HTTPS:443` (`ASR03`);
+* **Alterações e Evolução face ao System-as-is:**
+  * **Estabilidade da Topologia Local:** A organização do nó `Server (localhost)` mantém-se coesa e consistente, preservando o processo `JVM 17` com Spring Boot, o `H2 DBMS` via JDBC e o `Local Storage` via File I/O, garantindo simplicidade operacional.
+  * **Expansão da Infraestrutura Cloud:** Enquanto no *System-as-is* o nó `Cloud` continha exclusivamente a `Ninja API`, no *System-to-Be* a infraestrutura externa é expandida para integrar seis serviços independentes, materializando a extensibilidade bibliográfica (*Strategy/Composite/Adapter*) e o despacho multicanal de notificações com tratamento de falhas em canais dedicados (`ASR01`, `ASR03`, `ASR06`).
 
 ![VF_N2.png](Vista%20Fisica/VF_N2.png)
 
-> **[ESPAÇO RESERVADO PARA DIAGRAMA: VF_N2.png — VISTA FÍSICA NÍVEL 2 (TOPOLOGIA DE IMPLANTAÇÃO)]**  
-> *Elementos a representar:* Nó `Server (localhost)` com JVM 17, Tomcat, H2 DBMS, Local Storage; nós externos na Cloud (Google Books, Open Library, SMTP, SMS, Webhooks); nó `Test Runner Environment (Surefire/Failsafe/WireMock)`.
-
 ---
 
-### 5.6. Vista de Processos (VP — 12 Diagramas de Sequência)
+### 5.6. Vista de Processos (VP)
 
 A Vista de Processos ilustra a realização dinâmica das operações do sistema através de diagramas de sequência para os quatro cenários de referência representativos do LMS, em três níveis de abstração cada (N1, N2 e N3), totalizando 12 modelos visuais.
 
@@ -405,7 +397,7 @@ A Vista de Processos ilustra a realização dinâmica das operações do sistema
 #### 5.6.1. Cenário 1: Criar Empréstimo com Resolução Dinâmica de Política e Notificações Multicanal (*Create Lending*)
 * **Descrição do Cenário no System-to-Be:**
   1. O pedido HTTP `POST /api/lendings` é recebido;
-  2. O serviço invoca em *runtime* o `LendingPolicyResolver` para determinar deterministicamente a política aplicável (`Standard`, `Premium`, `Short-Term`) com base no leitor e na obra;
+  2. O serviço invoca em *runtime* o `LendingPolicyResolver` para determinar deterministicamente a política aplicável (`StandardLendingPolicy` ou `AdaptiveLendingPolicy`) com base no histórico recente e empréstimos ativos do leitor;
   3. A política valida as regras de elegibilidade (`validateCanLend`), prazos e taxa de multa;
   4. O empréstimo é persistido com sucesso na base de dados relacional H2;
   5. O serviço emite `LendingCreatedEvent` no barramento Spring;
@@ -413,15 +405,12 @@ A Vista de Processos ilustra a realização dinâmica das operações do sistema
 
 * **Nível 1 (Sistema Global / Caixa Preta):**  
   ![VP_N1_CreateLending.png](Vista%20Processos/png/VP_N1_CreateLending.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N1_CreateLending.png — NÍVEL 1]**
 
 * **Nível 2 (Interação entre Containers / Backend $\leftrightarrow$ DB $\leftrightarrow$ Gateways):**  
   ![VP_N2_CreateLending.png](Vista%20Processos/png/VP_N2_CreateLending.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N2_CreateLending.png — NÍVEL 2]**
 
 * **Nível 3 (Colaboração Detalhada entre Componentes Internos):**  
   ![VP_N3_CreateLending.png](Vista%20Processos/png/VP_N3_CreateLending.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N3_CreateLending.png — NÍVEL 3]**  
   > *Lifelines:* `LendingController`, `LendingServiceImpl`, `LendingPolicyResolver`, `LendingPolicy`, `LendingRepository`, `ApplicationEventPublisher`, `LendingNotificationListener`, `CompositeNotificationSender`, `EmailNotificationSender`, `SmsNotificationSender`, `WebhookNotificationSender`.
 
 ---
@@ -436,15 +425,12 @@ A Vista de Processos ilustra a realização dinâmica das operações do sistema
 
 * **Nível 1 (Sistema Global):**  
   ![VP_N1_CreateBook.png](Vista%20Processos/png/VP_N1_CreateBook.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N1_CreateBook.png — NÍVEL 1]**
 
 * **Nível 2 (Interação entre Containers):**  
   ![VP_N2_CreateBook.png](Vista%20Processos/png/VP_N2_CreateBook.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N2_CreateBook.png — NÍVEL 2]**
 
 * **Nível 3 (Colaboração entre Componentes):**  
   ![VP_N3_CreateBook.png](Vista%20Processos/png/VP_N3_CreateBook.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N3_CreateBook.png — NÍVEL 3]**  
   > *Lifelines:* `BookController`, `BookServiceImpl`, `CompositeBookInfoProvider`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `BookRepository`.
 
 ---
@@ -459,15 +445,12 @@ A Vista de Processos ilustra a realização dinâmica das operações do sistema
 
 * **Nível 1 (Sistema Global):**  
   ![VP_N1_ReturnLending.png](Vista%20Processos/png/VP_N1_ReturnLending.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N1_ReturnLending.png — NÍVEL 1]**
 
 * **Nível 2 (Interação entre Containers):**  
   ![VP_N2_ReturnLending.png](Vista%20Processos/png/VP_N2_ReturnLending.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N2_ReturnLending.png — NÍVEL 2]**
 
 * **Nível 3 (Colaboração entre Componentes):**  
   ![VP_N3_ReturnLending.png](Vista%20Processos/png/VP_N3_ReturnLending.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N3_ReturnLending.png — NÍVEL 3]**  
   > *Lifelines:* `LendingController`, `LendingServiceImpl`, `Lending`, `LendingRepository`, `ApplicationEventPublisher`, `LendingNotificationListener`, `CompositeNotificationSender`.
 
 ---
@@ -480,13 +463,10 @@ A Vista de Processos ilustra a realização dinâmica das operações do sistema
 
 * **Nível 1 (Sistema Global):**  
   ![VP_N1_Top5BooksLent.png](Vista%20Processos/png/VP_N1_Top5BooksLent.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N1_Top5BooksLent.png — NÍVEL 1]**
 
 * **Nível 2 (Interação entre Containers):**  
   ![VP_N2_Top5BooksLent.png](Vista%20Processos/png/VP_N2_Top5BooksLent.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N2_Top5BooksLent.png — NÍVEL 2]**
 
 * **Nível 3 (Colaboração entre Componentes):**  
   ![VP_N3_Top5BooksLent.png](Vista%20Processos/png/VP_N3_Top5BooksLent.png)  
-  > **[ESPAÇO RESERVADO PARA DIAGRAMA: VP_N3_Top5BooksLent.png — NÍVEL 3]**  
   > *Lifelines:* `LendingController`, `LendingServiceImpl`, `LendingRepository`.

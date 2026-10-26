@@ -34,7 +34,7 @@ Software testing levels define the abstraction scale and isolation boundaries of
      * **Automated End-to-End (E2E) Testing:** Validates full user workflows across the runtime stack.
    * **Architectural Decoupling Rationale:** Full E2E and UI tests entail high operational overhead (slow execution, environment provisioning, and network flakiness). Consequently, the strategy strictly segregates:
      1. **Fast Verification in the Maven Build Loop (<2 minutes):** `mvn test` (Surefire unit tests) and `mvn verify` (Failsafe integration tests against an in-memory H2 database).
-     2. **Validation in the CD Promotion Pipeline:** Executing smoke tests and API contract collections against provisioned staging environments (as architected in Stage 9 of [`system-to-be.md`](../system-to-be/system-to-be.md)).
+     2. **Validation in the CD Promotion Pipeline:** Executing automated contract smoke tests ([`deploy/smoke-test.sh`](../../../deploy/smoke-test.sh) validating `/info` and `/actuator/health/readiness`) across provisioned DEV, UAT, and PROD environments (as architected in [`system-to-be.md`](../System-to-be/system-to-be.md)).
 
 ### 2.2. Multi-Dimensional Test Suite Classification
 Every automated test suite in the project is formally classified across six structural dimensions (Level, Technique, ISO/IEC 25010 Quality Attribute, Automation Level, Environment, Data Type):
@@ -42,12 +42,13 @@ Every automated test suite in the project is formally classified across six stru
 | Test Suite / SUT Scope | 1. Level / Phase | 2. Technique / Accessibility | 3. Quality Attribute (ISO 25010) | 4. Automation Level | 5. Target Environment | 6. Data Type Employed |
 |---|---|---|---|---|---|---|
 | **Value Objects & Utilities** (`IsbnTest`, `TitleTest`, `LendingNumberTest`, etc.) | Unit (Atomic OUT) | **Opaque-Box** (Boundary Value Analysis / Equivalence Partitioning) + **Transparent-Box** (Branch Coverage) | Functional Suitability (Data integrity & validation) | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Boundary values & synthetic invalid inputs |
-| **Domain Aggregate Roots** (`BookTest`, `LendingTest`, `UserTest`, `ReaderTest`) | Unit (Granularity 1 OUT) | **Transparent-Box** (Internal states, versioning, patch application) | Functional Suitability & Reliability | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Synthetic domain models & temporal boundary dates |
+| **Domain Aggregate Roots & Events** (`BookTest`, `LendingTest`, `UserTest`, `LendingEventsTest`) | Unit (Granularity 1 OUT) | **Transparent-Box** (Internal states, versioning, patch application, event payloads) | Functional Suitability & Reliability | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Synthetic domain models & temporal boundary dates |
 | **Application Services** (`LendingServiceImplTest`, `BookServiceImplTest`, etc.) | Unit (Granularity 2 OUT) | **Transparent-Box** (exercises branches & exception paths via Mocks/Stubs) | Functional Suitability (Business rules & invariants) | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Synthetic test doubles (Stubs, Spies, Mocks) |
-| **REST Controllers** (`AuthorControllerTest`) | Unit (Web Layer Slice) | **Semi-Transparent** (Standalone MockMvc, isolated service double) | Functional Suitability (HTTP serialization & status codes) | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Synthetic JSON payloads & mock responses |
+| **Bibliographic Gateways & Notification Adapters** (`OpenLibraryAdapterTest`, `GoogleBooksAdapterTest`, `CompositeBookInfoProviderTest`, `LendingNotificationListenerTest`, `*SenderTest`) | Unit (Granularity 2 OUT) | **Transparent-Box** (Fallback chains, fault isolation, JSON parsing, strategy dispatch) | Modifiability, Configurability & Fault Tolerance | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Mock HTTP/Mail/Webhook collaborators & synthetic DTOs |
+| **REST Controllers & Metadata** (`AuthorControllerTest`, `InfoControllerTest`) | Unit (Web Layer Slice) | **Semi-Transparent** (Standalone MockMvc, isolated service double) | Functional Suitability (HTTP serialization & build info) | 100% Automated (Maven Surefire) | Local Dev / CI Runner | Synthetic JSON payloads & mock responses |
 | **Security & RBAC API** (`AuthApiIntegrationTest`, `AuthorControllerIntegrationTest`, etc.) | Integration (Subsystem Component) | **Opaque-Box / Behavioral** (HTTP endpoints without internal doubles) | Security (Authentication, RBAC roles: `READER` vs `LIBRARIAN`) | 100% Automated (Maven Failsafe) | Local Dev / CI Runner (H2 Fake) | Synthetic credentials & signed JWT claims |
 | **Persistence Repositories** (`LendingRepositoryIntegrationTest`, `AuthorRepositoryIT`) | Integration (Data Layer) | **Transparent-Box** (Direct SQL / JPA query execution without doubles) | Reliability & Functional Suitability (Query correctness) | 100% Automated (Maven Failsafe) | Local Dev / CI Runner (H2 Fake) | Seeded relational entities |
-| **Service Integration** (`LendingServiceImplIT`) | Integration (Component Interaction) | **Transparent-Box** (Full stack: Service $\leftrightarrow$ JPA $\leftrightarrow$ DB, zero mocks) | Reliability (Resource Contention & Concurrency) | 100% Automated (Maven Failsafe) | Local Dev / CI Runner (H2 Fake) | Relational database fixtures |
+| **Service & Event Integration** (`LendingServiceImplIT`, `BookExternalInfoIT`, `LendingNotificationIntegrationIT`) | Integration (Component Interaction) | **Transparent-Box** (Full stack: Service $\leftrightarrow$ Events $\leftrightarrow$ JPA $\leftrightarrow$ DB) | Reliability (Concurrency, Transactional Event Dispatch & Fault Isolation) | 100% Automated (Maven Failsafe) | Local Dev / CI Runner (H2 Fake) | Relational database fixtures & Spring Context |
 
 * **Technique Accessibility in Practice:**
   * **Opaque-Box (Behavioral / Specification-based):** Applied in domain unit tests to assert invariant contracts based on Boundary Value Analysis and Equivalence Partitioning, treating internal implementation details as opaque.
@@ -118,61 +119,68 @@ The Maven build lifecycle (`pom.xml`) enforces strict phase segregation, automat
 
 ## 4. Test Suite Implementation
 
-The test suite was systematically expanded from 102 tests (baseline) to **275 automated tests** across segregated lifecycles:
+The test suite was systematically expanded from 102 tests (baseline) to **374 automated tests** across segregated lifecycles:
 
 ```
-Total Test Suite: 275 Automated Tests (100% Pass Rate)
-├── Surefire Unit Tests (mvn test): 239 tests (~29s execution)
-└── Failsafe Integration Tests (mvn verify): 36 tests (~1m11s execution)
+Total Test Suite: 374 Automated Tests (100% Pass Rate)
+├── Surefire Unit Tests (mvn test): 330 tests (~12s execution)
+└── Failsafe Integration Tests (mvn verify): 44 tests (~15s execution)
 ```
 
 ### 4.1. Unit Testing Suite (`src/test/java/.../*Test.java`)
-Executed by Maven Surefire (`mvn test`). All tests run with complete isolation and zero Spring overhead:
+Executed by Maven Surefire (`mvn test`). All 330 tests run with complete isolation and zero Spring context overhead:
 
 1. **`LendingServiceImplTest.java` (20 tests):**
    * Business invariant: maximum 3 outstanding books (`LendingForbiddenException`).
    * Business invariant: reader has overdue books past due date (`LendingForbiddenException`).
-   * On-time returns vs overdue returns (fine calculation in cents).
+   * On-time returns vs overdue returns (fine calculation in cents) and domain event publication (`LendingCreatedEvent`, `LendingReturnedEvent`, `LendingOverdueEvent`).
    * Missing entity handling (`NotFoundException` for reader and book).
    * Date parsing validation (`DateTimeParseException` $\rightarrow$ `IllegalArgumentException`).
    * Test Spy verification using `ArgumentCaptor<Lending>` to inspect saved entity numbers.
-2. **`BookServiceImplTest.java` (19 tests):**
-   * Conflict detection for existing ISBN (`ConflictException`).
-   * Author association and missing genre handling (`NotFoundException`).
+2. **`BookServiceImplTest.java` (22 tests) & `BookDetailsDTOTest.java` (8 tests):**
+   * Conflict detection for existing ISBN (`ConflictException`) and missing genre handling (`NotFoundException`).
    * Full update patch lifecycle: updating author lists, genre binding, and version mismatch handling.
    * Book recommendation engine based on reader interest genres and limits (`suggestionsLimitPerGenre`).
-   * Custom searches, top lent queries, and photo removal handling.
+   * External bibliographic enrichment via `BookInfoProvider` gateway, DTO validation, custom searches, top lent queries, and photo removal handling.
 3. **`AuthorServiceImplTest.java` (17 tests):**
    * Complete CRUD, search by name, pagination, and photo assignment.
 4. **`UserServiceTest.java` (19 tests):**
    * Validates creation of `Reader` and `Librarian` without double BCrypt hashing.
-   * Duplicate username detection (`ConflictException`).
-   * Forbidden name validation (`IllegalArgumentException`).
+   * Duplicate username detection (`ConflictException`) and forbidden name validation (`IllegalArgumentException`).
    * Full CRUD operations: `update`, `delete`, `usernameExists`, `searchUsers`, and `getUser`.
    * Security context extraction and JWT subject claim extraction (`getAuthenticatedUser`).
-5. **`ReaderServiceImplTest.java` (19 tests):**
-   * Reader registration, user binding, and unique reader number sequencing.
-   * Forbidden name checks and duplicate username conflict detection.
-   * Genre interest lookup validation and photo consistency handling.
-   * Top readers queries, top by genre date filtering, and paginated searches.
-   * Reader profile patch updating with version conflict verification.
+5. **`ReaderServiceImplTest.java` (19 tests) & `NotificationRequestTest.java` (2 tests):**
+   * Reader registration, user binding, unique reader number sequencing, and notification request creation.
+   * Forbidden name checks, duplicate username conflict detection, and genre interest lookup validation.
+   * Top readers queries, top by genre date filtering, paginated searches, and profile patch updating with version conflict verification.
 6. **`GenreServiceImplTest.java` (12 tests):**
    * Genre retrieval, saving, and top genre ranking by book count.
    * Analytics: monthly lending averages and duration queries with date validation and pagination.
    * Date interval consistency checks, start/end date inversion validation, and not-found exception paths.
-7. **`AuthorControllerTest.java` (7 tests):**
-   * Isolated web layer testing using standalone MockMvc and isolated service mock.
-8. **Domain Model & Shared Value Object Tests (126 tests):**
-   * **Value Objects & Utilities (11 test suites, 54 tests):** `IsbnTest` (7), `TitleTest` (7), `LendingNumberTest` (8), `NameTest` (6), `BioTest` (5), `StringUtilsCustomTest` (5 - alphanumeric, whitespace, XSS sanitization), `BirthDateTest` (4), `PhoneNumberTest` (4), `DescriptionTest` (4), `PhotoTest` (2), `ForbiddenNameTest` (2). Systematically asserts invariants, formats, sanitization, and immutability via Boundary Value Analysis and Equivalence Partitioning.
-   * **Entities & Aggregate Roots (7 test suites, 72 tests):**
-     * `LendingTest` (21 tests): Due date calculations, overdue days, on-time returns, fine computations, bootstrapping factory, and optimistic version checks.
-     * `BookTest` (13 tests): Complete lifecycle, multi-author associations, getters, photo removal conflicts, and full/partial patch updates with version optimistic locking (`StaleObjectStateException`).
-     * `UserTest` (9 tests - BCrypt encoding, factory methods, password rules, role assignments), `ReaderTest` (9 tests), `AuthorTest` (9 tests), `ReaderDetailsTest` (7 tests - GDPR constraints and profile patch rules), `GenreTest` (4 tests).
+7. **Bibliographic Gateways & Adapters (`bookmanagement.infrastructure.gateways` — 23 tests):**
+   * `OpenLibraryAdapterTest` (10 tests): JSON payload mapping, missing fields handling, HTTP failure resilience, and empty response safety.
+   * `GoogleBooksAdapterTest` (7 tests): Google Books `items[].volumeInfo` JSON extraction, author list parsing, and error handling.
+   * `CompositeBookInfoProviderTest` (6 tests): Chain-of-responsibility fallback across ordered providers, partial field enrichment merging, and fault isolation.
+8. **Event-Driven Multichannel Notifications (`readermanagement.infrastructure.notifications` & `lendingmanagement.events` — 39 tests):**
+   * `LendingNotificationListenerTest` (9 tests): `@TransactionalEventListener(phase = AFTER_COMMIT)` event handling for loan creation, return, and overdue alerts.
+   * `WebhookNotificationSenderTest` (7 tests), `SmsNotificationSenderTest` (6 tests), `EmailNotificationSenderTest` (5 tests): Channel-specific strategy dispatching, formatting, and error handling.
+   * `CompositeNotificationSenderTest` (6 tests): Multichannel broadcast orchestration and fault isolation when an individual channel fails.
+   * `LendingEventsTest` (6 tests): Domain event payload immutability and invariant validation.
+9. **Web Controllers & Configuration Wiring (23 tests):**
+   * `AuthorControllerTest` (7 tests): Isolated web layer testing using standalone MockMvc and isolated service mock.
+   * `NotificationConfigTest` (8 tests) & `BibliographicConfigTest` (6 tests): Setup-time adapter selection, bean wiring, and dynamic fallback configuration.
+   * `InfoControllerTest` (2 tests): Operational metadata endpoint (`GET /info`) returning application name, version, Git commit SHA, and active environment.
+10. **Domain Model & Shared Value Object Tests (126 tests):**
+    * **Value Objects & Utilities (11 test suites, 54 tests):** `IsbnTest` (7), `TitleTest` (7), `LendingNumberTest` (8), `NameTest` (6), `BioTest` (5), `StringUtilsCustomTest` (5 - alphanumeric, whitespace, XSS sanitization), `BirthDateTest` (4), `PhoneNumberTest` (4), `DescriptionTest` (4), `PhotoTest` (2), `ForbiddenNameTest` (2). Systematically asserts invariants, formats, sanitization, and immutability via Boundary Value Analysis and Equivalence Partitioning.
+    * **Entities & Aggregate Roots (7 test suites, 72 tests):**
+      * `LendingTest` (21 tests): Due date calculations, overdue days, on-time returns, fine computations, bootstrapping factory, and optimistic version checks.
+      * `BookTest` (13 tests): Complete lifecycle, multi-author associations, getters, photo removal conflicts, and full/partial patch updates with version optimistic locking (`StaleObjectStateException`).
+      * `UserTest` (9 tests - BCrypt encoding, factory methods, password rules, role assignments), `ReaderTest` (9 tests), `AuthorTest` (9 tests), `ReaderDetailsTest` (7 tests - GDPR constraints and profile patch rules), `GenreTest` (4 tests).
 
-**Surefire Results:** **239 tests run, 0 failures, 0 errors, 0 skipped.**
+**Surefire Results:** **330 tests run, 0 failures, 0 errors, 0 skipped.**
 
 ### 4.2. Integration Testing Suite (`src/test/java/.../*IT.java`, `*IntegrationTest.java`)
-Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Spring Security, Spring Data JPA, and the H2 database fake:
+Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Spring Security, Spring Data JPA, transactional domain events, and the H2 database fake:
 
 1. **`AuthApiIntegrationTest.java` (4 tests):**
    * JWT authentication flow (`POST /api/public/login`).
@@ -186,10 +194,10 @@ Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Sp
    * RBAC: `POST /api/lendings` requires `LIBRARIAN` role (`403 Forbidden` for Reader).
    * RBAC: `PATCH /api/lendings/{year}/{seq}` requires `READER` role (`403 Forbidden` for Librarian).
    * Concurrency & optimistic locking: Missing `If-Match` header returns `400 Bad Request`.
-4. **`BookControllerIntegrationTest.java` (5 tests):**
+4. **`BookControllerIntegrationTest.java` (8 tests) & `BookExternalInfoIT.java` (2 tests):**
    * RBAC: `PUT /api/books/{isbn}` requires `LIBRARIAN` role (`403 Forbidden` for Reader).
    * RBAC: `GET /api/books/suggestions` requires `READER` role (`403 Forbidden` for Librarian).
-   * Public/Authenticated book detail retrieval (`200 OK`).
+   * End-to-end book creation with external bibliographic enrichment and public/authenticated retrieval (`200 OK`).
 5. **`GenreControllerIntegrationTest.java` (5 tests):**
    * RBAC: `GET /api/genres/top5` requires `LIBRARIAN` role (`403 Forbidden` for Reader).
    * RBAC: `GET /api/genres/lendingsPerMonthLastTwelveMonths` requires `LIBRARIAN` role.
@@ -198,12 +206,14 @@ Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Sp
    * Cross-entity database integration (Author $\rightarrow$ Genre $\rightarrow$ Book $\rightarrow$ Reader $\rightarrow$ Lending).
    * Stale object optimistic locking exception (`StaleObjectStateException`).
    * **Resource Contention & Concurrency Testing:** Validates that concurrent attempts to return the same lending entity with the same initial version are trapped and rejected, preserving transactional consistency.
-7. **`LendingRepositoryIntegrationTest.java` (7 tests):**
+7. **`LendingNotificationIntegrationIT.java` (3 tests):**
+   * End-to-end transactional event publication (`AFTER_COMMIT`) upon lending creation and return, verifying multichannel dispatch and fault isolation when a notification channel throws an exception.
+8. **`LendingRepositoryIntegrationTest.java` (7 tests):**
    * Custom Spring Data JPA criteria queries, average lending duration, and overdue queries.
-8. **`AuthorRepositoryIntegrationTest.java` & `AuthorServiceImplIntegrationTest.java` (2 tests):**
+9. **`AuthorRepositoryIntegrationTest.java` & `AuthorServiceImplIntegrationTest.java` (2 tests):**
    * Custom author queries and transactional persistence.
 
-**Failsafe Results:** **36 tests run, 0 failures, 0 errors, 0 skipped.**
+**Failsafe Results:** **44 tests run, 0 failures, 0 errors, 0 skipped.**
 
 ---
 
@@ -328,15 +338,16 @@ In mutation testing theory, not all surviving mutants represent test defects:
 
 | Metric | Baseline (*As-Is*) | Target State (*To-Be*) | Net Improvement | Impact |
 |:---|:---:|:---:|:---:|:---|
-| **Total Automated Test Suite** | 102 tests | **275 tests** | **+169.6%** | Comprehensive regression net |
-| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **239 (pure isolated SUT)** | **+134.3%** | Ultra-fast feedback (~29s) |
-| **Integration Tests (`mvn verify`)** | 0 configured | **36 (Failsafe automated)** | **+100% (New)** | Full security, DB & concurrency |
-| **Security & RBAC Tests** | 0 active tests | **24 active tests** | **+100% (New)** | Automated access control |
-| **Concurrency / Contention Tests** | 0 tests | **1 active Failsafe test** | **+100% (New)** | Validates optimistic locking & contention detection |
+| **Total Automated Test Suite** | 102 tests | **374 tests** | **+266.7%** | Comprehensive regression net across domain & architecture |
+| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **330 (pure isolated SUT)** | **+223.5%** | Ultra-fast feedback (~12s) |
+| **Integration Tests (`mvn verify`)** | 0 configured | **44 (Failsafe automated)** | **+100% (New)** | Full security, DB, concurrency & event dispatch |
+| **Security & RBAC Tests** | 0 active tests | **24+ active tests** | **+100% (New)** | Automated access control |
+| **Concurrency & Event Fault-Isolation Tests** | 0 tests | **4 active Failsafe tests** | **+100% (New)** | Validates optimistic locking & multichannel fault isolation |
 | **Core Services $\ge 60\%$ Line Coverage** | 2 out of 6 (33%) | **6 out of 6 (100%)** | **+100% Compliant** | Meets CI Quality Gate |
 | **Core Domain Models $\ge 60\%$ Line Coverage** | 3 out of 7 (43%) | **7 out of 7 (100%)** | **+100% Compliant** | Meets CI Quality Gate |
 | **Core Services $\ge 50\%$ Mutation** | 1 out of 6 (16%) | **6 out of 6 (100%)** | **+100% Compliant** | Meets CI Quality Gate |
 | **Core Domain Models $\ge 50\%$ Mutation** | 2 out of 7 (28%) | **7 out of 7 (100%)** | **+250% (100% Compliant)** | All models exceed gate |
-| **Global Test Strength (PIT)** | 70% | **83%–88%** | **+15.7%** | Meaningful behavioral assertions |
+| **Global Mutations Killed (PIT)** | 124 / 575 | **662 / 2,999** | **+433.9% mutants killed** | Industrial-scale fault detection |
+| **Global Test Strength (PIT)** | 70% | **84% (83%–100% in core)** | **+14.0 pts** | Meaningful behavioral assertions |
 | **Test Execution Segregation** | None (mixed in `test`) | Strict (Surefire vs Failsafe) | Segregated lifecycle | Clean build architecture |
-| **Critical Defects Detected** | 0 (Hidden flaw) | 1 fatal auth bug resolved | System fully operational | Login functionality restored |
+| **Critical Defects Detected** | 0 (Hidden flaw) | 1 fatal auth bug + 3 P1 SAST bugs resolved | System fully operational | Login & cross-OS stability restored |

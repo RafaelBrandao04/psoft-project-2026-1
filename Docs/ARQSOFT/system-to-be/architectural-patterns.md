@@ -202,7 +202,7 @@ classDiagram
         +isApplicable(...) boolean
         +validateCanLend(...) void
     }
-    class PremiumReaderLendingPolicy {
+    class AdaptiveLendingPolicy {
         -LendingPolicyProperties props
         +isApplicable(...) boolean
         +validateCanLend(...) void
@@ -214,7 +214,7 @@ classDiagram
     }
 
     StandardLendingPolicy ..|> LendingPolicy : implements
-    PremiumReaderLendingPolicy ..|> LendingPolicy : implements
+    AdaptiveLendingPolicy ..|> LendingPolicy : implements
     ShortTermLendingPolicy ..|> LendingPolicy : implements
 ```
 
@@ -222,7 +222,7 @@ classDiagram
 * **Instanciações no Projeto:**
   1. **Tópico 1.3.3.3 (Políticas de Empréstimo Flexíveis):**
      * A interface `LendingPolicy` encapsula o comportamento das regras de empréstimo: elegibilidade (`isApplicable`), validação de regras de bloqueio (`validateCanLend`), prazo de empréstimo (`getLendingDurationInDays`), número máximo de livros em simultâneo (`getMaxSimultaneousLendings`) e valor da multa diária (`getFineValuePerDayInCents`).
-     * As implementações concretas (`StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `ShortTermLendingPolicy`) isolam as variações de negócio em classes independentes.
+     * As implementações concretas (`StandardLendingPolicy`, `AdaptiveLendingPolicy` e pontos de evolução como `ShortTermLendingPolicy`) isolam as variações de negócio em classes independentes.
   2. **Tópico 1.3.3.2 (Canais de Envio):**
      * Cada canal de notificação é uma estratégia concreta de entrega de dados sob a interface comum `NotificationSender`.
 * **Benefício Arquitetural e Suporte a Testes Automatizados (1.3.3.4):**
@@ -240,7 +240,7 @@ classDiagram
      * Quando um empréstimo é solicitado para um determinado `Reader` e `Book`, o resolvedor filtra as políticas candidatas (`policy.isApplicable(reader, book) == true`) e seleciona deterministicamente a política de maior prioridade (`getPriority()`).
      * *Regras de Exemplo:*
        * `ShortTermLendingPolicy` (Prioridade 30): Aplica-se se o livro for de consulta rápida / referência ou obra de alta procura;
-       * `PremiumReaderLendingPolicy` (Prioridade 20): Aplica-se a leitores com estatuto especial ou histórico exemplar;
+       * `AdaptiveLendingPolicy` (Prioridade 20): Aplica-se quando nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}$ a tempo e não tem atrasos ativos (adaptando o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` segundo `FirstThreshold` e `SecondThreshold`);
        * `StandardLendingPolicy` (Prioridade 10): Política por omissão (*fallback*) para todos os restantes casos.
   2. **`BibliographicConfig` e `NotificationConfig` (Fábricas de Vinculação em *Setup Time* — 1.3.3.1 e 1.3.3.2):**
      * Classes `@Configuration` que leem as propriedades externas (`bibliographic.providers`, `notification.channels`) e montam dinamicamente os beans primários no arranque da aplicação.
@@ -280,7 +280,7 @@ A tabela seguinte estabelece a rastreabilidade formal e bidirecional exigida pel
 | **In-Process Domain Events (Observer)** | Iteração 2 (1.3.3.2) | *Publish-Subscribe*, *Fault Isolation*, *Asynchronous Event Processing* | `FR02`, `ASR01`, `ASR06`, `ASR07` | `LendingCreatedEvent`, `LendingReturnedEvent`, `ApplicationEventPublisher`, `LendingNotificationListener`. |
 | **Adapter Pattern** | Iteração 1 (1.3.3.1) e Iteração 2 (1.3.3.2) | *Encapsulate*, *Restrict Dependencies*, *Data Transformation* | `FR01`, `FR02`, `ASR01`, `ASR05` | `GoogleBooksAdapter`, `OpenLibraryAdapter`, `EmailNotificationSender`, `SmsNotificationSender`, `WebhookNotificationSender`. |
 | **Composite Pattern** | Iteração 1 (1.3.3.1) e Iteração 2 (1.3.3.2) | *Use an Intermediary*, *Degradation / Fallback*, *Fault Isolation* | `FR01`, `FR02`, `ASR02`, `ASR06` | `CompositeBookInfoProvider`, `CompositeNotificationSender`. |
-| **Strategy Pattern** | Iteração 2 (1.3.3.2) e Iteração 3 (1.3.3.3) | *Abstract Common Services*, *Polymorphism*, *High Semantic Coherence* | `FR02`, `FR03`, `ASR01`, `ASR03`, `ASR04` | `NotificationSender` (e senders), `LendingPolicy`, `StandardLendingPolicy`, `PremiumReaderLendingPolicy`, `ShortTermLendingPolicy`. |
+| **Strategy Pattern** | Iteração 2 (1.3.3.2) e Iteração 3 (1.3.3.3) | *Abstract Common Services*, *Polymorphism*, *High Semantic Coherence* | `FR02`, `FR03`, `ASR01`, `ASR03`, `ASR04` | `NotificationSender` (e senders), `LendingPolicy`, `StandardLendingPolicy`, `AdaptiveLendingPolicy`. |
 | **Factory / Policy Resolver** | Iteração 3 (1.3.3.3) e Configurações | *Use an Intermediary*, *Dynamic Runtime Registration*, *Defer Binding* | `FR03`, `ASR02`, `ASR03` | `LendingPolicyResolver`, `BibliographicConfig`, `NotificationConfig`. |
 | **Canonical Data Model (DTO)** | Iteração 1 (1.3.3.1) | *Abstract Common Services*, *Encapsulate*, *Data Transformation* | `FR01`, `ASR05`, `ASR01` | `BookDetailsDTO`. |
 | **Externalized Configuration Binding** | Iterações 1, 2 e 3 | *Configuration Files / Parameterization*, *Conditional Component Registration* | `ASR02`, `TC01` | `LendingPolicyProperties`, ficheiros `application.properties` e `library.properties`. |
