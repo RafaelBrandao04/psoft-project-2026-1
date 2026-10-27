@@ -1,31 +1,35 @@
-# ARQSOFT — Alternativas de Desenho Arquitetural e Racional (Modelos Visuais)
+# ARQSOFT — Alternativas de Desenho Arquitetural e Racional (Modelos Visuais - System-to-Be)
 
 ## 1. Metodologia de Tomada de Decisão e Racional no ADD 3.0 (Passos 4, 6 e 7)
 
 No método **Attribute-Driven Design (ADD 3.0)**, a construção da arquitetura do software decorre da análise sistemática das forças motrizes (*Architectural Drivers*) e da ponderação fundamentada entre opções estruturais viáveis.
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
-    subgraph S4["Passo 4: Escolher Conceitos de Desenho"]
+    subgraph S4["Passo 4: Escolher Conceitos de Desenho<br/><br/>"]
         ALT["Identificar Alternativas de Desenho<br/>(Padrões + Táticas + Primitivas)"]
         COMP["Comparar Alternativas<br/>(Prós, Contras, Custo, Drivers)"]
         DEC["Selecionar Solução Arquitetural"]
         ALT --> COMP --> DEC
     end
 
-    subgraph S5S6["Passos 5 e 6: Instanciar Estruturas e Registar Decisões"]
+    subgraph S5S6["Passos 5 e 6: Instanciar Estruturas e Registar Decisões<br/><br/>"]
         RAR["Atribuição de Responsabilidades<br/>(Responsibility Assignment Rationale)"]
         TM["Registo de Decisão Formal<br/>(Technical Memos / ADRs)"]
         MOD["Modelos Visuais do System-to-Be<br/>(Vistas C4 e Kruchten 4+1)"]
-        DEC --> RAR & TM & MOD
     end
 
-    subgraph S7["Passo 7: Analisar Desenho e Avaliar Trade-offs"]
+    subgraph S7["Passo 7: Analisar Desenho e Avaliar Trade-offs<br/><br/>"]
         PLAUS["Avaliar Plausibilidade Arquitetural<br/>(Face aos Cenários ASRs)"]
         TRADE["Pesar Trade-offs e Consequências<br/>(Modificabilidade vs. Complexidade)"]
         VERIF["Plano de Verificação Empírica<br/>(Bateria de Testes 1.3.3.4 & PITest)"]
-        S5S6 --> PLAUS --> TRADE --> VERIF
+        PLAUS --> TRADE --> VERIF
     end
+
+    %% Transição clara e consistente entre fases:
+    DEC --> RAR & TM & MOD
+    RAR & TM & MOD --> PLAUS
 ```
 
 ### 1.1. Critérios de Avaliação Multidimensional de Alternativas
@@ -33,7 +37,7 @@ Perante cada sub-problema e iteração do ADD, as alternativas de desenho são f
 1. **Aderência aos Drivers Arquiteturais:** Capacidade de satisfazer integralmente os requisitos funcionais (`FR01` a `FR04`) e os cenários de atributos de qualidade (`ASR01` a `ASR07`);
 2. **Conformidade com Restrições (*Technical Constraints*):** Respeito por `TC01` (Java 17 / Spring Boot), `TC02` (Monólito Modular DDD), `TC03` (JPA/H2) e `TC05` (Testes 100% herméticos e determinísticos em ambiente offline);
 3. **Custo e Complexidade de Implementação:** Avaliação do esforço de desenvolvimento, quantidade de abstrações introduzidas e risco de introdução de dívida técnica ou *over-engineering*;
-4. **Viabilidade Operacional (`OL01`–`OL04`):** Possibilidade de paralelização equilibrada das tarefas entre os 3 elementos do grupo para cumprimento rigoroso da data de entrega (2026-11-01).
+4. **Viabilidade Operacional (`OL01`–`OL04`):** Possibilidade de paralelização equilibrada das tarefas entre os 3 elementos do grupo para cumprimento rigoroso da data de entrega.
 
 ### 1.2. Registo Formal do Racional Arquitetural
 Para garantir a rastreabilidade e a transparência entre os requisitos de negócio e o código implementado, utilizam-se dois mecanismos formais:
@@ -43,8 +47,6 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 ---
 
 ## 2. Avaliação de Alternativas de Desenho e Racional por Sub-Problema
-
----
 
 ### 2.1. Sub-Problema 1: Recuperação e Agregação de Fontes Bibliográficas Heterogéneas (1.3.3.1 / Iteração 1)
 
@@ -126,7 +128,7 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 | **Solution** | 1. Isolar o contrato `LendingPolicy` num novo pacote `lendingmanagement.policies`, contendo os métodos `isApplicable(reader, book)`, `validateCanLend(reader, book, activeLendings)`, `getLendingDurationInDays(...)`, `getMaxSimultaneousLendings()`, `getFineValuePerDayInCents()`, `getPriority()` e `getPolicyName()`.<br/>2. Implementar `StandardLendingPolicy` (prioridade 10, política por omissão com `MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`) e `AdaptiveLendingPolicy` (prioridade 20, selecionada quando nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}$ a tempo e sem atrasos ativos, adaptando o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` consoante `FirstThreshold` e `SecondThreshold`).<br/>3. Implementar `LendingPolicyResolver` que interroga as políticas injetadas e retorna a de maior prioridade aplicável.<br/>4. Mapear e validar as restrições das propriedades externas via `LendingPolicyProperties` (`@ConfigurationProperties`). |
 | **Motivation** | Separa de forma irrevogável três preocupações distintas: (a) a calibração de valores numéricos (propriedades); (b) a lógica de cada regra de negócio (classes de política); e (c) o fluxo transacional de emissão de empréstimos (`LendingServiceImpl`). Permite testes unitários de domínio transparentes e execução determinística de testes de mutação. |
 | **Alternatives Considered** | Ramificações condicionais internas em `LendingServiceImpl` (rejeitada por violação do OCP e complexidade) e motor Drools (rejeitada por quebra do ambiente de mutação Java). |
-| **Pending Issues / Carry-forward** | Garantir que a bateria de testes de unidade de domínio (`1.3.3.4.1`) e mutação (`1.3.3.4.3`) testa exaustivamente os valores de fronteira (Análise de Valores Limite — BVA: $N-1$, $N$, $N+1$) para matar mutantes relacionais gerados pelo PITest (`ConditionalsBoundaryMutator`). |
+| **Pending Issues / Carry-forward** | Garantir que a bateria de testes de unidade de domínio (`1.3.3.4.1`) e mutação (`1.3.3.4.3`) testa exaustivamente os valores de fronteira (Análise de Valores Limite) para matar mutantes relacionais gerados pelo PITest (`ConditionalsBoundaryMutator`). |
 
 ---
 
@@ -390,7 +392,7 @@ A Vista Física (ou de Implantação) descreve a topologia de nós computacionai
 
 ### 5.6. Vista de Processos (VP)
 
-A Vista de Processos ilustra a realização dinâmica das operações do sistema através de diagramas de sequência para os três cenários de negócio que sofrem evolução arquitetural no *System-to-Be* (Criação de Empréstimos, Registo de Livros e Devolução de Empréstimos), em três níveis de abstração cada (N1, N2 e N3), totalizando 9 modelos visuais. Os cenários puramente de consulta (como a obtenção do *Top 5 Books Lent*) não sofreram alterações arquiteturais e mantêm-se idênticos aos especificados no *System-as-is*.
+A Vista de Processos ilustra a realização dinâmica das operações do sistema através de diagramas de sequência para os três cenários de negócio que sofrem evolução arquitetural no *System-to-Be* (Criação de Empréstimos, Registo de Livros e Devolução de Empréstimos), em três níveis de abstração cada (N1, N2 e N3), totalizando 9 modelos visuais.
 
 ---
 

@@ -5,6 +5,7 @@
 No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Institute* (SEI — Cervantes & Kazman, 2016; Bass, Clements & Kazman, 2021), a seleção de conceitos de desenho no **Passo 4** não se limita a padrões abstratos e táticas isoladas. O arquiteto recorre a primitivas de desenho concretas, entre as quais se destacam as **Arquiteturas de Referência (*Reference Architectures*)** ou **Arquétipos de Aplicação (*Application Archetypes*)**.
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph Inputs["Entradas do ADD (Passos 1 a 3)"]
         D["Architectural Drivers <br/>ASR01-ASR07 | TC01-TC05 | FR01-FR04"]
@@ -27,7 +28,7 @@ flowchart TD
 ```
 
 ### 1.1. Definição e Papel das Arquiteturas de Referência
-* **Definição Formal:** Uma Arquitetura de Referência é um modelo de arquitetura comprovado, padronizado e amplamente aceite na indústria para um determinado domínio ou família de aplicações (*Application Archetype* — Microsoft Application Architecture Guide, 2.ª Edição). Fornece um modelo concetual de referência (*blueprint*) que dita a divisão de alto nível em subsistemas, camadas e limites de responsabilidade.
+* **Definição Formal:** Uma Arquitetura de Referência é um modelo de arquitetura comprovado, padronizado e amplamente aceite na indústria para um determinado domínio ou família de aplicações. Fornece um modelo concetual de referência (*blueprint*) que dita a divisão de alto nível em subsistemas, camadas e limites de responsabilidade.
 * **Função no Processo de Desenho:**
   1. **Evitar "reinventar a roda" (*Avoid reinventing the wheel*):** Adotar uma solução validada pela comunidade para problemas com requisitos e restrições similares.
   2. **Estabelecer vocabulário e padrões estruturais comuns:** Facilitar a comunicação técnica entre arquitetos, desenvolvedores e *stakeholders*.
@@ -46,13 +47,16 @@ De acordo com os princípios do método ADD 3.0 para sistemas existentes (*Desig
 Para suportar o *System-to-Be* com as novas capacidades exigidas no Enunciado (1.3.3.1 a 1.3.3.3), foram analisados e comparados três arquétipos de referência distintos:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 graph TD
     subgraph CandA["Candidato A: Microsserviços (MSA)"]
         MSA1["Book Service + DB"]
         MSA2["Lending Service + DB"]
         MSA3["Reader Service + DB"]
         MSA4["Notification Service"]
-        MSA1 <-->|HTTP/REST| MSA2 <-->|Event Bus| MSA4
+        MSA1 <-->|HTTP/REST| MSA2
+        MSA2 <-->|HTTP/REST| MSA3
+        MSA2 <-->|Event Bus| MSA4
     end
 
     subgraph CandB["Candidato B: Monólito Tradicional em Camadas"]
@@ -67,9 +71,12 @@ graph TD
         MM2["BookManagement (Clean)"]
         MM3["LendingManagement (Clean)"]
         MM4["ReaderManagement (Clean)"]
+        MM1 <-->|Public Contracts| MM4
         MM2 <-->|Public Contracts| MM3
         MM3 -.->|Domain Events| MM4
     end
+
+    CandA ~~~ CandB ~~~ CandC
 ```
 
 ### 2.1. Avaliação Comparativa dos Arquétipos
@@ -109,65 +116,13 @@ A arquitetura de referência adotada para o *System-to-Be* estrutura-se numa est
 ### 3.2. Micro-Arquitetura: *Clean Architecture / Ports and Adapters (Hexagonal Architecture)*
 No interior de cada módulo de subdomínio (com foco prioritário nos módulos refinados `bookmanagement`, `lendingmanagement` e `readermanagement`), a arquitetura de referência instancia os princípios da **Clean Architecture** (Robert C. Martin) e da **Arquitetura Hexagonal / Portas e Adaptadores** (Alistair Cockburn):
 
-```mermaid
-flowchart TD
-    subgraph ExternalActors["Atores e Infraestrutura Externa"]
-        RESTClient["Clientes REST / Frontends"]
-        GB["Google Books API"]
-        OL["Open Library API"]
-        MAIL["Servidor SMTP"]
-        SMS["Gateway SMS"]
-        HOOK["Endpoints Webhook"]
-        DB[(H2 Database)]
-    end
-
-    subgraph ModuleBoundary["Fronteira do Módulo (Clean Architecture)"]
-        subgraph FrameworksLayer["Camada 4: Frameworks & Drivers (Externo)"]
-            Controllers["HTTP REST Routers<br/>(Spring MVC / Tomcat)"]
-            RepoImpl["ORM & DB Drivers<br/>(Hibernate / JDBC)"]
-            WebClientImpl["HTTP & Mail Drivers<br/>(Spring WebClient / JavaMailSender)"]
-            ConfigBeans["@Configuration<br/>Beans"]
-        end
-
-        subgraph AdaptersLayer["Camada 3: Interface Adapters (Portas Concretas)"]
-            DrivingAdapters["Driving Adapters (Controllers):<br/>BookController, LendingController"]
-            DrivenAdapters["Driven Adapters (Gateways & Repos):<br/>GoogleBooksAdapter, OpenLibraryAdapter,<br/>NotificationSenders, SpringData*Repository"]
-        end
-
-        subgraph UseCasesLayer["Camada 2: Application Business Rules (Serviços)"]
-            AppServices["Application Services:<br/>BookServiceImpl, LendingServiceImpl"]
-            OutputPorts["Output Ports (Interfaces):<br/>BookInfoProvider, NotificationSender,<br/>LendingPolicyResolver, Repositories"]
-            CommandsDTO["Canonical DTOs & Events:<br/>BookDetailsDTO, LendingEvents"]
-        end
-
-        subgraph DomainLayer["Camada 1: Enterprise Business Rules (Núcleo)"]
-            Entities["Entities / Aggregates:<br/>Book, Lending, ReaderDetails"]
-            Policies["Domain Policies:<br/>LendingPolicy Strategies"]
-            ValueObjects["Value Objects:<br/>Isbn, Title, LendingNumber, Fine"]
-        end
-    end
-
-    RESTClient --> Controllers
-    Controllers --> DrivingAdapters
-    DrivingAdapters --> AppServices
-    AppServices --> DomainLayer
-    AppServices --> OutputPorts
-    DrivenAdapters -.->|implements| OutputPorts
-    DrivenAdapters --> WebClientImpl
-    DrivenAdapters --> RepoImpl
-    WebClientImpl --> GB
-    WebClientImpl --> OL
-    WebClientImpl --> HOOK
-    WebClientImpl --> SMS
-    RepoImpl --> DB
-    DrivenAdapters --> MAIL
-```
+![VA_N4.png](Vista%20Arquitetural/VA_N4.png)
 
 #### As Quatro Camadas Concêntricas da Arquitetura de Referência:
 1. **Camada 1 — Núcleo de Domínio (*Enterprise Business Rules*):**
    * Contém as entidades centrais do negócio (`Book`, `Lending`, `ReaderDetails`), *Value Objects* imutáveis (`Isbn`, `LendingNumber`, `Fine`) e as regras essenciais de validação e consistência.
    * **Regra de Dependência:** Não depende de nenhuma outra camada, de frameworks ou de bibliotecas externas (Java puro).
-2. **Camada 2 — Serviços de Aplicação (*Application Business Rules / Use Cases*):**
+2. **Camada 2 — Serviços de Aplicação (*Enterprise Application Rules*):**
    * Orquestra os fluxos de casos de uso (ex.: registar livro, emitir empréstimo, devolver exemplar).
    * Define os contratos abstratos de saída (**Output Ports**), tais como `BookInfoProvider`, `NotificationSender`, e interfaces de repositório (`BookRepository`).
    * Define os modelos de dados canónicos e eventos de domínio (`BookDetailsDTO`, `LendingCreatedEvent`).
@@ -175,7 +130,7 @@ flowchart TD
    * Converte dados entre o formato mais conveniente para os casos de uso e o formato exigido pelas entidades externas.
    * *Adaptadores de Entrada (Driving):* Controladores REST que traduzem pedidos HTTP/JSON em chamadas aos serviços aplicacionais.
    * *Adaptadores de Saída (Driven):* Implementações de portas como `GoogleBooksAdapter`, `EmailNotificationSender`, e repositórios JPA.
-4. **Camada 4 — Frameworks e Drivers (*Frameworks & Infrastructure*):**
+4. **Camada 4 — Frameworks e Drivers (*Frameworks & Drivers*):**
    * Onde assentam as ferramentas técnicas: Spring Boot, Spring Web, Spring Data JPA, Hibernate, Jackson, e conectores de rede.
 
 ### 3.3. Estilo de Coordenação e Comunicação Inter-Módulos

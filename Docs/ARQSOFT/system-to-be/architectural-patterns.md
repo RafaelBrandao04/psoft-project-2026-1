@@ -5,14 +5,15 @@
 No método **Attribute-Driven Design (ADD 3.0)** do *Software Engineering Institute* (SEI — Cervantes & Kazman, 2016; Bass, Clements & Kazman, 2021), os **Padrões (*Patterns*)** representam soluções comprovadas, documentadas e parametrizáveis para problemas recorrentes de organização de software:
 * **Definição Formal:** Um padrão é uma solução concetual reutilizável que descreve uma configuração de elementos estruturais, as suas responsabilidades mútuas e as regras de colaboração necessárias para resolver um problema num contexto específico.
 * **A Relação Indissociável entre Táticas e Padrões:**
-  * Uma **Tática Arquitetural** (analisada em [`architectural-tactics.md`](./architectural-tactics.md)) é uma decisão de desenho elementar focada no controlo de **um único atributo de qualidade** (ex.: *Encapsulate*, *Defer Binding*, *Use an Intermediary*).
+  * Uma **Tática Arquitetural** (analisada em [`architectural-tactics.md`](./architectural-tactics.md)) é uma decisão de desenho elementar focada no controlo de **um único atributo de qualidade**.
   * Um **Padrão de Desenho ou Arquitetural** empacota e combina **uma sinergia de táticas**, oferecendo uma estrutura concreta que equilibra múltiplos requisitos de qualidade em simultâneo (ex.: o padrão *Adapter* combina as táticas *Encapsulate*, *Restrict Dependencies* e *Data Transformation*).
 * **Continuidade entre Padrões Arquiteturais e Padrões de Desenho:**
-  * Na arquitetura e desenho de software (*"It is difficult to draw a clear boundary between 'design' and 'architectural' patterns/styles"*), não existe uma fronteira rígida. No método ADD, os padrões dividem-se pela sua granularidade e impacto estrutural:
+  * Na arquitetura e desenho de software não existe uma fronteira rígida. No método ADD, os padrões dividem-se pela sua granularidade e impacto estrutural:
     1. **Padrões Arquiteturais (Macro-Estrutura):** Organizam subsistemas, módulos de domínio e limites de contexto.
     2. **Padrões de Desenho / Padrões Táticos (Micro-Estrutura):** Organizam a colaboração entre classes, interfaces e objetos para resolver sub-problemas específicos.
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph ASRs["Drivers Arquiteturais"]
         D1["Extensibilidade (ASR01)"]
@@ -94,8 +95,6 @@ Estes padrões estabelecem a topologia global do sistema e o modelo de organiza�
 ## 3. Catálogo de Padrões de Desenho Táticos (Micro-Estruturais)
 
 Abaixo catalogam-se os padrões táticos de nível de componente e classes utilizados para responder às exigências específicas do enunciado 1.3.3.
-
----
 
 ### 3.1. Padrão *Adapter* (GoF Estrutural)
 
@@ -227,7 +226,7 @@ classDiagram
      * Cada canal de notificação é uma estratégia concreta de entrega de dados sob a interface comum `NotificationSender`.
 * **Benefício Arquitetural e Suporte a Testes Automatizados (1.3.3.4):**
   * Elimina blocos gigantescos de condicionais `if/else` ou `switch` no serviço de aplicação, assegurando conformidade com o OCP (`ASR01`).
-  * **Testabilidade de Caixa Transparente e Mutação PITest (1.3.3.4.2 & 1.3.3.4.3):** Por serem classes de domínio puras sem dependências de infraestrutura nem contexto Spring, cada política é testável isoladamente com Análise de Valores Limite (BVA: $N-1$, $N$, $N+1$). Isto garante cobertura de ramos integral e permite aniquilar mutantes gerados pelo PITest (`ConditionalsBoundaryMutator`, `MathMutator`, `NegateConditionalsMutator`).
+  * **Testabilidade de Caixa Transparente e Mutação PITest (1.3.3.4.2 & 1.3.3.4.3):** Por serem classes de domínio puras sem dependências de infraestrutura nem contexto Spring, cada política é testável isoladamente com Análise de Valores Limite. Isto garante cobertura de ramos integral e permite aniquilar mutantes gerados pelo PITest (`ConditionalsBoundaryMutator`, `MathMutator`, `NegateConditionalsMutator`).
 * **Táticas SEI Materializadas:** *Abstract Common Services*, *Polymorphism*, *High Semantic Coherence*.
 
 ---
@@ -240,7 +239,7 @@ classDiagram
      * Quando um empréstimo é solicitado para um determinado `Reader` e `Book`, o resolvedor filtra as políticas candidatas (`policy.isApplicable(reader, book) == true`) e seleciona deterministicamente a política de maior prioridade (`getPriority()`).
      * *Regras de Exemplo:*
        * `ShortTermLendingPolicy` (Prioridade 30): Aplica-se se o livro for de consulta rápida / referência ou obra de alta procura;
-       * `AdaptiveLendingPolicy` (Prioridade 20): Aplica-se quando nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}$ a tempo e não tem atrasos ativos (adaptando o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` segundo `FirstThreshold` e `SecondThreshold`);
+       * `AdaptiveLendingPolicy` (Prioridade 20): Aplica-se quando nos últimos `HistoryPeriod` meses o leitor completou >=MinCompletedLendings, devolveu >=MinOnTimeRatio a tempo e não tem atrasos ativos (adaptando o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` segundo `FirstThreshold` e `SecondThreshold`);
        * `StandardLendingPolicy` (Prioridade 10): Política por omissão (*fallback*) para todos os restantes casos.
   2. **`BibliographicConfig` e `NotificationConfig` (Fábricas de Vinculação em *Setup Time* — 1.3.3.1 e 1.3.3.2):**
      * Classes `@Configuration` que leem as propriedades externas (`bibliographic.providers`, `notification.channels`) e montam dinamicamente os beans primários no arranque da aplicação.
