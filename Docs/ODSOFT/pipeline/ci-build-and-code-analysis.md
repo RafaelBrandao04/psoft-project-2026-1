@@ -1,8 +1,8 @@
 # Automated CI/CD Pipeline: Build, Packaging, and Static Code Analysis
 
-## 1. Overview and Scope (Issue #17 / Goal 1.3.3)
+## 1. Overview and Scope (Goal 1.3.3)
 
-In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*) and **Issue #17** (*Implement an automated CI/CD (Build & Code Analysis) Pipeline*), this document specifies the architectural design and operational implementation of:
+In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*), this document specifies the architectural design and operational implementation of:
 1. **Building and Packaging the Software:** Deterministic compilation, bytecode generation, and Spring Boot executable JAR packaging adhering to the **Single-Build Immutable Artifact Pattern** (*One Build, Many Deploys*).
 2. **Static Code Analysis (SAST):** Automated inspection of bytecode and source code using **SpotBugs** to identify security vulnerabilities, concurrency anomalies, and code quality defects.
 3. **Jenkins Declarative Pipeline Orchestration:** Declarative Pipeline-as-Code ([`.Jenkinsfile`](../../../.Jenkinsfile)) driving the **`lms-dev`** pipeline on a local Jenkins Controller (`localhost:8080`), integrated with GitHub via **Webhook Relay** (outbound WebSocket `WSS` tunnel) and targeting the **DEI Virtual Servers Private Cloud (`vsgate-ssh.dei.isep.ipp.pt`)** for automated remote deployment.
@@ -22,6 +22,7 @@ As analyzed in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/syst
 The automated build process uses the Maven Wrapper (`./mvnw` / `mvnw.cmd`) with OpenJDK 17 in a standardized, headless lifecycle:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart LR
     SRC["Source Code<br/>(GitHub Push)"] --> WR["Webhook Relay<br/>(WSS Event)"]
     WR --> STAGE1["Stage 1: Build & Verify<br/>(compile + spotbugs + test + package + IT + PIT)"]
@@ -29,16 +30,6 @@ flowchart LR
     STAGE2 --> SSH["Deploy to DEI VM vs806:8081<br/>(deploy/jenkins-deploy.groovy + systemd + Smoke Test)"]
     SSH --> ARCHIVE["Archive validated/**<br/>(Fingerprinting)"]
     ARCHIVE --> UAT["Trigger Downstream<br/>Job: lms-uat"]
-
-    classDef srcStyle fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef buildStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef pkgStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
-    classDef cdStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
-
-    class SRC,WR srcStyle;
-    class STAGE1 buildStyle;
-    class STAGE2,ARCHIVE pkgStyle;
-    class SSH,UAT cdStyle;
 ```
 
 #### 2.2.1. Compilation & Annotation Processing (`compile`)
@@ -253,17 +244,3 @@ The pipeline establishes **Hard Gates** and **Soft Gates** as taught in the theo
 | **Mutation Testing (PITest)** | **Hard Gate** | Mutation threshold $\ge 30\%$ | Aborts build if mutation score degrades below threshold. |
 | **Artifact Packaging** | **Hard Gate** | Binary JAR preserved (~72 MB) via `copy /B /Y` | Aborts build if artifact missing or truncated. |
 | **Readiness Smoke Test** | **Hard Gate** | HTTP 200 and contract validation on `/info` (app, env, commit) and `/actuator/health/readiness` (status UP) within 60s (30 attempts $\times$ 2s) | Aborts deployment pipeline (`FAILURE`). |
-
----
-
-## 6. Verification and Evidence Checklist
-
-- [x] Maven compile goal executes deterministically with Java 17 and Maven Wrapper (`./mvnw`).
-- [x] `spotbugs-maven-plugin` configured with `spotbugs-exclude.xml` in `pom.xml`.
-- [x] All 3 P1 High-Priority SpotBugs defects identified and resolved in source code.
-- [x] Spring Boot JAR successfully packaged (`psoft-g1-0.0.1-SNAPSHOT.jar` ~72 MB).
-- [x] Declarative [`.Jenkinsfile`](../../../.Jenkinsfile) created and verified on local Jenkins with Webhook Relay.
-- [x] Binary copy (`copy /B /Y`) implemented to prevent Windows EOF truncation.
-- [x] Provenance tracking implemented via `release.properties` and fingerprinting in `validated/**`.
-- [x] Test and mutation results captured via standard Jenkins `junit` and `archiveArtifacts` steps.
-- [x] Automated downstream trigger configured for `lms-uat`.

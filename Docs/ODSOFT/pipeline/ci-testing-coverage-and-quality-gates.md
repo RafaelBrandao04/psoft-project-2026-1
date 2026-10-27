@@ -1,8 +1,8 @@
 # Automated CI/CD Pipeline: Testing, Coverage, Mutation, and Quality Gates
 
-## 1. Overview and Objectives (Issue #18 / Goal 1.3.3)
+## 1. Overview and Objectives (Goal 1.3.3)
 
-In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*) and **Issue #18** (*Integrate Automated Coverage, Mutation Testing & Quality Gates in Pipeline*), this document specifies the implementation of:
+In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*), this document specifies the implementation of:
 1. **Automated Testing at Appropriate Levels:** Segregated execution of unit tests (`maven-surefire-plugin`) and integration tests (`maven-failsafe-plugin`).
 2. **Test Reporting and Evidence Collection:** Automated publishing and historical trend tracking of build and test results in Jenkins using the Declarative `junit` step and `archiveArtifacts`.
 3. **Code Coverage and Mutation Testing:** Automated execution and report archiving for **JaCoCo** (code coverage) and **PITest** (mutation testing with the `<profile><id>mutation</id>` Maven profile).
@@ -15,6 +15,7 @@ In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*
 Following the architectural segregation designed in [`Docs/ODSOFT/testing-strategy/testing-strategy.md`](../testing-strategy/testing-strategy.md), the CI pipeline isolates testing scopes into distinct sequential verification phases executed within Maven's standardized `verify` lifecycle:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     COMPILE["1. Clean Compile & SAST<br/>(Bytecode & SpotBugs)"] --> UNIT["2. Unit Tests<br/>(Surefire: 330 Tests, 100% Pass)"]
     UNIT --> PKG["3. Package & Repackage<br/>(Spring Boot Fat JAR)"]
@@ -22,16 +23,6 @@ flowchart TD
     IT --> PIT["5. PIT Mutation Testing<br/>(Threshold: 30%, Test Strength: 84%)"]
     PIT --> POST["6. Post-Verification Evidence<br/>(archiveArtifacts + junit XML recording)"]
     POST --> DEV["7. Deploy DEV & Smoke Test<br/>(Port 8081 on DEI VM vs806)"]
-
-    classDef compileStyle fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef testStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef postStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
-    classDef cdStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
-
-    class COMPILE compileStyle;
-    class UNIT,PKG,IT,PIT testStyle;
-    class POST postStyle;
-    class DEV cdStyle;
 ```
 
 ### 2.1. Level 1: Unit Tests (`maven-surefire-plugin`)
@@ -195,15 +186,3 @@ stage('Build') {
     }
 }
 ```
-
----
-
-## 7. Verification and Evidence Checklist
-
-- [x] Surefire unit tests execute isolated in ~12s (330 tests, 0 failures, 0 errors).
-- [x] Failsafe integration tests execute against H2 in ~15s (44 tests, 0 failures, 0 errors).
-- [x] PITest mutation testing profile (`-Pmutation`) configured and bound to the `verify` phase.
-- [x] Mutation score and test strength (84%) successfully verified and threshold of 30% enforced (2,999 mutations generated, 662 killed).
-- [x] JUnit test results recorded in Jenkins via `junit 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml'`.
-- [x] PIT mutation and SpotBugs reports archived via `archiveArtifacts`.
-- [x] Hard quality gates enforced at compilation, test, mutation, and deployment readiness stages.

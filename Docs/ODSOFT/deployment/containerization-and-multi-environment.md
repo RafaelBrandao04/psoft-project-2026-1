@@ -1,6 +1,6 @@
 # Multi-Environment Configuration and Systemd Service Isolation
 
-## 1. Overview and Scope (Issue #20 / Goal 1.3.5)
+## 1. Overview and Scope (Goal 1.3.5 / Issue #20)
 
 In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*) and **Issue #20**, this document details the engineering decisions, implementation architecture, and operational procedures for:
 
@@ -24,6 +24,7 @@ As established in [`Docs/ODSOFT/System-as-is/system-as-is.md`](../System-as-is/s
 Following the reference architecture established for the course, environment isolation is achieved without heavy container daemon overhead on the resource-constrained DEI Virtual Servers by combining **Multi-VM physical separation** with **parameterized `systemd` service templates**:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph CI["CI Build (Single Immutable Artifact)"]
         SRC["Source Code + pom.xml"] --> MVN["mvnw clean verify -Drelease.commit=<SHA>"]

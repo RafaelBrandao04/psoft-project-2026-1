@@ -22,6 +22,7 @@ Following the pedagogical directives and institutional constraints established f
 ### 1.2. Complete Continuous Delivery Pipeline Workflow
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph SCM["Version Control"]
         DEV_PUSH["Developer Git Push<br/>(Branch: main)"] --> GITHUB["GitHub Repository<br/>(psoft-project-2026-1)"]
@@ -61,18 +62,6 @@ flowchart TD
     LOCAL_JENKINS --> JobDEV
     STAGE_DEV_DEPLOY -->|Automated Trigger| JobUAT
     UAT_UNSTASH -->|Automated Trigger| JobPROD
-
-    classDef scmStyle fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef tunnelStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
-    classDef devStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef uatStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
-    classDef prodStyle fill:#fce4ec,stroke:#c2185b,stroke-width:2px;
-
-    class DEV_PUSH,GITHUB scmStyle;
-    class WHR,LOCAL_JENKINS tunnelStyle;
-    class STAGE_BUILD,STAGE_DEV_DEPLOY devStyle;
-    class UAT_COPY,UAT_DEPLOY,UAT_STASH,UAT_INPUT,UAT_UNSTASH uatStyle;
-    class PROD_COPY,PROD_AUDIT,PROD_DEPLOY,PROD_SMOKE,PROD_FINAL prodStyle;
 ```
 
 ---
@@ -97,21 +86,21 @@ flowchart TD
 To satisfy the **Twelve-Factor App (Factor X: Dev/Prod Parity)** and institutional resource constraints, the three environments are hosted on dedicated DEI Virtual Servers managed by parameterized systemd services ([`deploy/psoft-g1@.service`](../../../deploy/psoft-g1@.service)):
 
 ```
-+---------------------------------------------------------------------------------------------------------------------+
-|                                   INSTITUTIONAL MULTI-VM DEPLOYMENT TOPOLOGY                                        |
-+---------------------------------------------------------------------------------------------------------------------+
-|  DEI VIRTUAL SERVER 1: vs806 (DEV + UAT Host)                       |  DEI VIRTUAL SERVER 2: vs336 (PROD Host)      |
++---------------------------------------------------------------------------------------------------------------------------+
+|                                   INSTITUTIONAL MULTI-VM DEPLOYMENT TOPOLOGY                                              |
++---------------------------------------------------------------------------------------------------------------------------+
+|  DEI VIRTUAL SERVER 1: vs806 (DEV + UAT Host)                       |  DEI VIRTUAL SERVER 2: vs336 (PROD Host)            |
 |  External Gateway: vsgate-ssh.dei.isep.ipp.pt:10806                 |  External Gateway: vsgate-ssh.dei.isep.ipp.pt:10336 |
-|  Role: CI Validation & Acceptance Testing Host                      |  Role: Dedicated Isolated Production Host     |
-|  -----------------------------------------------------------------  |  -------------------------------------------- |
-|  1. DEVELOPMENT (DEV)             |  2. ACCEPTANCE TESTING (UAT)    |  3. PRODUCTION (PROD)                         |
-|  - App Port: 8081                 |  - App Port: 8082               |  - App Port: 8080                             |
-|  - WorkDir: /opt/psoft-g1/dev     |  - WorkDir: /opt/psoft-g1/uat   |  - WorkDir: /opt/psoft-g1/prod                |
-|  - EnvFile: /etc/psoft-g1/dev.env |  - EnvFile: /etc/psoft-g1/uat.env|  - EnvFile: /etc/psoft-g1/prod.env           |
-|  - Systemd: psoft-g1@dev.service  |  - Systemd: psoft-g1@uat.service|  - Systemd: psoft-g1@prod.service             |
-|  - User: psoft-g1-dev             |  - User: psoft-g1-uat           |  - User: psoft-g1-prod                        |
-|  - Smoke Test: /info (env=dev)    |  - Smoke Test: /info (env=uat)  |  - Smoke Test: /info (env=prod)               |
-+---------------------------------------------------------------------------------------------------------------------+
+|  Role: CI Validation & Acceptance Testing Host                      |  Role: Dedicated Isolated Production Host           |
+|  -----------------------------------------------------------------  |  -------------------------------------------------  |
+|  1. DEVELOPMENT (DEV)             |  2. ACCEPTANCE TESTING (UAT)    |  3. PRODUCTION (PROD)                               |
+|  - App Port: 8081                 |  - App Port: 8082               |  - App Port: 8080                                   |
+|  - WorkDir: /opt/psoft-g1/dev     |  - WorkDir: /opt/psoft-g1/uat   |  - WorkDir: /opt/psoft-g1/prod                      |
+|  - EnvFile: /etc/psoft-g1/dev.env |  - EnvFile: /etc/psoft-g1/uat.env|  - EnvFile: /etc/psoft-g1/prod.env                 |
+|  - Systemd: psoft-g1@dev.service  |  - Systemd: psoft-g1@uat.service|  - Systemd: psoft-g1@prod.service                   |
+|  - User: psoft-g1-dev             |  - User: psoft-g1-uat           |  - User: psoft-g1-prod                              |
+|  - Smoke Test: /info (env=dev)    |  - Smoke Test: /info (env=uat)  |  - Smoke Test: /info (env=prod)                     |
++---------------------------------------------------------------------------------------------------------------------------+
 ```
 
 #### 2.1.1. Development Environment (`dev`)

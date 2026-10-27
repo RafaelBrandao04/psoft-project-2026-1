@@ -1,8 +1,8 @@
 # Automated Deployment, Immutable Artifact Management, and Health Monitoring Pipeline
 
-## 1. Overview and Objectives (Issue #21 / Goal 1.3.3 & Goal 1.3.5)
+## 1. Overview and Objectives (Goal 1.3.3 & Goal 1.3.5)
 
-In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline supporting creation and management of deployable artifacts and deployment to different environments*) and **Issue #21** (*Implement Automated Deployment & Health Monitoring in Pipeline*), this document specifies the architecture, engineering principles, and operational mechanisms governing:
+In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline supporting creation and management of deployable artifacts and deployment to different environments*), this document specifies the architecture, engineering principles, and operational mechanisms governing:
 
 1. **Creation and Management of Deployable Artifacts:** Enforcing the **Single-Build Immutable Artifact Pattern** (Jez Humble & David Farley), ensuring that application packages are compiled and tested once in the continuous integration stage and promoted downstream across environments with cryptographic fingerprinting.
 2. **Automated Continuous Deployment Across Environments:** Driving automated, repeatable deployments to **Development (DEV)**, **User Acceptance Testing (UAT / Staging)**, and **Production (PROD)** across segregated virtual machines in the DEI Private Cloud.
@@ -24,6 +24,7 @@ As analyzed in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/syst
 The deployment pipeline treats built binaries as **immutable assets**:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph DEV_JOB["1. Pipeline DEV (lms-dev)"]
         BUILD["mvnw clean verify<br/>(Unit + IT + PIT + SAST)"] --> JAR["Package Fat JAR<br/>(app.jar ~72MB)"]
@@ -53,18 +54,6 @@ flowchart TD
         DEPLOY_PROD --> SMOKE_PROD{"Readiness Smoke Test<br/>(port 8080 on vs336)"}
         SMOKE_PROD --> PROD_PROPS["Generate production.properties<br/>Archive final_artifact/**"]
     end
-
-    classDef devStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef uatStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
-    classDef prodStyle fill:#fce4ec,stroke:#c2185b,stroke-width:2px;
-    classDef gateStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
-    classDef failStyle fill:#ffebee,stroke:#c62828,stroke-width:2px;
-
-    class DEV_JOB,BUILD,JAR,REL_PROPS,FINGERPRINT,DEPLOY_DEV devStyle;
-    class UAT_JOB,COPY_VAL,DEPLOY_UAT,STASH,UNSTASH,ACC_PROPS uatStyle;
-    class PROD_JOB,COPY_ACC,AUDIT,DEPLOY_PROD,PROD_PROPS prodStyle;
-    class SMOKE_DEV,SMOKE_UAT,SMOKE_PROD,HUMAN_GATE gateStyle;
-    class ABORT_DEV failStyle;
 ```
 
 ---

@@ -66,8 +66,11 @@ psoft-project-2026-1/
     │   ├── ci-build-and-code-analysis.md           <-- Compilação, Repackage, Cópia Binária, SpotBugs e .Jenkinsfile
     │   └── ci-testing-coverage-and-quality-gates.md <-- Surefire, Failsafe, JaCoCo, Perfil PITest e Hard/Soft Gates
     │
-    └── testing-strategy/               <-- 1.3.4 ESTRATÉGIA DE TESTES, COBERTURA E DETEÇÃO DE REGRESSÕES
-        └── testing-strategy.md         <-- Níveis SUT, Test Doubles, 374 Testes, Injeção de Falhas e Mutantes Equivalentes
+    ├── testing-strategy/               <-- 1.3.4 ESTRATÉGIA DE TESTES, COBERTURA E DETEÇÃO DE REGRESSÕES
+    │   └── testing-strategy.md         <-- Níveis SUT, Test Doubles, 374 Testes, Injeção de Falhas e Mutantes Equivalentes
+    │
+    └── process-evaluation/             <-- 1.3.6 AVALIAÇÃO E MELHORIA DO PROCESSO DE CI/CD (Goal 1.3.6)
+        └── process-evaluation-and-improvement.md <-- Comparação As-Is/To-Be, Análise de Gargalos e Justificação Teórica
 ```
 
 ---
@@ -104,6 +107,7 @@ A especificação completa da arquitetura alvo e as decisões de desenho encontr
 Seguindo as boas práticas de *Continuous Delivery* (Humble & Farley) e a arquitetura de referência institucional:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart LR
     subgraph Localhost["Workstation Local (localhost)"]
         IDE["Developer IDE"]
@@ -222,15 +226,35 @@ Cada implantação executa [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) 
 
 ---
 
-## 8. Sinergia ARQSOFT $\leftrightarrow$ ODSOFT e Evolução Global (*As-Is* vs. *To-Be*) (Goal 1.3.6)
+## 8. Avaliação do Processo, Gargalos, Justificação e Sinergia ARQSOFT (Goal 1.3.6)
 
-### 8.1 Sinergia entre Decisões Arquiteturais (ARQSOFT) e CI/CD (ODSOFT)
+O relatório exaustivo de cumprimento do Goal 1.3.6, fundamentado nos conceitos lecionados de *Continuous Delivery* e *DevOps*, encontra-se detalhado em:
+* **[Avaliação e Melhoria do Processo de CI/CD (process-evaluation-and-improvement.md)](./process-evaluation/process-evaluation-and-improvement.md)**
+
+### 8.1 Síntese do Diagnóstico de Gargalos (*Bottlenecks*) e Soluções de Engenharia
+A análise crítica do pipeline revelou 5 estrangulamentos operacionais reais, todos eles mitigados por decisões de desenho fundamentadas:
+1. **Custo Computacional do PITest (2.999 mutantes):** A execução sequencial sem filtros demoraria mais de 15 minutos. **Mitigação:** Perfil Maven `-Pmutation`, paralelização em 4 threads, exclusão de classes geradas (`*MapperImpl`, `bootstrapping.*`, `configuration.*`) e limiar de Hard Gate em $\ge 30\%$ mantendo o *feedback loop* rápido.
+2. **Quotas Restritas de CPU/RAM nas VMs do DEI Cloud (LXD Throttling):** A execução do Jenkins dentro da VM provocava congelamento e *OOM-Killed*. **Mitigação (ADR-01):** Topologia desacoplada com Jenkins local (`localhost:8080`), túnel WebSocket seguro (`WSS` Webhook Relay) e envio remoto apenas do binário validado por SSH/SCP.
+3. **Latência de Rede no Envio do Fat JAR (~72MB):** Cópia repetida do pacote completo por rede. **Mitigação:** Aplicação do *Single-Build Immutable Artifact Pattern* (construído uma só vez em DEV e reutilizado em UAT e PROD via `copyArtifacts`).
+4. **Custo de Atraso (*Cost of Delay*) no Portão de Aprovação Humana em UAT:** Risco de retenção de executores do Jenkins durante dias. **Mitigação (ADR-02):** Utilização de `agent none` e `stash`/`unstash` libertando 100% dos workers, associada à re-verificação contratual pós-espera (`deploy.recheck('uat')`).
+5. **Persistência de Dados e Evolução de Esquemas:** O uso de H2 em memória serve propósitos de teste isolado. A transição para BD relacional externa e controlo de migrações via Flyway/Liquibase ficou estruturada no roadmap de melhoria contínua.
+
+### 8.2 Justificação Teórico-Prática segundo Humble & Farley e Aulas de ODSOFT
+
+* **"Automate Almost Everything":** Eliminação de intervenções manuais propícias a erro; a entrega é uma disciplina de engenharia repetível e previsível.
+* **"Make Definitive Progress: Execute Each Step Once and Only Once":** Implementação estrita do *Single-Build Immutable Artifact Pattern* garantindo que o binário testado em UAT é exatamente o mesmo que entra em PROD.
+* **"If It Hurts, Do It More Frequently, and Bring the Pain Forward":** Deploys contínuos e ensaiados a cada push em DEV e UAT em máquinas Ubuntu reais.
+* **"Build Quality In":** Hard Quality Gates encadeados (Compilação $\rightarrow$ SpotBugs $\rightarrow$ Surefire $\rightarrow$ Failsafe $\rightarrow$ PITest $\rightarrow$ Smoke Test).
+* **"Keep Everything Under Version Control (VCS)":** Código, testes, scripts de deploy, units systemd, ficheiros de pipeline e templates `.env` estão todos no Git.
+* **"Eliminação dos 3 Antipadrões de Release":** Eliminação do deploy manual, eliminação do deploy tardio em ambiente prod-like e eliminação da gestão manual de configurações.
+
+### 8.3 Sinergia entre Decisões Arquiteturais (ARQSOFT) e CI/CD (ODSOFT)
 Por partilharem o mesmo código-fonte e repositório, as decisões arquiteturais de **[ARQSOFT](../ARQSOFT/arqsoft-documentation.md)** e a esteira de **ODSOFT** reforçam-se mutuamente:
 1. **Configurabilidade em *Setup Time* $\leftrightarrow$ *Single-Build Immutable Artifact*:** A seleção externa de fornecedores bibliográficos (`application.bibliographic.providers`) e de canais de notificação (`notification.channels`) via propriedades/variáveis de ambiente permite que **exatamente o mesmo binário `app.jar`** seja promovido de `DEV` para `UAT` e `PROD` sem recompilação.
 2. **Padrões *Adapter*, *Gateway*, *Composite* e *Observer* $\leftrightarrow$ Testes Herméticos no Pipeline:** O desacoplamento das APIs externas (Google Books, Open Library, servidores SMTP/SMS/Webhook) através de interfaces e injeção de dependências permite que as **374 execuções de teste no Jenkins** corram de forma 100% determinística e offline através de *Test Doubles*, sem falhas por indisponibilidade de redes externas.
 3. **Isolamento de Falhas (`@TransactionalEventListener`) $\leftrightarrow$ Estabilidade em Produção:** Os testes de integração (`LendingNotificationIntegrationIT`) validam na fase `verify` do pipeline que falhas em canais de notificação externos nunca provocam *rollback* das transações de empréstimo.
 
-### 8.2 Matriz Comparativa Global de Evolução (*System-as-is* vs. *System-to-be*)
+### 8.4 Matriz Comparativa Global de Evolução (*System-as-is* vs. *System-to-be*)
 
 | Dimensão / Indicador | Estado Inicial (*System-as-is*) | Estado Alvo Implementado (*System-to-be*) | Melhoria / Impacto |
 | :--- | :--- | :--- | :--- |
@@ -245,4 +269,3 @@ Por partilharem o mesmo código-fonte e repositório, as decisões arquiteturais
 | **Gestão da Aprovação Humana** | Nenhuma | Etapa `input` em UAT com **`stash`/`unstash` e `agent none`** + *Recheck* | Zero consumo de executores Jenkins durante espera humana (até 7 dias) |
 | **Topologia e Hardening de Deploy** | Execução manual local sem isolamento | **Multi-VM DEI Cloud** (`vs806` DEV/UAT + `vs336` PROD) com **systemd `psoft-g1@.service`** | Isolamento físico de Produção, utilizadores sem login e `ProtectSystem=strict` |
 | **Validação Pós-Deploy (Smoke Test)** | Verificação manual ad-hoc via Postman | **Smoke Test Contratual (`smoke-test.sh`)** em `/info` e `/actuator/health/readiness` | Validação automática de versão, ambiente, commit SHA e estado `UP` |
-
