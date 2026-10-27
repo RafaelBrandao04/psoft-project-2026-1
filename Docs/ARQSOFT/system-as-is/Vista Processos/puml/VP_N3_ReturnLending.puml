@@ -36,7 +36,7 @@ participant "<<repository>>\nLendingRepository" as LendingRepo
 participant "<<repository>>\nUserRepository" as UserRepo
 participant "<<repository>>\nReaderRepository" as ReaderRepo
 participant "<<repository>>\nFineRepository" as FineRepo
-participant "<<model>>\nLending" as LendingEntity
+participant "<<model>>\nlending:Lending" as LendingEntity
 participant "<<model>>\nfine:Fine" as FineEntity
 
 activate Actor
@@ -88,10 +88,8 @@ deactivate ConcurrencyService
 Controller -> Service: setReturned(ln, resource, desiredVersion)
 activate Service
 
+create LendingEntity
 Service -> LendingEntity: setReturned(desiredVersion, resource.getCommentary)
-activate LendingEntity
-LendingEntity --> Service:
-deactivate LendingEntity
 
 opt lending.getDaysDelayed > 0
     create FineEntity

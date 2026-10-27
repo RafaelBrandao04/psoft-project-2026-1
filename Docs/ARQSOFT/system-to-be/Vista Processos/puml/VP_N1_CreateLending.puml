@@ -1,0 +1,49 @@
+@startuml VP_N1_CreateLending
+title Process View (Level 1) - Create Lending (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<system>>\nLMS" as System
+participant "<<external>>\nSMS Gateway" as Sms
+participant "<<external>>\nSMTP Server" as Smtp
+participant "<<external>>\nWebhook Server" as Webhook
+
+activate Actor
+Actor -> System: POST /api/lendings (resource)
+activate System
+
+opt reader notification channels active
+    System ->o Sms: dispatch notification
+    System ->o Smtp: dispatch notification
+    System ->o Webhook: dispatch notification
+end
+
+System --> Actor: 201 Created (lending)
+deactivate System
+deactivate Actor
+
+@enduml

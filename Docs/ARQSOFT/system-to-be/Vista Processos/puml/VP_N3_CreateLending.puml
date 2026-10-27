@@ -1,0 +1,132 @@
+@startuml VP_N3_CreateLending
+title Process View (Level 3) - Create Lending (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<controller>>\nLendingController" as Controller
+participant "<<service>>\nLendingServiceImpl" as Service
+participant "<<repository>>\nLendingRepository" as LendingRepo
+participant "<<repository>>\nBookRepository" as BookRepo
+participant "<<repository>>\nReaderRepository" as ReaderRepo
+participant "<<resolver>>\nLendingPolicyResolver" as PolicyResolver
+participant "<<policy>>\npolicy:LendingPolicy" as Policy
+participant "<<model>>\nlending:Lending" as LendingEntity
+participant "<<event>>\nLendingCreatedEvent" as LendingCreatedEvent
+participant "<<event>>\nApplicationEventPublisher" as EventPublisher
+participant "<<listener>>\nLendingNotificationListener" as NotifListener
+participant "<<port>>\nNotificationSender" as CompositeSender
+participant "<<adapter>>\nEmailNotificationSender" as EmailSender
+participant "<<adapter>>\nSmsNotificationSender" as SmsSender
+participant "<<adapter>>\nWebhookNotificationSender" as WebhookSender
+
+activate Actor
+Actor -> Controller: POST /api/lendings (resource)
+activate Controller
+
+Controller -> Service: create(resource)
+activate Service
+
+Service -> LendingRepo: listOutstandingByReaderNumber(resource.getReaderNumber)
+activate LendingRepo
+LendingRepo --> Service: outstandingLendings
+deactivate LendingRepo
+
+Service --> Service: verify lending.getDaysDelayed == 0 and outstandingLendings.size < 3
+
+Service -> BookRepo: findByIsbn(resource.getIsbn)
+activate BookRepo
+BookRepo --> Service: book
+deactivate BookRepo
+
+Service -> ReaderRepo: findByReaderNumber(resource.getReaderNumber)
+activate ReaderRepo
+ReaderRepo --> Service: reader
+deactivate ReaderRepo
+
+Service -> PolicyResolver: resolvePolicy(reader, book, outstandingLendings)
+activate PolicyResolver
+PolicyResolver --> Service: policy
+deactivate PolicyResolver
+
+Service -> Policy: validateCanLend(reader, book, outstandingLendings)
+activate Policy
+Policy --> Service: validated
+deactivate Policy
+
+Service -> Policy: getPolicyParameters
+activate Policy
+Policy --> Service: duration, fineRate
+deactivate Policy
+
+Service -> LendingRepo: getCountFromCurrentYear
+activate LendingRepo
+LendingRepo --> Service: count
+deactivate LendingRepo
+
+create LendingEntity
+Service -> LendingEntity: create
+
+Service -> LendingRepo: save(lending)
+activate LendingRepo
+LendingRepo --> Service: savedLending
+deactivate LendingRepo
+
+create LendingCreatedEvent
+Service -> LendingCreatedEvent: create
+
+Service -> EventPublisher: publishEvent(lendingCreatedEvent)
+activate EventPublisher
+
+EventPublisher -> NotifListener: onLendingCreated(event)
+activate NotifListener
+
+NotifListener -> CompositeSender: send(notificationRequest)
+activate CompositeSender
+
+opt reader notification channels active
+    CompositeSender ->o EmailSender: send(request)
+    CompositeSender ->o SmsSender: send(request)
+    CompositeSender ->o WebhookSender: send(request)
+end
+
+CompositeSender --> NotifListener: dispatched
+deactivate CompositeSender
+
+NotifListener --> EventPublisher:
+deactivate NotifListener
+
+EventPublisher --> Service: event published
+deactivate EventPublisher
+
+Service --> Controller: savedLending
+deactivate Service
+
+Controller --> Actor: 201 Created (lending)
+deactivate Controller
+deactivate Actor
+
+@enduml

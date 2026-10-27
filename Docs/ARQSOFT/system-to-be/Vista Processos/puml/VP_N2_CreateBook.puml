@@ -1,0 +1,70 @@
+@startuml VP_N2_CreateBook
+title Process View (Level 2) - Create Book (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<component>>\nBackend" as Backend
+participant "<<component>>\nDB" as DB
+participant "<<external>>\nGoogle Books API" as GoogleBooks
+participant "<<external>>\nOpen Library API" as OpenLibrary
+
+activate Actor
+Actor -> Backend: PUT /api/books/{isbn} (resource)
+activate Backend
+
+Backend -> DB: check if book exists by ISBN
+activate DB
+DB --> Backend: not found
+deactivate DB
+
+opt needs external enrichment (resource)
+    Backend -> GoogleBooks: GET book info by ISBN
+    activate GoogleBooks
+    GoogleBooks --> Backend: external book data (JSON)
+    deactivate GoogleBooks
+    Backend -> OpenLibrary: GET book info by ISBN
+    activate OpenLibrary
+    OpenLibrary --> Backend: external book data (JSON)
+    deactivate OpenLibrary
+    Backend -> Backend: merge book data
+end
+
+Backend -> DB: get authors and genre
+activate DB
+DB --> Backend: authors, genre
+deactivate DB
+
+Backend -> DB: save new book
+activate DB
+DB --> Backend: saved book
+deactivate DB
+
+Backend --> Actor: 201 Created (book)
+deactivate Backend
+deactivate Actor
+
+@enduml

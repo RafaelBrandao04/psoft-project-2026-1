@@ -189,7 +189,7 @@ No rigor do método ADD, distingue-se explicitamente duas fases da garantia de q
 
 ## 5. Catálogo de Modelos Visuais de Arquitetura (System-to-Be)
 
-Esta secção apresenta a **relação completa e exata dos 27 modelos visuais do *System-to-Be***, correspondendo rigorosamente à mesma quantidade e estrutura de vistas documentadas no *System-as-is*, atualizadas com as novas decisões arquiteturais de extensibilidade, configurabilidade e testabilidade.
+Esta secção apresenta a **relação dos 24 modelos visuais do *System-to-Be***, atualizados com as novas decisões arquiteturais de extensibilidade, configurabilidade e testabilidade decorrentes do método ADD.
 
 Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT/system-to-be/`:
 * `Vista Arquitetural/` (4 diagramas)
@@ -197,7 +197,7 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 * `Vista Implementação/` (4 diagramas)
 * `Manifestação/` (2 diagramas)
 * `Vista Fisica/` (2 diagramas)
-* `Vista Processos/` (12 diagramas de sequência: 4 cenários $\times$ 3 níveis)
+* `Vista Processos/` (9 diagramas de sequência: 3 cenários evoluídos $\times$ 3 níveis)
 
 ---
 
@@ -377,12 +377,12 @@ A Vista Física (ou de Implantação) descreve a topologia de nós computacionai
       * **`Google Books API`:** Fornecedor primário de metadados bibliográficos, consumido via `HTTPS:443` (`ASR01`);
       * **`Open Library API`:** Fornecedor secundário/contingência (*fallback*) de metadados bibliográficos, consumido via `HTTPS:443` (`ASR01`);
       * **`Ninja API`:** Serviço externo legado para consulta e enriquecimento de dados de autores, consumido via `HTTPS:443` (mantido do *System-as-is*);
-      * **`SMTP Server`:** Servidor de correio eletrónico transacional acedido via `TCP:587` para envio de emails de notificação (`ASR03`);
-      * **`SMS Gateway`:** Fornecedor de telecomunicações móveis acedido via `HTTPS:443` para envio de mensagens SMS a leitores (`ASR03`);
-      * **`Weebhook Target Server`:** Servidores de destinos externos acedidos via chamadas HTTP *push* seguras `HTTPS:443` (`ASR03`);
+      * **`SMTP Server`:** Servidor de correio eletrónico transacional acedido via `TCP:587` para envio de emails de notificação (`FR02`, `ASR01`, `ASR06`);
+      * **`SMS Gateway`:** Fornecedor de telecomunicações móveis acedido via `HTTPS:443` para envio de mensagens SMS a leitores (`FR02`, `ASR01`, `ASR06`);
+      * **`Webhook Target Server`:** Servidores de destinos externos acedidos via chamadas HTTP *push* seguras `HTTPS:443` (`FR02`, `ASR01`, `ASR06`);
 * **Alterações e Evolução face ao System-as-is:**
   * **Estabilidade da Topologia Local:** A organização do nó `Server (localhost)` mantém-se coesa e consistente, preservando o processo `JVM 17` com Spring Boot, o `H2 DBMS` via JDBC e o `Local Storage` via File I/O, garantindo simplicidade operacional.
-  * **Expansão da Infraestrutura Cloud:** Enquanto no *System-as-is* o nó `Cloud` continha exclusivamente a `Ninja API`, no *System-to-Be* a infraestrutura externa é expandida para integrar seis serviços independentes, materializando a extensibilidade bibliográfica (*Strategy/Composite/Adapter*) e o despacho multicanal de notificações com tratamento de falhas em canais dedicados (`ASR01`, `ASR03`, `ASR06`).
+  * **Expansão da Infraestrutura Cloud:** Enquanto no *System-as-is* o nó `Cloud` continha exclusivamente a `Ninja API`, no *System-to-Be* a infraestrutura externa é expandida para integrar seis serviços independentes, materializando a extensibilidade bibliográfica (*Strategy/Composite/Adapter*) e o despacho multicanal de notificações com tratamento de falhas em canais dedicados (`FR01`, `FR02`, `ASR01`, `ASR02`, `ASR06`).
 
 ![VF_N2.png](Vista%20Fisica/VF_N2.png)
 
@@ -390,83 +390,73 @@ A Vista Física (ou de Implantação) descreve a topologia de nós computacionai
 
 ### 5.6. Vista de Processos (VP)
 
-A Vista de Processos ilustra a realização dinâmica das operações do sistema através de diagramas de sequência para os quatro cenários de referência representativos do LMS, em três níveis de abstração cada (N1, N2 e N3), totalizando 12 modelos visuais.
+A Vista de Processos ilustra a realização dinâmica das operações do sistema através de diagramas de sequência para os três cenários de negócio que sofrem evolução arquitetural no *System-to-Be* (Criação de Empréstimos, Registo de Livros e Devolução de Empréstimos), em três níveis de abstração cada (N1, N2 e N3), totalizando 9 modelos visuais. Os cenários puramente de consulta (como a obtenção do *Top 5 Books Lent*) não sofreram alterações arquiteturais e mantêm-se idênticos aos especificados no *System-as-is*.
 
 ---
 
 #### 5.6.1. Cenário 1: Criar Empréstimo com Resolução Dinâmica de Política e Notificações Multicanal (*Create Lending*)
 * **Descrição do Cenário no System-to-Be:**
-  1. O pedido HTTP `POST /api/lendings` é recebido;
-  2. O serviço invoca em *runtime* o `LendingPolicyResolver` para determinar deterministicamente a política aplicável (`StandardLendingPolicy` ou `AdaptiveLendingPolicy`) com base no histórico recente e empréstimos ativos do leitor;
-  3. A política valida as regras de elegibilidade (`validateCanLend`), prazos e taxa de multa;
-  4. O empréstimo é persistido com sucesso na base de dados relacional H2;
-  5. O serviço emite `LendingCreatedEvent` no barramento Spring;
-  6. O ouvinte `LendingNotificationListener` despacha a mensagem para os canais ativados (`Email`, `SMS`, `Webhook`) sob isolamento de falhas (*try/catch* individual por canal), garantindo que falhas de rede externa nunca revertem a transação de empréstimo (`ASR06`).
+  1. O Bibliotecário (`Librarian`) submete o pedido de criação via `POST /api/lendings` com o payload de requisição (`resource`);
+  2. `LendingController` delega a execução no método `create(resource)` de `LendingServiceImpl`;
+  3. O serviço pesquisa os empréstimos ativos/pendentes do leitor em `LendingRepository` (`listOutstandingByReaderNumber`) e valida as pré-condições base (verificação de dias de atraso nulos e cumprimento do limite base de requisições em aberto);
+  4. Obtém os detalhes da obra literária via `BookRepository.findByIsbn` e do leitor via `ReaderRepository.findByReaderNumber`;
+  5. Invoca em tempo de execução o intermediário `LendingPolicyResolver` (`resolvePolicy`) para selecionar deterministicamente a política de maior prioridade aplicável (`StandardLendingPolicy` ou `AdaptiveLendingPolicy`) em função do histórico de devoluções e empréstimos ativos do leitor;
+  6. A política selecionada valida a elegibilidade da operação (`validateCanLend`) e fornece os parâmetros dinâmicos calculados de duração e taxa diária de multa (`getPolicyParameters`);
+  7. É obtido o contador sequencial do ano corrente via `LendingRepository.getCountFromCurrentYear`, instanciada a entidade `lending:Lending` e persistida no `LendingRepository`;
+  8. O serviço instancia o evento de domínio imutável `LendingCreatedEvent` e publica-o através do barramento de eventos `ApplicationEventPublisher`;
+  9. O ouvinte assíncrono pós-commit `LendingNotificationListener` (`onLendingCreated`) interseta o evento e delega na porta `NotificationSender` (`CompositeNotificationSender`), que despacha a notificação para os canais ativados (`EmailNotificationSender`, `SmsNotificationSender`, `WebhookNotificationSender`) sob proteção individual de exceções (`try/catch`), garantindo que falhas de conectividade externa nunca afetam a transação de persistência (`ASR06`);
+  10. O controlador retorna a resposta `201 Created` com a representação do empréstimo persistido.
 
-* **Nível 1 (Sistema Global / Caixa Preta):**  
+* **Nível 1:**  
   ![VP_N1_CreateLending.png](Vista%20Processos/png/VP_N1_CreateLending.png)  
 
-* **Nível 2 (Interação entre Containers / Backend $\leftrightarrow$ DB $\leftrightarrow$ Gateways):**  
+* **Nível 2:**  
   ![VP_N2_CreateLending.png](Vista%20Processos/png/VP_N2_CreateLending.png)  
 
-* **Nível 3 (Colaboração Detalhada entre Componentes Internos):**  
-  ![VP_N3_CreateLending.png](Vista%20Processos/png/VP_N3_CreateLending.png)  
-  > *Lifelines:* `LendingController`, `LendingServiceImpl`, `LendingPolicyResolver`, `LendingPolicy`, `LendingRepository`, `ApplicationEventPublisher`, `LendingNotificationListener`, `CompositeNotificationSender`, `EmailNotificationSender`, `SmsNotificationSender`, `WebhookNotificationSender`.
+* **Nível 3:**  
+  ![VP_N3_CreateLending.png](Vista%20Processos/png/VP_N3_CreateLending.png)
 
 ---
 
-#### 5.6.2. Cenário 2: Consulta e Registo de Livro com Fontes Bibliográficas Externas e Fallback (*Register / Search Book*)
+#### 5.6.2. Cenário 2: Consulta e Registo de Livro com Fontes Bibliográficas Externas e Fallback (*Create Book / Register Book*)
 * **Descrição do Cenário no System-to-Be:**
-  1. Durante a consulta ou registo de um livro por ISBN, `BookServiceImpl` invoca o contrato abstrato `BookInfoProvider`;
-  2. O `CompositeBookInfoProvider` consulta a fonte primária configurada (ex.: Google Books API via `GoogleBooksAdapter`);
-  3. Caso a fonte primária retorne erro HTTP, indisponibilidade ou atributos parciais, o intermediário composto ativa automaticamente a contingência (*fallback*) para a Open Library API (`OpenLibraryAdapter`);
-  4. Os atributos obtidos são consolidados no modelo canónico `BookDetailsDTO`;
-  5. A entidade `Book` é instanciada e persistida na base de dados relacional H2 de forma transparente.
+  1. O Bibliotecário (`Librarian`) submete o registo de livro através de `PUT /api/books/{isbn}` acompanhado dos dados do recurso (`resource`);
+  2. `BookController` invoca `BookServiceImpl.create(resource, isbn)`. O serviço consulta `BookRepository.findByIsbn(isbn)` para assegurar que a obra ainda não existe no catálogo;
+  3. Caso o recurso necessite de enriquecimento de dados (`opt needsExternalEnrichment`), o serviço invoca o contrato abstrato de saída `BookInfoProvider`, materializado pelo `CompositeBookInfoProvider`;
+  4. O intermediário composto consulta de forma orquestrada os adaptadores de integração configurados (`GoogleBooksAdapter` e `OpenLibraryAdapter`), obtendo as respostas JSON das APIs externas, aplicando contingência automática (*fallback*) e consolidando a fusão de metadados (*data merging*) antes de injetar as propriedades enriquecidas no recurso;
+  5. O serviço resolve e valida os autores associados na persistência (`AuthorRepository.findByAuthorNumber`) e o género literário correspondente (`GenreRepository.findByString`);
+  6. É instanciada a entidade de domínio `book:Book` e gravada com sucesso em `BookRepository`;
+  7. O controlador retorna `201 Created` com os detalhes do livro registado.
 
-* **Nível 1 (Sistema Global):**  
+* **Nível 1:**  
   ![VP_N1_CreateBook.png](Vista%20Processos/png/VP_N1_CreateBook.png)  
 
-* **Nível 2 (Interação entre Containers):**  
+* **Nível 2:**  
   ![VP_N2_CreateBook.png](Vista%20Processos/png/VP_N2_CreateBook.png)  
 
-* **Nível 3 (Colaboração entre Componentes):**  
-  ![VP_N3_CreateBook.png](Vista%20Processos/png/VP_N3_CreateBook.png)  
-  > *Lifelines:* `BookController`, `BookServiceImpl`, `CompositeBookInfoProvider`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `BookRepository`.
+* **Nível 3:**  
+  ![VP_N3_CreateBook.png](Vista%20Processos/png/VP_N3_CreateBook.png)
 
 ---
 
 #### 5.6.3. Cenário 3: Devolver Empréstimo com Cálculo de Multa por Política Dinâmica (*Return Lending*)
 * **Descrição do Cenário no System-to-Be:**
-  1. O leitor submete a devolução do livro (`PATCH /api/lendings/{id}/return`);
-  2. O serviço valida permissões e controlo de concorrência (`If-Match`);
-  3. A apuração de eventuais multas por dias de atraso recorre à taxa diária configurada na política de empréstimo específica associada à transação;
-  4. A devolução é persistida e o evento `LendingReturnedEvent` é publicado no barramento Spring;
-  5. O leitor recebe confirmação multicanal através do subsistema de notificações.
+  1. O Leitor (`Reader`) submete o pedido de devolução do livro através de `PATCH /api/lendings/{year}/{seq}` acompanhado do cabeçalho de controlo de concorrência otimista `If-Match` e dos dados de comentário (`resource`);
+  2. O controlador compõe o identificador de negócio (`ln = year + "/" + seq`) e invoca `LendingServiceImpl.findByLendingNumber(ln)`, que recupera o empréstimo a partir de `LendingRepository`;
+  3. O controlador valida a identidade do utilizador autenticado (`UserService.getAuthenticatedUser` via `UserRepository`) e do respetivo registo cadastral de leitor (`ReaderServiceImpl.findByUsername` via `ReaderRepository`), garantindo que o leitor autenticado é o titular do empréstimo (`verify lending.getReader == reader`);
+  4. A versão pretendida é obtida a partir do cabeçalho `If-Match` através de `ConcurrencyService.getVersionFromIfMatchHeader(ifMatch)`;
+  5. O serviço executa `setReturned(ln, resource, desiredVersion)`, invocando o método de domínio `lending:Lending.setReturned(desiredVersion, commentary)`;
+  6. Caso existam dias em atraso face ao prazo regulamentar (`opt lending.getDaysDelayed > 0`), calcula o montante da coima recorrendo à taxa diária parametrizada na política dinâmica do empréstimo, instancia a entidade `fine:Fine` e persiste-a no `FineRepository`;
+  7. O estado atualizado do empréstimo é persistido no `LendingRepository`;
+  8. O serviço instancia o evento de domínio imutável `LendingReturnedEvent` e publica-o via `ApplicationEventPublisher`;
+  9. O ouvinte `LendingNotificationListener` (`onLendingReturned`) interseta o evento pós-commit e delega na porta `NotificationSender` (`CompositeNotificationSender`), efetuando o despacho multicanal da confirmação de devolução para os canais ativos (`EmailNotificationSender`, `SmsNotificationSender`, `WebhookNotificationSender`) com isolamento transacional estrito;
+  10. O controlador devolve a resposta `200 OK` com a representação atualizada do empréstimo devolvido.
 
-* **Nível 1 (Sistema Global):**  
+* **Nível 1:**  
   ![VP_N1_ReturnLending.png](Vista%20Processos/png/VP_N1_ReturnLending.png)  
 
-* **Nível 2 (Interação entre Containers):**  
+* **Nível 2:**  
   ![VP_N2_ReturnLending.png](Vista%20Processos/png/VP_N2_ReturnLending.png)  
 
-* **Nível 3 (Colaboração entre Componentes):**  
-  ![VP_N3_ReturnLending.png](Vista%20Processos/png/VP_N3_ReturnLending.png)  
-  > *Lifelines:* `LendingController`, `LendingServiceImpl`, `Lending`, `LendingRepository`, `ApplicationEventPublisher`, `LendingNotificationListener`, `CompositeNotificationSender`.
-
----
-
-#### 5.6.4. Cenário 4: Consulta Top 5 Livros Mais Emprestados (*Top 5 Books Lent*)
-* **Descrição do Cenário no System-to-Be:**
-  1. Pedido analítico paginado de consulta dos 5 livros com maior histórico de requisições no último ano;
-  2. Execução de consulta otimizada no repositório de persistência sem impacto transacional de escrita;
-  3. Retorno do DTO de projeção com tempos de resposta mínimos, confirmando a preservação do desempenho e ausência de regressões no catálogo.
-
-* **Nível 1 (Sistema Global):**  
-  ![VP_N1_Top5BooksLent.png](Vista%20Processos/png/VP_N1_Top5BooksLent.png)  
-
-* **Nível 2 (Interação entre Containers):**  
-  ![VP_N2_Top5BooksLent.png](Vista%20Processos/png/VP_N2_Top5BooksLent.png)  
-
-* **Nível 3 (Colaboração entre Componentes):**  
-  ![VP_N3_Top5BooksLent.png](Vista%20Processos/png/VP_N3_Top5BooksLent.png)  
-  > *Lifelines:* `LendingController`, `LendingServiceImpl`, `LendingRepository`.
+* **Nível 3:**  
+  ![VP_N3_ReturnLending.png](Vista%20Processos/png/VP_N3_ReturnLending.png)

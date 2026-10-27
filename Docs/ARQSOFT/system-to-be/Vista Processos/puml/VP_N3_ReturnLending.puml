@@ -1,0 +1,144 @@
+@startuml VP_N3_ReturnLending
+title Process View (Level 3) - Return Lending (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Reader" as Actor
+participant "<<controller>>\nLendingController" as Controller
+participant "<<service>>\nLendingServiceImpl" as Service
+participant "<<service>>\nUserService" as UserService
+participant "<<service>>\nReaderServiceImpl" as ReaderService
+participant "<<service>>\nConcurrencyService" as ConcurrencyService
+participant "<<repository>>\nLendingRepository" as LendingRepo
+participant "<<repository>>\nUserRepository" as UserRepo
+participant "<<repository>>\nReaderRepository" as ReaderRepo
+participant "<<repository>>\nFineRepository" as FineRepo
+participant "<<model>>\nlending:Lending" as LendingEntity
+participant "<<model>>\nfine:Fine" as FineEntity
+participant "<<event>>\nLendingReturnedEvent" as LendingReturnedEvent
+participant "<<event>>\nApplicationEventPublisher" as EventPublisher
+participant "<<listener>>\nLendingNotificationListener" as NotifListener
+participant "<<port>>\nNotificationSender" as CompositeSender
+participant "<<adapter>>\nEmailNotificationSender" as EmailSender
+participant "<<adapter>>\nSmsNotificationSender" as SmsSender
+participant "<<adapter>>\nWebhookNotificationSender" as WebhookSender
+
+activate Actor
+Actor -> Controller: PATCH /api/lendings/{year}/{seq} (ifMatch, resource)
+activate Controller
+
+Controller -> Controller: ln = year + "/" + seq
+
+Controller -> Service: findByLendingNumber(ln)
+activate Service
+Service -> LendingRepo: findByLendingNumber(ln)
+activate LendingRepo
+LendingRepo --> Service: lending
+deactivate LendingRepo
+Service --> Controller: lending
+deactivate Service
+
+Controller -> UserService: getAuthenticatedUser(authentication)
+activate UserService
+UserService -> UserRepo: findByUsername(username)
+activate UserRepo
+UserRepo --> UserService: user
+deactivate UserRepo
+UserService --> Controller: user
+deactivate UserService
+
+Controller -> ReaderService: findByUsername(user.getUsername)
+activate ReaderService
+ReaderService -> ReaderRepo: findByUsername(user.getUsername)
+activate ReaderRepo
+ReaderRepo --> ReaderService: reader
+deactivate ReaderRepo
+ReaderService --> Controller: reader
+deactivate ReaderService
+
+Controller -> Controller: verify lending.getReader == reader
+
+Controller -> ConcurrencyService: getVersionFromIfMatchHeader(ifMatch)
+activate ConcurrencyService
+ConcurrencyService --> Controller: desiredVersion
+deactivate ConcurrencyService
+
+Controller -> Service: setReturned(ln, resource, desiredVersion)
+activate Service
+
+create LendingEntity
+Service -> LendingEntity: setReturned(desiredVersion, resource.getCommentary)
+
+opt lending.getDaysDelayed > 0
+    create FineEntity
+    Service -> FineEntity: create
+
+    Service -> FineRepo: save(fine)
+    activate FineRepo
+    FineRepo --> Service: savedFine
+    deactivate FineRepo
+end
+
+Service -> LendingRepo: save(lending)
+activate LendingRepo
+LendingRepo --> Service: updatedLending
+deactivate LendingRepo
+
+create LendingReturnedEvent
+Service -> LendingReturnedEvent: create
+
+Service -> EventPublisher: publishEvent(lendingReturnedEvent)
+activate EventPublisher
+
+EventPublisher -> NotifListener: onLendingReturned(event)
+activate NotifListener
+
+NotifListener -> CompositeSender: send(notificationRequest)
+activate CompositeSender
+
+opt reader notification channels active
+    CompositeSender ->o EmailSender: send(request)
+    CompositeSender ->o SmsSender: send(request)
+    CompositeSender ->o WebhookSender: send(request)
+end
+
+CompositeSender --> NotifListener: dispatched
+deactivate CompositeSender
+
+NotifListener --> EventPublisher:
+deactivate NotifListener
+
+EventPublisher --> Service: event published
+deactivate EventPublisher
+
+Service --> Controller: updatedLending
+deactivate Service
+
+Controller --> Actor: 200 OK (updated lending)
+deactivate Controller
+deactivate Actor
+
+@enduml

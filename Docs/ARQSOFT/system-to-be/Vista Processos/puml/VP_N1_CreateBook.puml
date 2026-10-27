@@ -1,0 +1,53 @@
+@startuml VP_N1_CreateBook
+title Process View (Level 1) - Create Book (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<system>>\nLMS" as System
+participant "<<external>>\nGoogle Books API" as GoogleBooks
+participant "<<external>>\nOpen Library API" as OpenLibrary
+
+activate Actor
+Actor -> System: PUT /api/books/{isbn} (resource)
+activate System
+
+opt needs external enrichment (resource)
+    System -> GoogleBooks: GET book info by ISBN
+    activate GoogleBooks
+        GoogleBooks --> System: 200 OK (book data JSON)
+    deactivate GoogleBooks
+    System -> OpenLibrary: GET book info by ISBN
+    activate OpenLibrary
+    OpenLibrary --> System: 200 OK (book data JSON)
+    deactivate OpenLibrary
+end
+
+System --> Actor: 201 Created (book)
+deactivate System
+deactivate Actor
+
+@enduml
