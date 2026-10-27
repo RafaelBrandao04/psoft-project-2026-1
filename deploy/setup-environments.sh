@@ -44,9 +44,10 @@ for name in dev uat prod; do
     if ! id "psoft-g1-$name" >/dev/null 2>&1; then
         useradd --system --no-create-home --shell /usr/sbin/nologin "psoft-g1-$name"
     fi
-    install -d -o deploy -g "psoft-g1-$name" -m 755 "/opt/psoft-g1/$name"
+    install -d -o deploy -g "psoft-g1-$name" -m 775 "/opt/psoft-g1/$name"
+    install -d -o "psoft-g1-$name" -g "psoft-g1-$name" -m 755 "/opt/psoft-g1/$name/uploads-psoft-g1"
     if [ ! -e "/etc/psoft-g1/$name.env" ]; then
-        printf 'DEMO_ENVIRONMENT=%s\nPORT=%s\nSPRING_PROFILES_ACTIVE=%s\n' "$name" "$port" "$name" > "/etc/psoft-g1/$name.env"
+        printf 'DEMO_ENVIRONMENT=%s\nPORT=%s\n' "$name" "$port" > "/etc/psoft-g1/$name.env"
         chmod 644 "/etc/psoft-g1/$name.env"
     else
         echo "Configuração preservada: /etc/psoft-g1/$name.env (editar PORT para alterar a porta)."
@@ -62,4 +63,3 @@ fi
 systemctl daemon-reload
 systemctl enable psoft-g1@dev psoft-g1@uat psoft-g1@prod
 echo "Ambientes DEV ($dev_port), UAT ($uat_port) e PROD ($prod_port) preparados com sucesso via systemd."
-
