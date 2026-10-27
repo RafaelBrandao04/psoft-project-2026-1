@@ -51,3 +51,7 @@ Thumbs.db
 # Local reference documentation
 Docs/Other Docs/
 
+
+# Local Environment Variables and Secrets (Never commit .env!)
+.env
+.env.local
