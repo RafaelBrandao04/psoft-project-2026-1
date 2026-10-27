@@ -1,8 +1,8 @@
 # Multi-Environment Configuration and Production-Grade Containerization
 
-## 1. Overview and Scope (Issue #20 / Goal 1.3.5)
+## 1. Overview and Scope (Goal 1.3.5)
 
-In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*) and **Issue #20** (*Containerize Application and Support Multi-Environment Configuration*), this document details the engineering decisions, implementation architecture, and operational procedures for:
+In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*), this document details the engineering decisions, implementation architecture, and operational procedures for:
 
 1. **Production-Grade Multi-Stage Containerization (`Dockerfile`):** Implementing an optimized, layered OCI/Docker container packaging model leveraging Spring Boot `layertools` and running under an unprivileged non-root service account.
 2. **Environment Parity & Dynamic Configuration Profiles:** Segregating operational concerns across **Development (`dev`)**, **Staging/UAT (`staging` / `uat`)**, and **Production (`prod`)** environments via dedicated Spring properties files and a standardized template (`.env.example`).
@@ -24,6 +24,7 @@ As established in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/s
 To maximize Docker build cache reusability and minimize container attack surface, the containerization architecture implements a two-stage multi-stage build:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph Stage1["Stage 1: Builder (eclipse-temurin:17-jdk-jammy)"]
         SRC["Source Code + pom.xml + mvnw"] --> MVN["mvn clean package -DskipTests<br/>(Generates Layered Fat JAR)"]
@@ -48,14 +49,6 @@ flowchart TD
     L2 -.-> COPY2
     L3 -.-> COPY3
     L4 -.-> COPY4
-
-    classDef stage1Style fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef stage2Style fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef layerStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:1px;
-
-    class Stage1 stage1Style;
-    class Stage2 stage2Style;
-    class L1,L2,L3,L4 layerStyle;
 ```
 
 #### 2.2.1. Spring Boot `layertools` Layering Rationale

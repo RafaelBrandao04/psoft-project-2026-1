@@ -107,6 +107,7 @@ A especificação completa da arquitetura alvo e as decisões de desenho encontr
 Seguindo as boas práticas de *Continuous Delivery* (Humble & Farley) e a arquitetura de referência institucional:
 
 ```mermaid
+%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart LR
     subgraph Localhost["Workstation Local (localhost)"]
         IDE["Developer IDE"]
@@ -239,13 +240,13 @@ A análise crítica do pipeline revelou 5 estrangulamentos operacionais reais, t
 5. **Persistência de Dados e Evolução de Esquemas:** O uso de H2 em memória serve propósitos de teste isolado. A transição para BD relacional externa e controlo de migrações via Flyway/Liquibase ficou estruturada no roadmap de melhoria contínua.
 
 ### 8.2 Justificação Teórico-Prática segundo Humble & Farley e Aulas de ODSOFT
-Todas as melhorias introduzidas derivam dos princípios lecionados em `odsoft03_1.pdf` e `Something about DevOpsCI-CD v0.5.pdf`:
-* **"Automate Almost Everything" (Slide 30):** Eliminação de intervenções manuais propícias a erro; a entrega é uma disciplina de engenharia repetível e previsível.
-* **"Make Definitive Progress: Execute Each Step Once and Only Once" (Slide 25):** Implementação estrita do *Single-Build Immutable Artifact Pattern* garantindo que o binário testado em UAT é exatamente o mesmo que entra em PROD.
-* **"If It Hurts, Do It More Frequently, and Bring the Pain Forward" (Slide 30):** Deploys contínuos e ensaiados a cada push em DEV e UAT em máquinas Ubuntu reais.
-* **"Build Quality In" (Slide 30):** Hard Quality Gates encadeados (Compilação $\rightarrow$ SpotBugs $\rightarrow$ Surefire $\rightarrow$ Failsafe $\rightarrow$ PITest $\rightarrow$ Smoke Test).
-* **"Keep Everything Under Version Control (VCS)" (Slide 30):** Código, testes, scripts de deploy, units systemd, ficheiros de pipeline e templates `.env` estão todos no Git.
-* **"Eliminação dos 3 Antipadrões de Release" (Slides 19-27):** Eliminação do deploy manual, eliminação do deploy tardio em ambiente prod-like e eliminação da gestão manual de configurações.
+
+* **"Automate Almost Everything":** Eliminação de intervenções manuais propícias a erro; a entrega é uma disciplina de engenharia repetível e previsível.
+* **"Make Definitive Progress: Execute Each Step Once and Only Once":** Implementação estrita do *Single-Build Immutable Artifact Pattern* garantindo que o binário testado em UAT é exatamente o mesmo que entra em PROD.
+* **"If It Hurts, Do It More Frequently, and Bring the Pain Forward":** Deploys contínuos e ensaiados a cada push em DEV e UAT em máquinas Ubuntu reais.
+* **"Build Quality In":** Hard Quality Gates encadeados (Compilação $\rightarrow$ SpotBugs $\rightarrow$ Surefire $\rightarrow$ Failsafe $\rightarrow$ PITest $\rightarrow$ Smoke Test).
+* **"Keep Everything Under Version Control (VCS)":** Código, testes, scripts de deploy, units systemd, ficheiros de pipeline e templates `.env` estão todos no Git.
+* **"Eliminação dos 3 Antipadrões de Release":** Eliminação do deploy manual, eliminação do deploy tardio em ambiente prod-like e eliminação da gestão manual de configurações.
 
 ### 8.3 Sinergia entre Decisões Arquiteturais (ARQSOFT) e CI/CD (ODSOFT)
 Por partilharem o mesmo código-fonte e repositório, as decisões arquiteturais de **[ARQSOFT](../ARQSOFT/arqsoft-documentation.md)** e a esteira de **ODSOFT** reforçam-se mutuamente:
