@@ -120,10 +120,10 @@ Para garantir a rastreabilidade e a transparência entre os requisitos de negóc
 | Campo | Especificação Técnica e Racional Arquitetural |
 | :--- | :--- |
 | **Issue / ID** | **TM-03:** Motor de Políticas de Empréstimo Dinâmicas e Parametrizáveis Externamente (1.3.3.3). |
-| **Problem** | Como aplicar políticas de empréstimo distintas (`StandardLendingPolicy` e `AdaptiveLendingPolicy`, segundo a *Lending Policies Specification v1.0*), permitindo calibrar todos os parâmetros quantitativos (`MaxActiveLendings`, `LendingPeriod`, `FirstThreshold`, `SecondThreshold`, `HistoryPeriod`, `MinCompletedLendings`, `MinOnTimeRatio`, etc.) em *setup time* sem alterar código, selecionar a regra adequada em *runtime* por requisição/renovação, e adicionar novas políticas com esforço mínimo? |
+| **Problem** | Como aplicar políticas de empréstimo distintas (regras de escalonamento por volume de livros ativos, perfis de leitores e criação de novas políticas em *runtime*), permitindo calibrar todos os parâmetros quantitativos (`durationInDays`, `maxSimultaneousLendings`, `fineValuePerDayInCents`) em *setup time* sem alterar código, selecionar a regra adequada em *runtime* por requisição/renovação, gerir políticas dinamicamente via API REST e adicionar novas estratégias com esforço mínimo? |
 | **Summary of Solution** | Adotar as táticas **Split Module**, **Abstract Common Services**, **Use an Intermediary**, **Polymorphism**, **Dynamic Resolution / Runtime Registration** e **Configuration Files**, materializadas nos padrões **Strategy**, **Policy Resolver** e **Externalized Configuration Binding**. |
 | **Factors (Drivers)** | `FR03` (Políticas de empréstimo), `ASR01` (Extensibilidade OCP), `ASR02` (Parâmetros em *setup time*), `ASR03` (Seleção em *runtime*), `ASR04` (Testabilidade BVA e mutação PITest $\ge 60\%$). |
-| **Solution** | 1. Isolar o contrato `LendingPolicy` num novo pacote `lendingmanagement.policies`, contendo os métodos `isApplicable(reader, book)`, `validateCanLend(reader, book, activeLendings)`, `getLendingDurationInDays(...)`, `getMaxSimultaneousLendings()`, `getFineValuePerDayInCents()`, `getPriority()` e `getPolicyName()`.<br/>2. Implementar `StandardLendingPolicy` (prioridade 10, política por omissão com `MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`) e `AdaptiveLendingPolicy` (prioridade 20, selecionada quando nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}$ a tempo e sem atrasos ativos, adaptando o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` consoante `FirstThreshold` e `SecondThreshold`).<br/>3. Implementar `LendingPolicyResolver` que interroga as políticas injetadas e retorna a de maior prioridade aplicável.<br/>4. Mapear e validar as restrições das propriedades externas via `LendingPolicyProperties` (`@ConfigurationProperties`). |
+| **Solution** | 1. Isolar o contrato `LendingPolicy` num novo pacote `lendingmanagement.policies`, contendo os métodos `isApplicable(reader, book, activeLendings)`, `validateCanLend(reader, book, activeLendings)`, getters e setters em *runtime* para duração, limite de livros, coima diária e prioridade.<br/>2. Implementar as estratégias de domínio concretas: `StandardLendingPolicy` (prioridade 10, política por omissão para o 3.º livro e fallback com 15 dias), `LongTermLendingPolicy` (prioridade 15, período longo de 30 dias para o 1.º e 2.º livros de leitores com $\le 1$ empréstimo ativo), `ShortTermLendingPolicy` (prioridade 30, período curto de 7 dias com multa agravada para o 4.º+ livro ou obras de referência), `PremiumReaderLendingPolicy` (prioridade 20, período de 30 dias para docentes e investigadores) e `DynamicLendingPolicy` (políticas instanciadas em tempo de execução).<br/>3. Implementar `LendingPolicyResolver` com coleção *thread-safe* (`CopyOnWriteArrayList`), gerindo a seleção por prioridade em *runtime* e operações dinâmicas (`registerPolicy`, `updatePolicy`, `removePolicy`).<br/>4. Implementar `LendingPolicyAdminController` em `lendingmanagement.api` para gestão administrativa em *runtime* via REST.<br/>5. Mapear e validar parâmetros externos via `LendingPolicyProperties` (`@ConfigurationProperties(prefix = "lending.policies")`). |
 | **Motivation** | Separa de forma irrevogável três preocupações distintas: (a) a calibração de valores numéricos (propriedades); (b) a lógica de cada regra de negócio (classes de política); e (c) o fluxo transacional de emissão de empréstimos (`LendingServiceImpl`). Permite testes unitários de domínio transparentes e execução determinística de testes de mutação. |
 | **Alternatives Considered** | Ramificações condicionais internas em `LendingServiceImpl` (rejeitada por violação do OCP e complexidade) e motor Drools (rejeitada por quebra do ambiente de mutação Java). |
 | **Pending Issues / Carry-forward** | Garantir que a bateria de testes de unidade de domínio (`1.3.3.4.1`) e mutação (`1.3.3.4.3`) testa exaustivamente os valores de fronteira (Análise de Valores Limite — BVA: $N-1$, $N$, $N+1$) para matar mutantes relacionais gerados pelo PITest (`ConditionalsBoundaryMutator`). |
@@ -149,8 +149,9 @@ Conforme estipulado no Passo 5 do método ADD 3.0 (*Instantiate architectural el
 | **`EmailNotificationSender`** / **`Sms...`** / **`Webhook...`** | Camada 3: *Interface Adapters* (`readermanagement.infrastructure.notifications`) | Estratégias concretas de entrega de mensagens via SMTP, gateway de telecomunicações e HTTP POST. | Implementam `NotificationSender`; utilizam MailSender e WebClient. | `FR02`, `ASR01`, `ASR02`. |
 | **`NotificationConfig`** *(Classe)* | Camada 4: *Frameworks* (`configuration`) | Cria o bean primário `CompositeNotificationSender` injetando apenas os canais ativados em `notification.channels`. | `@Configuration` do Spring; suporte a seleção individual ou em combinação. | `ASR02` (Configuração em setup time). |
 | **`LendingPolicy`** *(Interface)* | Camada 1: *Enterprise Business Rules* (`lendingmanagement.policies`) | Encapsula as regras de elegibilidade, cálculo de duração, limite máximo de requisições e taxa diária de multa. | Estratégia de domínio pura (Java puro sem frameworks); métodos sem efeitos colaterais. | `FR03`, `ASR01`, `ASR04` (Testabilidade BVA e PITest). |
-| **`StandardLendingPolicy`** / **`AdaptiveLendingPolicy`** | Camada 1: *Enterprise Business Rules* (`lendingmanagement.policies`) | Implementações concretas das políticas de empréstimo padrão e adaptativa calibradas por propriedades externas. | `@Component`; alimentadas por `LendingPolicyProperties`. | `FR03`, `ASR01`, `ASR02`, `ASR04`. |
-| **`LendingPolicyResolver`** *(Classe)* | Camada 2: *Application Services* (`lendingmanagement.policies`) | Avalia dinamicamente as políticas injetadas e seleciona a regra de maior prioridade em tempo de execução. | Intermediário de resolução dinâmica; avalia `isApplicable` e desempata por `getPriority()`. | `FR03`, `ASR03` (Seleção dinâmica em runtime). |
+| **`StandardLendingPolicy`<br/>`LongTermLendingPolicy`<br/>`ShortTermLendingPolicy`<br/>`PremiumReaderLendingPolicy`<br/>`DynamicLendingPolicy`** | Camada 1: *Enterprise Business Rules* (`lendingmanagement.policies`) | Estratégias de domínio que concretizam as regras de escalonamento temporal (1.º/2.º livro = 30d, 3.º livro = 15d, 4.º+ livro = 7d), bonificações e políticas dinâmicas. | Padrão *Strategy*; alimentadas por `LendingPolicyProperties` e instanciáveis em *runtime*. | `FR03`, `ASR01`, `ASR02`, `ASR04`. |
+| **`LendingPolicyResolver`** *(Classe)* | Camada 2: *Application Services* (`lendingmanagement.policies`) | Avalia dinamicamente as políticas registadas e seleciona a de maior prioridade em tempo de execução; permite registo/remoção em *runtime*. | Intermediário de resolução dinâmica (*Policy Registry/Resolver*); coleção *thread-safe* `CopyOnWriteArrayList`. | `FR03`, `ASR03` (Seleção dinâmica em runtime). |
+| **`LendingPolicyAdminController`** *(Classe)* | Camada 3: *Interface Adapters* (`lendingmanagement.api`) | Expõe endpoints REST (`GET/POST/PUT/DELETE /api/admin/lending-policies`) para gestão e calibração de políticas em tempo de execução sem reiniciar o servidor. | Controlador REST Spring MVC; utiliza DTOs `LendingPolicyView`, `CreateDynamicPolicyRequest`, `UpdateLendingPolicyRequest`. | `ASR03` (Gestão em runtime), `FR03`. |
 | **`LendingPolicyProperties`** *(Classe)* | Camada 4: *Frameworks* (`configuration`) | Mapeamento tipado e validado de limiares de empréstimo (dias, multas, limites de livros) definidos em ficheiro externo. | `@ConfigurationProperties(prefix = "lending.policies")`; imutável e validado no arranque. | `ASR02` (Configurabilidade externa sem alteração de código). |
 
 ---
@@ -209,7 +210,7 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 
 ![VA_N1.png](Vista%20Arquitetural/VA_N1.png)
 
-> *Elementos a representar:* LMS Backend, Clientes REST (Leitor, Bibliotecário, Administrador), Google Books API, Open Library API, Servidor SMTP, Gateway SMS, Webhook Endpoints, Ninja API.
+> *Elementos a representar:* Componente central `<<component>> <<C4System>> LMS`, com a porta fornecida no topo `REST API` e as portas requeridas (*sockets*) no topo: `NINJA API`, `Google Books API`, `Open Library API`, `SMTP API` (Email), `SMS API`, `Webhook API`. (Diagrama de Componentes UML sem nós físicos ou atores, consistente com `VA_N1.png`).
 
 ---
 
@@ -219,7 +220,7 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 
 ![VA_N2.png](Vista%20Arquitetural/VA_N2.png)
 
-> *Elementos a representar:* Container `Backend` (Spring Boot), Container `DB` (H2 Database Engine), portas de entrada `REST API`, portas de saída bibliográficas, de notificação e persistência.
+> *Elementos a representar:* Componente fronteira `<<component>> <<C4System>> LMS` contendo internamente `<<component>> Backend` e `<<component>> DB` ligados pela interface `BD API` (`Backend` consome, `DB` fornece). Na fronteira do `LMS`, a porta de entrada `REST API` e as portas requeridas de saída (`NINJA API`, `Google Books API`, `Open Library API`, `SMTP API`, `SMS API`, `Webhook API`) delegam diretamente para o `Backend`.
 
 ---
 
@@ -233,21 +234,21 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 
 ![VA_N3.png](Vista%20Arquitetural/VA_N3.png)
 
-> *Elementos a representar:* 6 Módulos DDD, contratos de serviço inter-módulos (*ball-and-socket*), barramento de eventos de domínio e conectores para as novas APIs externas.
+> *Elementos a representar:* Componente fronteira `<<component>> Backend` contendo os 6 módulos DDD (`UserManagement`, `ReaderManagement`, `GenreManagement`, `BookManagement`, `AuthorManagement`, `LendingManagement`). Na fronteira do `Backend`: porta de entrada `REST API` (incluindo as rotas `/api/admin/lending-policies`), porta de persistência `DB API` no fundo, e portas de saída no topo: `Google Books API` e `Open Library API` ligadas ao `BookManagement`; `NINJA API`, `SMTP API`, `SMS API` e `Webhook API` ligadas ao `ReaderManagement`. Comunicação inter-módulos: interfaces existentes (*ball-and-socket*) e o novo canal desacoplado por eventos (`Lending Domain Events` / `Notification Event API`) entre `LendingManagement` (publisher) e `ReaderManagement` (listener).
 
 ---
 
 #### 5.1.4. Nível 4 — Estrutura Interna dos Módulos Refinados (Clean Architecture)
 * **Objetivo:** Ilustrar a organização concêntrica interna dos módulos de subdomínio refinados segundo o padrão Clean Architecture / Portas e Adaptadores.
 * **Alterações no System-to-Be:** Evidencia as 4 camadas concêntricas aplicadas aos módulos refinados (`bookmanagement`, `lendingmanagement`, `readermanagement`):
-  * *Camada 1 (Enterprise Business Rules):* Entidades puras (`Book`, `Lending`, `ReaderDetails`) e estratégias de política (`StandardLendingPolicy`, `AdaptiveLendingPolicy`);
+  * *Camada 1 (Enterprise Business Rules):* Entidades puras (`Book`, `Lending`, `ReaderDetails`) e estratégias de política (`StandardLendingPolicy`, `LongTermLendingPolicy`, `ShortTermLendingPolicy`, `PremiumReaderLendingPolicy`, `DynamicLendingPolicy`);
   * *Camada 2 (Application Business Rules):* Serviços (`BookServiceImpl`, `LendingServiceImpl`), DTOs canónicos (`BookDetailsDTO`) e contratos abstratos de saída (`BookInfoProvider`, `NotificationSender`, `LendingPolicyResolver`);
-  * *Camada 3 (Interface Adapters):* REST Controllers, adaptadores HTTP (`GoogleBooksAdapter`, `OpenLibraryAdapter`), despachadores (`CompositeBookInfoProvider`, `CompositeNotificationSender`), senders (`Email`, `SMS`, `Webhook`) e repositórios JPA;
+  * *Camada 3 (Interface Adapters):* REST Controllers (`BookController`, `LendingPolicyAdminController`), adaptadores HTTP (`GoogleBooksAdapter`, `OpenLibraryAdapter`), despachadores (`CompositeBookInfoProvider`, `CompositeNotificationSender`), senders (`Email`, `SMS`, `Webhook`) e repositórios JPA;
   * *Camada 4 (Frameworks & Drivers):* Spring Boot, Spring Web, Spring Data JPA, H2, Spring Events, WebClient.
 
 ![VA_N4.png](Vista%20Arquitetural/VA_N4.png)
 
-> *Elementos a representar:* Os 4 círculos concêntricos da Clean Architecture, a regra de dependência de fora para dentro e a inversão de controlo através das interfaces de porta.
+> *Elementos a representar:* Componente fronteira `<<component>> Module i` (organização em camadas verticais empilhadas consistente com `VA_N4.png` e com a grelha da professora): (1) Topo: `Frameworks & Drivers` conectado a `REST API` e à porta externa requerida, consumindo `Adapters API`; (2) `Interface Adapters` fornecendo `Adapters API` e consumindo `Services API`; (3) `Enterprise Application Rules` fornecendo `Services API` e consumindo `EBR API`; (4) Base: `Enterprise Business Rules` fornecendo `EBR API`. No fundo do módulo: ligação à porta `DB API`. Setas de dependência tracejadas `..>` estritamente de cima para baixo (*The Dependency Rule*).
 
 ---
 
@@ -286,22 +287,22 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 ### 5.3. Vista de Implementação (VI)
 
 #### 5.3.1. Nível 1 — Artefato Executável Global
-* **Objetivo:** Descrever o artefato físico executável resultante do processo de compilação e empacotamento Maven (`.jar`).
+* **Objetivo:** Representar o sistema de software sob a perspetiva de implementação de topo (Nível 1), identificando as portas físicas e interfaces externas de entrada e saída.
 * **Alterações no System-to-Be:** O executável incorpora as novas dependências de infraestrutura: Spring WebFlux / `WebClient` para chamadas HTTP não-bloqueantes, barramento Spring Events, e classes de binding de propriedades.
 
 ![VI_N1.png](Vista%20Implementação/VI_N1.png)
 
-> *Elementos a representar:* Artefato `psoft-g1-0.0.1-SNAPSHOT.jar`, Spring Boot Starter, Embedded Tomcat, conectores HTTP REST e WebClient.
+> *Elementos a representar:* Componente de implementação `<<component>> <<C4System>> LMS` (consistente com `VI_N1.png`), com a porta física de entrada `REST API` e as portas físicas de saída (*sockets*): `NINJA API`, `Google Books API`, `Open Library API`, `SMTP API` (Email), `SMS API`, `Webhook API`.
 
 ---
 
 #### 5.3.2. Nível 2 — Subsistemas de Implementação
 * **Objetivo:** Evidenciar a divisão entre a base de código da aplicação e a base de dados relacional H2.
-* **Alterações no System-to-Be:** O subsistema de código incorpora o novo módulo transversal de configuração (`configuration`) para leitura externa de propriedades (`application.properties`).
+* **Alterações no System-to-Be:** O subsistema `Backend` assume a receção das novas portas de saída de rede para integração de dados bibliográficos e canais de notificação, preservando a ligação relacional ao subsistema `DB` via `BD API`.
 
 ![VI_N2.png](Vista%20Implementação/VI_N2.png)
 
-> *Elementos a representar:* Subsistema de código Backend (Java/Spring Boot), subsistema DB (H2 Engine via driver JDBC).
+> *Elementos a representar:* Componente fronteira `<<component>> <<C4System>> LMS` contendo `<<component>> Backend` e `<<component>> DB` ligados por `BD API` (consistente com `VI_N2.png`). Delegação das portas externas da fronteira física do `LMS` para o `Backend`: `REST API` (entrada) e `NINJA API`, `Google Books API`, `Open Library API`, `SMTP API`, `SMS API`, `Webhook API` (saídas).
 
 ---
 
@@ -316,17 +317,21 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 
 ![VI_N3.png](Vista%20Implementação/VI_N3.png)
 
-> *Elementos a representar:* Pacotes Java de subdomínio, componente técnico de Persistência e interfaces de biblioteca.
+> *Elementos a representar:* Componente fronteira `<<component>> Backend` contendo os 6 pacotes de subdomínio (`UserManagement Package`, `ReaderManagement Package`, `GenreManagement Package`, `BookManagement Package`, `AuthorManagement Package`, `LendingManagement Package`), o novo `<<component>> Configuration Package` (com `BibliographicConfig`, `NotificationConfig`, `LendingPolicyProperties`) e o componente técnico `<<component>> Persistence` (fornecendo `Persistence API` a todos os pacotes e conectando à porta `DB API` no fundo). No topo do `Backend`: portas de saída ligadas a `BookManagement` (`Google Books API`, `Open Library API`) e a `ReaderManagement` (`NINJA API`, `SMTP API`, `SMS API`, `Webhook API`). (Consistente com `VI_N3.png`).
 
 ---
 
-#### 5.3.4. Nível 4 — Decomposição Física em Pacotes Java dos Novos Módulos
-* **Objetivo:** Detalhar a árvore física de pacotes e tipos Java nos subdomínios modificados.
-* **Alterações no System-to-Be:** Mapeia a hierarquia física completa dos pacotes Java refinados (`policies`, `gateways`, `notifications`, `events`, `configuration`), exibindo as interfaces abstratas e as classes de implementação concreta.
+#### 5.3.4. Nível 4 — Decomposição Física em Camadas e Componentes Técnicos (Clean Architecture)
+* **Objetivo:** Descrever a estrutura interna de implementação de um módulo refinado, evidenciando os pacotes das camadas concêntricas e a introdução dos novos componentes técnicos de gateways e clientes HTTP (consistente com `VI_N4.png` e o canto inferior direito do PDF da professora).
+* **Alterações no System-to-Be:** Dentro do componente `<<component>> Module i`, as 4 camadas de pacotes integram:
+  * **`Frameworks & Drivers Layer` (Topo):** `<<component>> HTTP REST Routers` (porta `REST API`), `<<component>> Drivers DB` (porta `Persistence API`), e o novo **`<<component>> HTTP Client`** (WebClient/JavaMail, ligado à porta externa de saída e requerendo `HTTP Client API`);
+  * **`Interface Adapters Layer`:** `<<component>> Controllers` (fornece `Controllers API`, requer `Services API`), `<<component>> Repositories` (fornece `Drivers API`, dependência tracejada para `Model`), e o novo **`<<component>> Gateways`** (adaptadores bibliográficos ou de notificação, fornece `HTTP Client API` e conecta com `Services`);
+  * **`Application Services Layer`:** `<<component>> Services` (fornece `Services API`, requer `Model API` / `Policies API`);
+  * **`Enterprise Business Rules Layer` (Base):** `<<component>> Model` (fornece `Model API`) e **`<<component>> Policies`** (no caso do `LendingManagement`, fornece `Policies API` encapsulando as classes `LendingPolicy`, `StandardLendingPolicy`, `LongTermLendingPolicy`, `ShortTermLendingPolicy`, `PremiumReaderLendingPolicy`, `DynamicLendingPolicy`).
 
 ![VI_N4.png](Vista%20Implementação/VI_N4.png)
 
-> *Elementos a representar:* Estrutura detalhada de diretórios e ficheiros `.java` nos novos pacotes criados pelas iterações do ADD.
+> *Elementos a representar:* Os 4 pacotes de camada concêntrica e os blocos internos com destaque para a nova coluna de integração à direita: `<<component>> HTTP Client` (na camada Frameworks) ligado via `HTTP Client API` a `<<component>> Gateways` (na camada Interface Adapters), refletindo fielmente a grelha de vistas da professora.
 
 ---
 
@@ -341,8 +346,8 @@ Os diagramas encontram-se estruturados nas respetivas subpastas de `Docs/ARQSOFT
 ---
 
 #### 5.4.2. Mapeamento Nível 4 (VA N4 $\leftrightarrow$ VI N4)
-* **Objetivo:** Mapear os círculos da Clean Architecture (VA N4) para os pacotes de código reais Java (VI N4).
-* **Alterações no System-to-Be:** Rastreabilidade entre *Enterprise Business Rules* e os pacotes `model`/`policies`, *Application Business Rules* e `services`, *Interface Adapters* e `api`/`gateways`/`notifications`, e *Frameworks* e `configuration`.
+* **Objetivo:** Estabelecer o mapeamento formal `<<manifest>>` entre as camadas concêntricas abstratas da VA N4 e os blocos e pacotes de implementação da VI N4 (consistente com `VA_to_VI_N4.png` e a grelha da professora).
+* **Alterações no System-to-Be:** Mapeia `Frameworks & Drivers` $\leftarrow$ `HTTP REST Routers`, `Drivers DB`, `HTTP Client`; `Interface Adapters` $\leftarrow$ `Controllers`, `Repositories`, `Gateways`; `Enterprise Application Rules` $\leftarrow$ `Services`; `Enterprise Business Rules` $\leftarrow$ `Model`, `Policies`.
 
 ![VA_to_VI_N4.png](Manifestação/VA_to_VI_N4.png)
 
@@ -397,7 +402,7 @@ A Vista de Processos ilustra a realização dinâmica das operações do sistema
 #### 5.6.1. Cenário 1: Criar Empréstimo com Resolução Dinâmica de Política e Notificações Multicanal (*Create Lending*)
 * **Descrição do Cenário no System-to-Be:**
   1. O pedido HTTP `POST /api/lendings` é recebido;
-  2. O serviço invoca em *runtime* o `LendingPolicyResolver` para determinar deterministicamente a política aplicável (`StandardLendingPolicy` ou `AdaptiveLendingPolicy`) com base no histórico recente e empréstimos ativos do leitor;
+  2. O serviço invoca em *runtime* o `LendingPolicyResolver` para determinar deterministicamente a política aplicável (`LongTermLendingPolicy`, `StandardLendingPolicy`, `ShortTermLendingPolicy`, `PremiumReaderLendingPolicy` ou `DynamicLendingPolicy`) com base no volume de empréstimos ativos e perfil do leitor;
   3. A política valida as regras de elegibilidade (`validateCanLend`), prazos e taxa de multa;
   4. O empréstimo é persistido com sucesso na base de dados relacional H2;
   5. O serviço emite `LendingCreatedEvent` no barramento Spring;

@@ -202,7 +202,7 @@ classDiagram
         +isApplicable(...) boolean
         +validateCanLend(...) void
     }
-    class AdaptiveLendingPolicy {
+    class LongTermLendingPolicy {
         -LendingPolicyProperties props
         +isApplicable(...) boolean
         +validateCanLend(...) void
@@ -214,7 +214,7 @@ classDiagram
     }
 
     StandardLendingPolicy ..|> LendingPolicy : implements
-    AdaptiveLendingPolicy ..|> LendingPolicy : implements
+    LongTermLendingPolicy ..|> LendingPolicy : implements
     ShortTermLendingPolicy ..|> LendingPolicy : implements
 ```
 
