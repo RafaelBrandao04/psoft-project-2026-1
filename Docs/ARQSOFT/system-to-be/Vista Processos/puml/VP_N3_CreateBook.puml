@@ -1,0 +1,101 @@
+@startuml VP_N3_CreateBook
+title Process View (Level 3) - Create Book (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Librarian" as Actor
+participant "<<controller>>\nBookController" as Controller
+participant "<<service>>\nBookServiceImpl" as Service
+participant "<<port>>\nBookInfoProvider" as CompositeProvider
+participant "<<adapter>>\nGoogleBooksAdapter" as GoogleAdapter
+participant "<<adapter>>\nOpenLibraryAdapter" as OpenLibAdapter
+participant "<<repository>>\nBookRepository" as BookRepo
+participant "<<repository>>\nAuthorRepository" as AuthorRepo
+participant "<<repository>>\nGenreRepository" as GenreRepo
+participant "<<model>>\nbook:Book" as BookEntity
+
+activate Actor
+Actor -> Controller: PUT /api/books/{isbn} (resource)
+activate Controller
+
+Controller -> Service: create(resource, isbn)
+activate Service
+
+Service -> BookRepo: findByIsbn(isbn)
+activate BookRepo
+BookRepo --> Service: empty
+deactivate BookRepo
+
+opt needsExternalEnrichment(resource)
+    Service -> CompositeProvider: findBookByIsbn(isbn)
+    activate CompositeProvider
+
+    CompositeProvider -> GoogleAdapter: findBookByIsbn(isbn)
+    activate GoogleAdapter
+    GoogleAdapter --> CompositeProvider: external book data
+    deactivate GoogleAdapter
+
+    CompositeProvider -> OpenLibAdapter: findBookByIsbn(isbn)
+    activate OpenLibAdapter
+    OpenLibAdapter --> CompositeProvider: external book data
+    deactivate OpenLibAdapter
+
+    CompositeProvider -> CompositeProvider: merge book data
+
+    CompositeProvider --> Service: externalBookDetails
+    deactivate CompositeProvider
+
+    Service -> Service: apply externalBookDetails to resource
+end
+
+loop for each authorNumber in resource.getAuthors
+    Service -> AuthorRepo: findByAuthorNumber(authorNumber)
+    activate AuthorRepo
+    AuthorRepo --> Service: author
+    deactivate AuthorRepo
+end
+
+Service -> GenreRepo: findByString(resource.getGenre)
+activate GenreRepo
+GenreRepo --> Service: genre
+deactivate GenreRepo
+
+create BookEntity
+Service -> BookEntity: create
+
+Service -> BookRepo: save(book)
+activate BookRepo
+BookRepo --> Service: savedBook
+deactivate BookRepo
+
+Service --> Controller: savedBook
+deactivate Service
+
+Controller --> Actor: 201 Created (book)
+deactivate Controller
+deactivate Actor
+
+@enduml
