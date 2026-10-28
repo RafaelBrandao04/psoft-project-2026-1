@@ -52,22 +52,26 @@ psoft-project-2026-1/
     ├── odsoft-documentation.md         <-- ÍNDICE MESTRE / RELATÓRIO GLOBAL DE ODSOFT (Este Documento)
     ├── Enunciado - ODSOFT.pdf          <-- Enunciado Oficial da Unidade Curricular (2026-2027)
     │
-    ├── System-as-is/                   <-- 1.3.1 DIAGNÓSTICO DO SISTEMA E PROCESSO INICIAL
+    ├── system-as-is/                   <-- 1.3.1 DIAGNÓSTICO DO SISTEMA E PROCESSO INICIAL
     │   ├── system-as-is.md             <-- Análise do processo manual, métricas baseline, ISO 25010 e DORA
     │   └── system-as-is-workflow.jpg   <-- Diagrama do fluxo de trabalho manual inicial
     │
-    ├── System-fixes/                   <-- ESTABILIZAÇÃO DA BASELINE E CORREÇÃO DE DEFEITOS SAST
+    ├── system-fixes/                   <-- ESTABILIZAÇÃO DA BASELINE E CORREÇÃO DE DEFEITOS SAST
     │   └── system-fixes.md             <-- Correções ao Maven Wrapper, H2, Bootstrapper, H2 Console e 3 bugs P1 SpotBugs
     │
-    ├── System-to-be/                   <-- 1.3.2 ARQUITETURA ALVO DE CONTINUOUS DELIVERY E ADRs
+    ├── system-to-be/                   <-- 1.3.2 ARQUITETURA ALVO DE CONTINUOUS DELIVERY E ADRs
     │   └── system-to-be.md             <-- Topologia de 3 Jobs, Multi-VM (vs806/vs336), Proveniência e ADRs 01 a 04
     │
-    ├── Pipeline/                       <-- 1.3.3 IMPLEMENTAÇÃO DA ESTEIRA DE CI/CD E QUALITY GATES
+    ├── pipeline/                       <-- 1.3.3 IMPLEMENTAÇÃO DA ESTEIRA DE CI/CD E QUALITY GATES
     │   ├── ci-build-and-code-analysis.md           <-- Compilação, Repackage, Cópia Binária, SpotBugs e .Jenkinsfile
-    │   └── ci-testing-coverage-and-quality-gates.md <-- Surefire, Failsafe, JaCoCo, Perfil PITest e Hard/Soft Gates
+    │   ├── ci-testing-coverage-and-quality-gates.md <-- Surefire, Failsafe, JaCoCo, Perfil PITest e Hard/Soft Gates
+    │   └── ci-deployment-and-health-monitoring.md  <-- Single-Build Immutable Artifact, Smoke Testing e Audit Trail
+    │
+    ├── deployment/                     <-- 1.3.5 CONFIGURAÇÃO MULTI-AMBIENTE E ISOLAMENTO
+    │   └── containerization-and-multi-environment.md <-- Externalização Twelve-Factor (.env), Systemd Templates e Isolamento
     │
     ├── testing-strategy/               <-- 1.3.4 ESTRATÉGIA DE TESTES, COBERTURA E DETEÇÃO DE REGRESSÕES
-    │   └── testing-strategy.md         <-- Níveis SUT, Test Doubles, 374 Testes, Injeção de Falhas e Mutantes Equivalentes
+    │   └── testing-strategy.md         <-- Níveis SUT, Test Doubles, 402 Testes, Injeção de Falhas e Mutantes Equivalentes
     │
     └── process-evaluation/             <-- 1.3.6 AVALIAÇÃO E MELHORIA DO PROCESSO DE CI/CD (Goal 1.3.6)
         └── process-evaluation-and-improvement.md <-- Comparação As-Is/To-Be, Análise de Gargalos e Justificação Teórica
@@ -78,8 +82,8 @@ psoft-project-2026-1/
 ## 3. Síntese do System-as-is e Estabilização da Baseline (Goal 1.3.1)
 
 Os detalhes exaustivos encontram-se documentados em:
-* **[Análise Completa do System-as-is](./System-as-is/system-as-is.md)**
-* **[Correções de Estabilização e SAST (System-fixes)](./System-fixes/system-fixes.md)**
+* **[Análise Completa do System-as-is](./system-as-is/system-as-is.md)**
+* **[Correções de Estabilização e SAST (System-fixes)](./system-fixes/system-fixes.md)**
 
 ### 3.1 Principais Limitações do Estado Inicial (*As-Is*)
 * **Infraestrutura de Build Quebrada em Máquinas Limpas:** Os scripts `mvnw` e `mvnw.cmd` não possuíam a pasta `.mvn/wrapper/`, falhando em agentes de CI sem Maven pré-instalado.
@@ -101,7 +105,7 @@ Para viabilizar a automação contínua, foram aplicadas correções cirúrgicas
 ## 4. Arquitetura Alvo de Continuous Delivery e Topologia Multi-VM (Goal 1.3.2)
 
 A especificação completa da arquitetura alvo e as decisões de desenho encontram-se em:
-* **[Especificação Completa do System-to-be e ADRs](./System-to-be/system-to-be.md)**
+* **[Especificação Completa do System-to-be e ADRs](./system-to-be/system-to-be.md)**
 
 ### 4.1 Visão Geral da Arquitetura de Entrega Contínua
 Seguindo as boas práticas de *Continuous Delivery* (Humble & Farley) e a arquitetura de referência institucional:
@@ -150,8 +154,9 @@ flowchart LR
 ## 5. Implementação da Esteira CI/CD e Quality Gates (Goal 1.3.3)
 
 A documentação técnica detalhada da pipeline encontra-se em:
-* **[Pipeline: Build, Empacotamento e Análise Estática de Código](./Pipeline/ci-build-and-code-analysis.md)**
-* **[Pipeline: Testes Automatizados, Cobertura, Mutação e Quality Gates](./Pipeline/ci-testing-coverage-and-quality-gates.md)**
+* **[Pipeline: Build, Empacotamento e Análise Estática de Código](./pipeline/ci-build-and-code-analysis.md)**
+* **[Pipeline: Testes Automatizados, Cobertura, Mutação e Quality Gates](./pipeline/ci-testing-coverage-and-quality-gates.md)**
+* **[Pipeline: Deployment Automatizado, Gestão de Artefactos e Monitorização de Saúde](./pipeline/ci-deployment-and-health-monitoring.md)**
 
 ### 5.1 Os 3 Pipelines Declarativos e Rastreabilidade de Proveniência
 1. **[`.Jenkinsfile`](../../.Jenkinsfile) (`lms-dev`)**:
@@ -172,7 +177,7 @@ A documentação técnica detalhada da pipeline encontra-se em:
 | :--- | :---: | :--- | :--- |
 | **Compilação & Processamento de Anotações** | **Hard Gate** | 0 erros de compilação (Java 17, Lombok, MapStruct) | Aborta imediatamente a build (`FAILURE`). |
 | **Análise Estática de Código (SpotBugs)** | **Hard Gate** | 0 defeitos de Alta Prioridade (P1) | Impede empacotamento e promoção. |
-| **Testes Unitários (Maven Surefire)** | **Hard Gate** | **100% aprovação (330/330 testes)** | Aborta a build (`FAILURE`) e publica relatório JUnit. |
+| **Testes Unitários (Maven Surefire)** | **Hard Gate** | **100% aprovação (358/358 testes)** | Aborta a build (`FAILURE`) e publica relatório JUnit. |
 | **Testes de Integração (Maven Failsafe)** | **Hard Gate** | **100% aprovação (44/44 testes)** | Corre *teardown* completo, publica JUnit e falha na fase `verify`. |
 | **Testes de Mutação (PITest `-Pmutation`)** | **Hard Gate** | Threshold de mutação $\ge 30\%$ (**Test Strength atual: 84%**) | Maven aborta a fase `verify` se o score cair abaixo do limiar. |
 | **Empacotamento e Integridade Binária** | **Hard Gate** | `app.jar` íntegro (~72 MB) + `release.properties` | Aborta antes do deploy se o ficheiro faltar ou estiver corrompido. |
@@ -185,11 +190,12 @@ A documentação técnica detalhada da pipeline encontra-se em:
 O desenho completo da estratégia de testes, classificação multi-dimensional e provas de deteção de defeitos encontram-se em:
 * **[Estratégia de Testes Automatizados, Avaliação de Qualidade e Deteção de Defeitos](./testing-strategy/testing-strategy.md)**
 
-### 6.1 Evolução e Segregação da Suite de Testes (374 Testes Automatizados)
-A suite de testes foi expandida de **102 testes misturados** para **374 testes automatizados (100% de aprovação)** estritamente segregados por ciclo de vida:
-* **Nível 1 — Testes Unitários Isolados (`maven-surefire-plugin`, fase `test`):** **330 testes** executados em ~12 segundos em memória (sem contexto Spring nem base de dados), cobrindo:
+### 6.1 Evolução e Segregação da Suite de Testes (402 Testes Automatizados)
+A suite de testes foi expandida de **102 testes misturados** para **402 testes automatizados (100% de aprovação)** estritamente segregados por ciclo de vida:
+* **Nível 1 — Testes Unitários Isolados (`maven-surefire-plugin`, fase `test`):** **358 testes** executados em memória (sem contexto Spring nem base de dados), cobrindo:
   * *Value Objects e Utilitários* (54 testes) e *Raízes de Agregado / Entidades de Domínio* (72 testes);
   * *Serviços Aplicacionais Core* (`LendingServiceImplTest`, `BookServiceImplTest`, `AuthorServiceImplTest`, `UserServiceTest`, `ReaderServiceImplTest`, `GenreServiceImplTest`);
+  * *Políticas de Empréstimo e Estratégias Dinâmicas* (`Standard/ShortTerm/LongTerm/PremiumReaderLendingPolicyTest`, `LendingPolicyResolverTest`, `LendingPolicyAdminControllerTest` — 28 testes);
   * *Gateways e Adaptadores Bibliográficos* (`OpenLibraryAdapterTest`, `GoogleBooksAdapterTest`, `CompositeBookInfoProviderTest`);
   * *Notificações Multicanal e Eventos de Domínio* (`LendingNotificationListenerTest`, `Email/Sms/WebhookNotificationSenderTest`, `CompositeNotificationSenderTest`, `LendingEventsTest`);
   * *Controladores e Configuração* (`AuthorControllerTest`, `InfoControllerTest`, `BibliographicConfigTest`, `NotificationConfigTest`).
@@ -208,6 +214,7 @@ A suite de testes foi expandida de **102 testes misturados** para **374 testes a
 ## 7. Implantação Configurável, Hardening Systemd e Smoke Testing (Goal 1.3.5)
 
 O guia operacional detalhado para configuração das máquinas virtuais Ubuntu do DEI e do Jenkins encontra-se em:
+* **[Configuração Multi-Ambiente e Isolamento Systemd (containerization-and-multi-environment.md)](./deployment/containerization-and-multi-environment.md)**
 * **[Manual de Preparação e Operação de Ambientes (`deploy/README.md`)](../../deploy/README.md)**
 
 ### 7.1 Isolamento Multi-VM e Serviços Systemd Parametrizados
@@ -251,7 +258,7 @@ A análise crítica do pipeline revelou 5 estrangulamentos operacionais reais, t
 ### 8.3 Sinergia entre Decisões Arquiteturais (ARQSOFT) e CI/CD (ODSOFT)
 Por partilharem o mesmo código-fonte e repositório, as decisões arquiteturais de **[ARQSOFT](../ARQSOFT/arqsoft-documentation.md)** e a esteira de **ODSOFT** reforçam-se mutuamente:
 1. **Configurabilidade em *Setup Time* $\leftrightarrow$ *Single-Build Immutable Artifact*:** A seleção externa de fornecedores bibliográficos (`application.bibliographic.providers`) e de canais de notificação (`notification.channels`) via propriedades/variáveis de ambiente permite que **exatamente o mesmo binário `app.jar`** seja promovido de `DEV` para `UAT` e `PROD` sem recompilação.
-2. **Padrões *Adapter*, *Gateway*, *Composite* e *Observer* $\leftrightarrow$ Testes Herméticos no Pipeline:** O desacoplamento das APIs externas (Google Books, Open Library, servidores SMTP/SMS/Webhook) através de interfaces e injeção de dependências permite que as **374 execuções de teste no Jenkins** corram de forma 100% determinística e offline através de *Test Doubles*, sem falhas por indisponibilidade de redes externas.
+2. **Padrões *Adapter*, *Gateway*, *Composite* e *Observer* $\leftrightarrow$ Testes Herméticos no Pipeline:** O desacoplamento das APIs externas (Google Books, Open Library, servidores SMTP/SMS/Webhook) através de interfaces e injeção de dependências permite que as **402 execuções de teste no Jenkins** corram de forma 100% determinística e offline através de *Test Doubles*, sem falhas por indisponibilidade de redes externas.
 3. **Isolamento de Falhas (`@TransactionalEventListener`) $\leftrightarrow$ Estabilidade em Produção:** Os testes de integração (`LendingNotificationIntegrationIT`) validam na fase `verify` do pipeline que falhas em canais de notificação externos nunca provocam *rollback* das transações de empréstimo.
 
 ### 8.4 Matriz Comparativa Global de Evolução (*System-as-is* vs. *System-to-be*)
@@ -263,7 +270,7 @@ Por partilharem o mesmo código-fonte e repositório, as decisões arquiteturais
 | **Gestão de Binários** | Recompilado manualmente em cada máquina | **Single-Build Immutable Artifact (`app.jar`)** com *fingerprinting* | Garantia matemática de que o binário testado é o que entra em PROD |
 | **Rastreabilidade e Auditoria** | Nenhuma | `release.properties` + `acceptance.properties` + `production.properties` + `/info` | Trilha de auditoria completa (Commit, Build, Aprovador, Timestamp) |
 | **Análise Estática (SAST)** | Nenhuma (125 avisos, 3 bugs P1 ativos) | **SpotBugs (`4.8.3.1`)** integrado com filtro `spotbugs-exclude.xml` | **0 defeitos P1** (correção de encoding UTF-8, serialização e dead store) |
-| **Total de Testes Automatizados** | 102 testes (misturados em `mvn test`) | **374 testes** (**330 unitários Surefire** + **44 integração Failsafe**) | **+266.7% testes** com separação estrita de fases (`test` vs `verify`) |
+| **Total de Testes Automatizados** | 102 testes (misturados em `mvn test`) | **402 testes** (**358 unitários Surefire** + **44 integração Failsafe**) | **+294.1% testes** com separação estrita de fases (`test` vs `verify`) |
 | **Cobertura de Código (JaCoCo)** | Não configurada (~33% estimada pelo PIT) | **JaCoCo (`0.8.11`)** unitário e integração (69%–100% nos módulos core) | 100% dos serviços e modelos core cumprem a meta $\ge 60\%$ |
 | **Testes de Mutação (PITest)** | 22% mutações mortas (124/575), 70% *strength* | **662 mutações mortas em 2.999 geradas**, **84% *Test Strength* global** | **+433.9% mutantes eliminados**; 100% dos pacotes core $\ge 50\%$ |
 | **Gestão da Aprovação Humana** | Nenhuma | Etapa `input` em UAT com **`stash`/`unstash` e `agent none`** + *Recheck* | Zero consumo de executores Jenkins durante espera humana (até 7 dias) |

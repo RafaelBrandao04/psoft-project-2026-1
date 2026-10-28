@@ -28,7 +28,7 @@ flowchart LR
 
     subgraph ToBe["Processo Alvo Implementado (To-Be)"]
         B1["1. Webhook Relay (WSS)"] --> B2["2. mvnw Limpo & Determinístico"]
-        B2 --> B3["3. SpotBugs + 330 Surefire Tests"]
+        B2 --> B3["3. SpotBugs + 358 Surefire Tests"]
         B3 --> B4["4. Single-Build Immutable app.jar"]
         B4 --> B5["5. Deploy DEV/UAT Automatizado"]
         B5 --> B6["6. 44 Failsafe Tests + PIT (84%)"]
@@ -46,7 +46,7 @@ A tabela abaixo compara detalhadamente as duas realidades:
 | :--- | :--- | :--- | :--- |
 | **1. Source/Code checkout** | Manual via terminal (`git pull`). Risco de desenvolvimento sobre código desatualizado. | **Automático via Webhook Relay** em túnel seguro `WSS`, disparando o job `lms-dev` imediatamente após o `git push`. | Eliminação de latência humana; início da verificação em < 5 segundos. |
 | **2. Build** | Compilação local dependente da máquina do programador; falhas em JDK 25 e ausência de `.mvn/wrapper/`. | Compilação padronizada via **Maven Wrapper (`mvnw`) em Java 17**, independente do ambiente anfitrião. | Repetibilidade determinística em qualquer máquina ou agente. |
-| **3. Verification (Right Software?)** | Inexistente. Sem SAST. Apenas 102 testes unitários misturados executados esporadicamente. | **SpotBugs SAST (0 bugs P1)** + **330 Testes Unitários Surefire** em memória em ~12 segundos. | *Fail-fast*: Deteção de violações de código e regressões em menos de 1 minuto. |
+| **3. Verification (Right Software?)** | Inexistente. Sem SAST. Apenas 102 testes unitários misturados executados esporadicamente. | **SpotBugs SAST (0 bugs P1)** + **358 Testes Unitários Surefire** em memória em ~14 segundos. | *Fail-fast*: Deteção de violações de código e regressões em menos de 1 minuto. |
 | **4. Build Artifact Storage** | Binário gerado localmente em `target/`, recompilado em cada máquina sem rastreabilidade. | **Single-Build Immutable Artifact Pattern**: `app.jar` arquivado no Jenkins com *fingerprint* SHA-256 e `release.properties`. | Certeza de que o binário testado é exatamente o binário implantado. |
 | **5. Deployment to Staging/UAT** | Ficheiros copiados manualmente via SFTP/SSH para diretórios arbitrários. | Job `lms-uat` recupera o artefacto via `copyArtifacts` e implanta via SSH/systemd em porta isolada (`8082`). | Zero intervenção manual e consistência de infraestrutura. |
 | **6. Validation / Acceptance Testing** | Validação manual informal com coleções locais do Postman sem critérios objetivos. | **44 Testes de Integração Failsafe** (H2 in-memory, concorrência, RBAC) + **PITest** com Test Strength de 84%. | Validação contratual automatizada e comprovação empírica de eficácia. |
@@ -126,7 +126,7 @@ flowchart TD
 
 #### 3. Resolução do Antipadrão #3: *Manual configuration management of production environments*
 * **Sintomas da Baseline:** Configurações modificadas manualmente no servidor, impossibilidade de recriar um ambiente a partir do zero de forma idêntica, portas e credenciais hardcoded.
-* **Solução Introduzida:** Cumprimento do princípio de que **"Tudo deve estar em Controlo de Versões"**. O provisionamento do sistema operativo e estrutura de pastas é efetuado pelo script idempotente [`deploy/setup-environments.sh`](../../../deploy/setup-environments.sh), a gestão de serviços é gerida pelo template versionado [`deploy/psoft-g1@.service`](../../../deploy/psoft-g1@.service) e as propriedades específicas de cada ambiente são alimentadas por variáveis de ambiente padronizadas ([`.env.example`](../../../.env.example)) e perfis Spring (`application-dev.properties`, `application-uat.properties`, `application-prod.properties`). Qualquer ambiente pode ser recriado fielmente em minutos.
+* **Solução Introduzida:** Cumprimento do princípio de que **"Tudo deve estar em Controlo de Versões"**. O provisionamento do sistema operativo e estrutura de pastas é efetuado pelo script idempotente [`deploy/setup-environments.sh`](../../../deploy/setup-environments.sh), a gestão de serviços é gerida pelo template versionado [`deploy/psoft-g1@.service`](../../../deploy/psoft-g1@.service) e as propriedades específicas de cada ambiente são alimentadas por variáveis de ambiente padronizadas ([`.env.example`](../../../.env.example)) e ficheiros `/etc/psoft-g1/<env>.env` injetados pelo systemd sob a metodologia Twelve-Factor App (Factor III). Qualquer ambiente pode ser recriado fielmente em minutos.
 
 ---
 

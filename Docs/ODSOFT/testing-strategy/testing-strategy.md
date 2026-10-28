@@ -34,7 +34,7 @@ Software testing levels define the abstraction scale and isolation boundaries of
      * **Automated End-to-End (E2E) Testing:** Validates full user workflows across the runtime stack.
    * **Architectural Decoupling Rationale:** Full E2E and UI tests entail high operational overhead (slow execution, environment provisioning, and network flakiness). Consequently, the strategy strictly segregates:
      1. **Fast Verification in the Maven Build Loop (<2 minutes):** `mvn test` (Surefire unit tests) and `mvn verify` (Failsafe integration tests against an in-memory H2 database).
-     2. **Validation in the CD Promotion Pipeline:** Executing automated contract smoke tests ([`deploy/smoke-test.sh`](../../../deploy/smoke-test.sh) validating `/info` and `/actuator/health/readiness`) across provisioned DEV, UAT, and PROD environments (as architected in [`system-to-be.md`](../System-to-be/system-to-be.md)).
+     2. **Validation in the CD Promotion Pipeline:** Executing automated contract smoke tests ([`deploy/smoke-test.sh`](../../../deploy/smoke-test.sh) validating `/info` and `/actuator/health/readiness`) across provisioned DEV, UAT, and PROD environments (as architected in [`system-to-be.md`](../system-to-be/system-to-be.md)).
 
 ### 2.2. Multi-Dimensional Test Suite Classification
 Every automated test suite in the project is formally classified across six structural dimensions (Level, Technique, ISO/IEC 25010 Quality Attribute, Automation Level, Environment, Data Type):
@@ -119,16 +119,16 @@ The Maven build lifecycle (`pom.xml`) enforces strict phase segregation, automat
 
 ## 4. Test Suite Implementation
 
-The test suite was systematically expanded from 102 tests (baseline) to **374 automated tests** across segregated lifecycles:
+The test suite was systematically expanded from 102 tests (baseline) to **402 automated tests** across segregated lifecycles:
 
 ```
-Total Test Suite: 374 Automated Tests (100% Pass Rate)
-├── Surefire Unit Tests (mvn test): 330 tests (~12s execution)
+Total Test Suite: 402 Automated Tests (100% Pass Rate)
+├── Surefire Unit Tests (mvn test): 358 tests (~14s execution)
 └── Failsafe Integration Tests (mvn verify): 44 tests (~15s execution)
 ```
 
 ### 4.1. Unit Testing Suite (`src/test/java/.../*Test.java`)
-Executed by Maven Surefire (`mvn test`). All 330 tests run with complete isolation and zero Spring context overhead:
+Executed by Maven Surefire (`mvn test`). All 358 tests run with complete isolation and zero Spring context overhead:
 
 1. **`LendingServiceImplTest.java` (20 tests):**
    * Business invariant: maximum 3 outstanding books (`LendingForbiddenException`).
@@ -176,8 +176,15 @@ Executed by Maven Surefire (`mvn test`). All 330 tests run with complete isolati
       * `LendingTest` (21 tests): Due date calculations, overdue days, on-time returns, fine computations, bootstrapping factory, and optimistic version checks.
       * `BookTest` (13 tests): Complete lifecycle, multi-author associations, getters, photo removal conflicts, and full/partial patch updates with version optimistic locking (`StaleObjectStateException`).
       * `UserTest` (9 tests - BCrypt encoding, factory methods, password rules, role assignments), `ReaderTest` (9 tests), `AuthorTest` (9 tests), `ReaderDetailsTest` (7 tests - GDPR constraints and profile patch rules), `GenreTest` (4 tests).
+11. **Lending Policies & Dynamic Strategy Pattern (`lendingmanagement.policies` — 28 tests):**
+    * `StandardLendingPolicyTest.java` (6 tests): Baseline lending terms, fine calculations, and maximum simultaneous lendings.
+    * `ShortTermLendingPolicyTest.java` (4 tests): Accelerated return horizons and overdue rules.
+    * `PremiumReaderLendingPolicyTest.java` (4 tests): Privileged quota allocations and extended durations.
+    * `LongTermLendingPolicyTest.java` (3 tests): Extended durations for specialized research collections.
+    * `LendingPolicyResolverTest.java` (6 tests): Runtime policy selection based on reader type, book characteristics, and system settings.
+    * `LendingPolicyAdminControllerTest.java` (5 tests): Administrative REST endpoints for runtime policy management with isolated WebMvc slices.
 
-**Surefire Results:** **330 tests run, 0 failures, 0 errors, 0 skipped.**
+**Surefire Results:** **358 tests run, 0 failures, 0 errors, 0 skipped.**
 
 ### 4.2. Integration Testing Suite (`src/test/java/.../*IT.java`, `*IntegrationTest.java`)
 Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Spring Security, Spring Data JPA, transactional domain events, and the H2 database fake:
@@ -338,8 +345,8 @@ In mutation testing theory, not all surviving mutants represent test defects:
 
 | Metric | Baseline (*As-Is*) | Target State (*To-Be*) | Net Improvement | Impact |
 |:---|:---:|:---:|:---:|:---|
-| **Total Automated Test Suite** | 102 tests | **374 tests** | **+266.7%** | Comprehensive regression net across domain & architecture |
-| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **330 (pure isolated SUT)** | **+223.5%** | Ultra-fast feedback (~12s) |
+| **Total Automated Test Suite** | 102 tests | **402 tests** | **+294.1%** | Comprehensive regression net across domain & architecture |
+| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **358 (pure isolated SUT)** | **+251.0%** | Ultra-fast feedback (~14s) |
 | **Integration Tests (`mvn verify`)** | 0 configured | **44 (Failsafe automated)** | **+100% (New)** | Full security, DB, concurrency & event dispatch |
 | **Security & RBAC Tests** | 0 active tests | **24+ active tests** | **+100% (New)** | Automated access control |
 | **Concurrency & Event Fault-Isolation Tests** | 0 tests | **4 active Failsafe tests** | **+100% (New)** | Validates optimistic locking & multichannel fault isolation |

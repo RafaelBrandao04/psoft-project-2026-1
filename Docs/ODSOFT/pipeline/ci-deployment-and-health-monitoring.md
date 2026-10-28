@@ -67,7 +67,7 @@ Rather than coupling all stages into an unwieldy single job, delivery is orchest
 * **Build & Verification Stage:**
   * Clean build with OpenJDK 17/21.
   * Static code analysis via SpotBugs (0 P1 defects permitted).
-  * 330 unit tests via Surefire (100% pass rate).
+  * 358 unit tests via Surefire (100% pass rate).
   * 44 integration tests via Failsafe (100% pass rate).
   * PITest mutation analysis with minimum threshold $\ge 30\%$ (Test strength: 84%).
   * Spring Boot packaging into `target/psoft-g1-0.0.1-SNAPSHOT.jar` and Git commit stamping via `-Drelease.commit="${env.GIT_COMMIT}"`.

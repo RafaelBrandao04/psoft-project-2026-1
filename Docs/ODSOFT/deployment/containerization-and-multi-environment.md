@@ -1,8 +1,8 @@
 # Multi-Environment Configuration and Systemd Service Isolation
 
-## 1. Overview and Scope (Goal 1.3.5 / Issue #20)
+## 1. Overview and Scope (Goal 1.3.5)
 
-In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*) and **Issue #20**, this document details the engineering decisions, implementation architecture, and operational procedures for:
+In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*), this document details the engineering decisions, implementation architecture, and operational procedures for:
 
 1. **Single-Build Immutable Artifact (`app.jar`):** Compiling and packaging a single executable Spring Boot fat JAR once in CI (`lms-dev`) and promoting the exact same binary across **Development (`dev`)**, **User Acceptance Testing (`uat` / `staging`)**, and **Production (`prod`)** without recompilation.
 2. **Externalized Environment Configuration (Twelve-Factor App Factor III):** Eliminating hardcoded parameters in [`src/main/resources/application.properties`](../../../src/main/resources/application.properties) by using `${VARIABLE:default}` placeholders, documented in [`.env.example`](../../../.env.example) and injected per environment via `/etc/psoft-g1/<env>.env` on the target Linux servers (or optional local `.env` files during development).
@@ -14,7 +14,7 @@ In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable de
 ## 2. Systemd Multi-Environment Isolation Architecture
 
 ### 2.1. Limitations of the Baseline Process (*As-Is*)
-As established in [`Docs/ODSOFT/System-as-is/system-as-is.md`](../System-as-is/system-as-is.md):
+As established in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
 * The application relied on ad-hoc manual execution on developer machines, with hardcoded properties and no environment separation between `dev`, `uat`, and `prod`.
 * Uploaded files were written to unmanaged relative directories without OS-level user isolation.
 * Running Java processes manually or as `root` without a service supervisor lacked automatic crash recovery (`Restart=on-failure`) and exposed the host operating system to privilege escalation risks.

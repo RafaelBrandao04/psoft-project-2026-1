@@ -53,24 +53,39 @@ Implementada com recurso aos padrões **Ports and Adapters (Hexagonal)**, **Comp
 
 ## 2. Engenharia de Software e Pipeline CI/CD (ODSOFT)
 
-O projeto integra um pipeline automatizado de **Integração Contínua (CI)** declarado no ficheiro [`Jenkinsfile`](Jenkinsfile), contendo 7 estágios de verificação:
+O projeto integra uma esteira automatizada de **Continuous Delivery (CD)** estruturada em **3 pipelines declarativos em cascata** orientados pelo padrão *Single-Build Immutable Artifact* e supervisionados por `systemd` e testes de prontidão contratuais:
 
 ```mermaid
-flowchart LR
-    COMPILE["1. Compile<br/>(Maven Wrapper)"] --> SAST["2. SAST<br/>(SpotBugs)"]
-    SAST --> UNIT["3. Unit Tests<br/>(Surefire 279 Tests)"]
-    UNIT --> IT["4. Integration Tests<br/>(Failsafe 41 Tests)"]
-    IT --> COV["5. Coverage & Mutation<br/>(JaCoCo + PITest)"]
-    COV --> GATE{"6. Quality Gate<br/>(Pass Rate 100%<br/>Cov >= 60%<br/>Mut >= 50%)"}
-    GATE -->|Pass| PKG["7. Package & Archive<br/>(Target JAR)"]
-    GATE -->|Fail| HALT["Pipeline Aborted"]
+flowchart TD
+    subgraph Job1["1. Pipeline DEV (lms-dev)"]
+        COMPILE["Clean Compile & SAST<br/>(SpotBugs 0 P1)"] --> UNIT["Unit Tests<br/>(Surefire 358 Tests)"]
+        UNIT --> IT["Integration Tests<br/>(Failsafe 44 Tests)"]
+        IT --> PIT["PIT Mutation Testing<br/>(Gate >= 30%, Strength 84%)"]
+        PIT --> PKG["Package Immutable app.jar<br/>+ release.properties"]
+        PKG --> DEV_DEPLOY["Deploy DEV (vs806:8081)<br/>+ Smoke Test (/info + Actuator)"]
+    end
+
+    subgraph Job2["2. Pipeline UAT (lms-uat)"]
+        UAT_COPY["Copy validated/app.jar<br/>(Sem recompilar)"] --> UAT_DEPLOY["Deploy UAT (vs806:8082)<br/>+ Smoke Test"]
+        UAT_DEPLOY --> GATE{"Human Gate (agent none)<br/>'Aceitar e promover'"}
+        GATE -->|Aprovado| UAT_RECHECK["Recheck Health<br/>+ acceptance.properties"]
+    end
+
+    subgraph Job3["3. Pipeline PROD (lms-prod)"]
+        PROD_COPY["Copy accepted/app.jar<br/>+ Audit Trail"] --> PROD_DEPLOY["Deploy PROD (vs336:8080)<br/>+ Contract Smoke Test"]
+        PROD_DEPLOY --> FINAL["Archive final_artifact/**"]
+    end
+
+    DEV_DEPLOY -->|Trigger Automático| UAT_COPY
+    UAT_RECHECK -->|Trigger Automático| PROD_COPY
 ```
 
 ### Quality Gates Aplicados
-* **Sucesso dos Testes:** 100% de testes unitários e de integração verdes sem regressões.
-* **Análise Estática (SAST):** 0 novos *bugs* ou vulnerabilidades detetadas pelo SpotBugs.
-* **Cobertura de Código:** Cobertura de instruções/linhas $\ge 60\%$ (JaCoCo).
-* **Testes de Mutação:** *Mutation Score* $\ge 50\%$ e *Test Strength* $\ge 80\%$ (PITest).
+* **Sucesso dos Testes:** 100% de testes unitários (358) e de integração (44) verdes sem regressões.
+* **Análise Estática (SAST):** 0 novos *bugs* ou vulnerabilidades de alta prioridade (P1) no SpotBugs.
+* **Cobertura de Código:** Cobertura de instruções/linhas $\ge 60\%$ nos módulos core (JaCoCo).
+* **Testes de Mutação (PITest):** Limiar global de CI $\ge 30\%$ (`-Dpitest.mutationThreshold=30`), com 100% dos pacotes core entre $64\%$ e $100\%$ de eliminação de mutantes e *Test Strength* global de $84\%$.
+* **Readiness Smoke Test:** HTTP 200 e validação JSON de identidade, ambiente e commit SHA em `/info` e `/actuator/health/readiness` em $\le 60\text{s}$.
 
 ---
 
@@ -126,26 +141,17 @@ A aplicação arrancará em `http://localhost:8080`.
   * **Password:** `mysqlpass`
 
 ### 4.4. Execução da Pipeline de CI/CD (Jenkins)
-O repositório possui uma pipeline declarativa completa definida no ficheiro [`Jenkinsfile`](Jenkinsfile), configurada para ser executada no servidor oficial do ISEP:
+A esteira de entrega contínua é composta por **três pipelines declarativas em cascata** apoiadas pelo módulo Groovy compartilhado [`deploy/jenkins-deploy.groovy`](deploy/jenkins-deploy.groovy):
 
-* **Acesso ao Servidor Jenkins do ISEP:**
-  * URL: [https://vs-gate.dei.isep.ipp.pt:10806/](https://vs-gate.dei.isep.ipp.pt:10806/)
-* **Credenciais SCM:**
-  * O job utiliza a credencial ID `Password_for_GitHub` (Personal Access Token / utilizador GitHub) para efetuar o checkout autenticado do repositório.
-* **Como Disparar a Pipeline:**
-  * **Automático (Webhook / Push):** Qualquer `git push` para a branch `main` despoleta automaticamente uma nova execução da pipeline via GitHub Webhook / SCM Polling.
-  * **Manual:** No painel do projeto no Jenkins (ex.: `Jenkins_Demo_from_GitHub`), aceder ao menu lateral e clicar em **"Build Now"** (*Construir agora*).
-* **Fluxo de Estágios Automatizados:**
-  1. **Compile:** Validação e compilação multiplataforma via `./mvnw clean compile -B`.
-  2. **Static Code Analysis (SAST):** Análise estática com SpotBugs e arquivo de `target/spotbugsXml.xml`.
-  3. **Unit Tests:** Execução de 279 testes unitários (`mvn test`) com publicação de resultados JUnit.
-  4. **Integration Tests:** Execução de 41 testes de integração com base de dados H2 (`mvn failsafe:integration-test failsafe:verify`).
-  5. **Code Coverage & Mutation Testing:** Geração de relatórios JaCoCo (`jacoco:report`) e PITest (`pitest:mutationCoverage`).
-  6. **Quality Gate:** Avaliação automática das regras de aprovação (100% testes verdes, cobertura $\ge 60\%$, mutação $\ge 50\%$).
-  7. **Package & Archive:** Empacotamento do JAR executável (`psoft-g1-0.0.1-SNAPSHOT.jar`) e arquivamento dos relatórios para download.
-* **Consulta de Relatórios no Jenkins:**
-  * **Test Result:** Gráficos e listagem detalhada de falhas/sucessos de testes JUnit.
-  * **Build Artifacts:** Relatórios HTML navegáveis do JaCoCo, relatórios PITest e binário JAR descarregável. 
+* **Topologia e Acesso ao Jenkins (ADR-01):**
+  * **Controlador Jenkins:** Executado localmente em `localhost:8080`, eliminando o risco de congelamento/OOM das máquinas virtuais do DEI durante compilações Maven e testes de mutação PITest pesados.
+  * **Túnel Seguro de Webhook:** Integração com o GitHub através de túnel persistente de saída WebSocket (`WSS`) gerido pelo **Webhook Relay Plugin** (sem necessidade de expor portas públicas no router).
+* **Os 3 Pipelines Declarativos:**
+  1. **[`.Jenkinsfile`](.Jenkinsfile) (`lms-dev`):** Disparado automaticamente a cada `git push` na branch `main`. Executa compilação, análise SpotBugs, 358 testes unitários, 44 testes de integração, PITest ($\ge 30\%$), empacota o binário imutável `app.jar` com carimbo de commit, implanta em **DEV** (`vs806:8081`), valida o smoke test contratual e dispara o job seguinte.
+  2. **[`.Jenkinsfile_uat`](.Jenkinsfile_uat) (`lms-uat`):** Recupera o binário validado via `copyArtifacts` (sem recompilar), implanta em **UAT** (`vs806:8082`), valida o smoke test e liberta o agente Jenkins (`agent none` + `stash`) enquanto aguarda aprovação humana (até 7 dias) no botão *"Aceitar e promover"*. Após aprovação, revalida a saúde do serviço e dispara PROD.
+  3. **[`.Jenkinsfile_prod`](.Jenkinsfile_prod) (`lms-prod`):** Recupera o binário aceite, imprime a trilha de auditoria completa (*Production Audit Trail*), implanta na VM dedicada e isolada de **PROD** (`vs336:8080`), valida o smoke test e arquiva o pacote final auditado em `final_artifact/**`.
+* **Como Disparar Manualmente:**
+  * No painel do Jenkins local, aceder ao job `lms-dev` e clicar em **"Build Now"** (*Construir agora*). O fluxo promoverá automaticamente as etapas seguintes conforme as aprovações. 
 ---
 
 ## 5. Credenciais e Utilizadores de Teste (Bootstrap)
@@ -264,14 +270,14 @@ suggestionsLimitPerGenre=2
 O projeto está estruturado segundo a pirâmide de testes e os 5 níveis de teste estipulados em ARQSOFT e ODSOFT:
 
 ### 8.1. Testes Unitários (Surefire)
-Executa a suíte de 279 testes unitários isolados em memória (DTOs, regras de domínio, gateways mockados e serviços):
+Executa a suíte de 358 testes unitários isolados em memória (DTOs, regras de domínio, políticas de empréstimo, gateways mockados e serviços):
 ```bash
 ./mvnw test -B
 ```
 *Relatórios gerados em: `target/surefire-reports/`*
 
 ### 8.2. Testes de Integração (Failsafe)
-Executa os 41 testes de integração com subida do contexto Spring Boot, base de dados H2 real e controlo de acessos Spring Security MockMvc:
+Executa os 44 testes de integração com subida do contexto Spring Boot, base de dados H2 real e controlo de acessos Spring Security MockMvc:
 ```bash
 ./mvnw failsafe:integration-test failsafe:verify -B
 ```
@@ -284,9 +290,9 @@ Executa os 41 testes de integração com subida do contexto Spring Boot, base de
 *Relatório HTML disponível em: `target/site/jacoco/index.html`*
 
 ### 8.4. Testes de Mutação (PITest)
-Avalia a resiliência e eficácia dos testes eliminando mutantes introduzidos no bytecode:
+Avalia a resiliência e eficácia dos testes eliminando mutantes introduzidos no bytecode (limiar CI $\ge 30\%$, pacotes core $\ge 50\%$ a 100%):
 ```bash
-./mvnw pitest:mutationCoverage -B
+./mvnw -Pmutation test-compile pitest:mutationCoverage -B
 ```
 *Relatório HTML disponível em: `target/pit-reports/index.html`*
 
@@ -312,10 +318,15 @@ A documentação detalhada encontra-se organizada na pasta `Docs/`:
   * [Arquiteturas de Referência (System-to-be)](Docs/ARQSOFT/system-to-be/reference-architectures.md)
   * [Alternativas de Desenho e Racional de Decisão (System-to-be)](Docs/ARQSOFT/system-to-be/design-alternatives-and-rationale.md)
 * **Engenharia de Software, Testes & CI/CD (ODSOFT):**
-  * [Análise do System-as-is (Limitações do Processo Manual e CI/CD)](Docs/ODSOFT/system-as-is/system-as-is.md)
-  * [Correções e Melhorias ao System-as-is](Docs/ODSOFT/system-fixes/system-fixes.md)
-  * [Estratégia e Níveis de Testes Automatizados (Unitários e Integração)](Docs/ODSOFT/testing-strategy/testing-strategy.md)
-  * [Pipeline CI: Build, Empacotamento e Análise Estática SAST (Issue #17)](Docs/ODSOFT/pipeline/ci-build-and-code-analysis.md)
-  * [Pipeline CI: Testes, Cobertura JaCoCo, Mutação PITest e Quality Gates (Issue #18)](Docs/ODSOFT/pipeline/ci-testing-coverage-and-quality-gates.md)
-  * [System-to-Be: Processo Alvo de Desenvolvimento e CI/CD](Docs/ODSOFT/system-to-be/system-to-be.md)
+  * [Documentação Global ODSOFT (Índice Mestre)](Docs/ODSOFT/odsoft-documentation.md)
+  * [Análise do System-as-is (Diagnóstico e Limitações do Processo Manual)](Docs/ODSOFT/system-as-is/system-as-is.md)
+  * [Correções e Estabilização da Baseline (System-fixes)](Docs/ODSOFT/system-fixes/system-fixes.md)
+  * [System-to-Be: Arquitetura Alvo de Desenvolvimento e CI/CD](Docs/ODSOFT/system-to-be/system-to-be.md)
+  * [Estratégia e Níveis de Testes Automatizados (402 Testes e Mutação)](Docs/ODSOFT/testing-strategy/testing-strategy.md)
+  * [Pipeline CI: Build, Empacotamento e Análise Estática SAST](Docs/ODSOFT/pipeline/ci-build-and-code-analysis.md)
+  * [Pipeline CI: Testes, Cobertura JaCoCo, Mutação PITest e Quality Gates](Docs/ODSOFT/pipeline/ci-testing-coverage-and-quality-gates.md)
+  * [Pipeline CI: Deployment Automatizado, Gestão de Artefactos e Monitorização de Saúde](Docs/ODSOFT/pipeline/ci-deployment-and-health-monitoring.md)
+  * [Configuração Multi-Ambiente e Isolamento Systemd (Twelve-Factor)](Docs/ODSOFT/deployment/containerization-and-multi-environment.md)
+  * [Manual de Preparação e Operação de Ambientes (deploy/README.md)](deploy/README.md)
+  * [Avaliação e Melhoria do Processo de CI/CD (Métricas DORA e ISO 25010)](Docs/ODSOFT/process-evaluation/process-evaluation-and-improvement.md)
 
