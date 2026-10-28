@@ -95,7 +95,7 @@ Para compilar e executar o projeto localmente é necessário:
 * **Java Development Kit (JDK):** Versão 17 (LTS)
 * **Maven:** Versão 3.9+ (ou utilizar o Maven Wrapper incluído `./mvnw` / `mvnw.cmd`)
 * **Git**
-* Porta de rede `8080` livre para o servidor local
+* Porta de rede livre para o servidor local: **8085** (definida no [`.env`](.env) local para permitir coexistência harmoniosa com o Jenkins em `8080`) ou **8080** (caso o Jenkins local não esteja ativo)
 
 ---
 
@@ -126,19 +126,21 @@ Para arrancar o servidor com os dados de demonstração (*bootstrap* ativado por
   .\mvnw.cmd spring-boot:run
   ```
 
-A aplicação arrancará em `http://localhost:8080`.
+A aplicação arrancará em **`http://localhost:8085`** (lendo automaticamente o [`.env`](.env) local se presente) ou em **`http://localhost:8080`** (caso execute sem `.env`).
 
 ### 4.3. Interfaces de Acesso e Documentação
 * **Swagger UI / Documentação Interativa da API:**  
-  [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+  [http://localhost:8085/swagger-ui/index.html](http://localhost:8085/swagger-ui/index.html) *(ou porta 8080)*
 * **Especificação OpenAPI (JSON):**  
-  [http://localhost:8080/api-docs](http://localhost:8080/api-docs)
+  [http://localhost:8085/api-docs](http://localhost:8085/api-docs) *(ou porta 8080)*
 * **Consola de Base de Dados H2:**  
-  [http://localhost:8080/h2-console](http://localhost:8080/h2-console)
+  [http://localhost:8085/h2-console](http://localhost:8085/h2-console) *(ou porta 8080)*
   * **Driver Class:** `org.h2.Driver`
   * **JDBC URL:** `jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;IGNORECASE=TRUE`
   * **User Name:** `mysqluser`
   * **Password:** `mysqlpass`
+* **Sondas de Prontidão e Informação (Actuator):**  
+  [http://localhost:8085/info](http://localhost:8085/info) | [http://localhost:8085/actuator/health/readiness](http://localhost:8085/actuator/health/readiness)
 
 ### 4.4. Execução da Pipeline de CI/CD (Jenkins)
 A esteira de entrega contínua é composta por **três pipelines declarativas em cascata** apoiadas pelo módulo Groovy compartilhado [`deploy/jenkins-deploy.groovy`](deploy/jenkins-deploy.groovy):
@@ -172,10 +174,10 @@ Quando o perfil `bootstrap` está ativo, os seguintes utilizadores são gerados 
 ## 6. Como Executar e Testar as Funcionalidades da API
 
 ### 6.1. Autenticação (Obter Token JWT)
-Todos os endpoints protegidos requerem autenticação Bearer JWT.
+Todos os endpoints protegidos requerem autenticação Bearer JWT *(exemplos abaixo utilizando a porta `8085` configurada no `.env`)*:
 
 ```bash
-curl -X POST http://localhost:8080/api/public/login \
+curl -X POST http://localhost:8085/api/public/login \
      -H "Content-Type: application/json" \
      -d '{
        "username": "maria@gmail.com",
@@ -190,7 +192,7 @@ curl -X POST http://localhost:8080/api/public/login \
 Permite consultar metadados detalhados de livros através de fontes externas configuradas (*Google Books* e *Open Library*), unificando título, autores, descrição, editora, ano de publicação e capa num modelo normalizado.
 
 ```bash
-curl -X GET http://localhost:8080/api/books/external/9780132350884 \
+curl -X GET http://localhost:8085/api/books/external/9780132350884 \
      -H "Authorization: Bearer <SEU_TOKEN_JWT>" \
      -H "Accept: application/json"
 ```
@@ -216,7 +218,7 @@ curl -X GET http://localhost:8080/api/books/external/9780132350884 \
 Ao registar um livro (`PUT /api/books/{isbn}`), um bibliotecário pode omitir campos como `title`, `description` ou `genre`. O sistema consulta automaticamente os provedores externos configurados para completar os metadados em falta:
 
 ```bash
-curl -X PUT http://localhost:8080/api/books/9780201633610 \
+curl -X PUT http://localhost:8085/api/books/9780201633610 \
      -H "Authorization: Bearer <TOKEN_LIBRARIAN>" \
      -F "authors=1"
 ```
