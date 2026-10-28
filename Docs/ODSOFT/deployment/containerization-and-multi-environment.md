@@ -74,6 +74,20 @@ WantedBy=multi-user.target
 
 ---
 
+#### 2.2.2. Conceptual and Operational Distinction: Logical Environments vs. Deployment Targets (C1.4 & C1.5)
+
+In continuous delivery engineering, it is essential to distinguish between a **Logical Environment** (a lifecycle stage with specific configuration, governance rules, data boundaries, and quality gates) and a **Deployment Target** (the physical or virtual host node where binaries execute):
+
+| Dimension | Logical Environment (*Ambiente Lógico*) | Deployment Target (*Destino de Deployment*) |
+| :--- | :--- | :--- |
+| **Definition** | Functional stage in the software promotion lifecycle (`local`, `dev`, `uat`/`staging`, `prod`). | Infrastructure host/node receiving the binary via SSH/SCP or local process execution (`localhost`, DEI VM `vs806`, DEI VM `vs336`). |
+| **Identification Contract** | Injected via `DEMO_ENVIRONMENT` (`dev`, `uat`, `prod`) and verified on `GET /info` (`"environment"` field). | Addressed via network endpoint and SSH port (`vsgate-ssh.dei.isep.ipp.pt:10806` for `vs806`; `:10336` for `vs336`). |
+| **Cardinality & Mapping ($N:M$)** | **3 remote logical environments** (`dev`, `uat`, `prod`) + **1 local workstation environment** (`local`). | **2 remote DEI Virtual Servers** (`vs806` and `vs336`) + **1 local developer machine** (`localhost`). |
+| **Colocation & Isolation Rationale** | `dev` and `uat` are distinct logical environments with independent databases, ports (`8081` vs `8082`), OS users (`psoft-g1-dev` vs `psoft-g1-uat`), working directories (`/opt/psoft-g1/dev` vs `/opt/psoft-g1/uat`), and systemd service instances (`psoft-g1@dev` vs `psoft-g1@uat`), even though they share the same physical deployment target (`vs806`). | `prod` is deployed to a **dedicated physical deployment target (`vs336`)** so that CPU/memory spikes or disk I/O in `dev`/`uat` on `vs806` can never impact live production availability. |
+| **Alternatives & Trade-offs** | *Alternative 1:* 3 separate VMs (1:1 mapping) — higher infrastructure cost. *Alternative 2:* Single VM for all 3 — risks production starvation. *Selected Hybrid (3 logical envs across 2 VMs):* Optimal balance between resource efficiency and strict production hardware isolation. | *Alternative:* Docker containers on LXD VMs — rejected due to nested virtualization/daemon memory overhead on constrained DEI LXD quotas; parameterized `systemd` provides native kernel namespace isolation (`ProtectSystem=strict`, `PrivateTmp=true`) with zero memory overhead. |
+
+---
+
 ## 3. Multi-Environment Configuration Architecture
 
 ### 3.1. Externalization and Fallback Strategy (`application.properties`)
@@ -113,7 +127,7 @@ file.photo_max_size=${FILE_PHOTO_MAX_SIZE:20000}
 The template file [`.env.example`](../../../.env.example) at the repository root documents all externalized variables supported by `application.properties`, including `PORT`, `DEMO_ENVIRONMENT`, `SPRING_PROFILES_ACTIVE`, database connection strings, JWT key paths, external bibliographic providers (`BIBLIOGRAPHIC_PROVIDERS`), notification channels (`NOTIFICATION_CHANNELS`), and lending policy parameters.
 
 Because `application.properties` includes `spring.config.import=optional:file:.env[.properties]`:
-* **Without a local `.env`:** The application and all 374 automated tests run out-of-the-box using the fallback defaults.
+* **Without a local `.env`:** The application and all 402 automated tests run out-of-the-box using the fallback defaults.
 * **With a local `.env`:** Developers can override `PORT=8085` (for example, when port `8080` is occupied by a local Jenkins controller) without modifying tracked files.
 * **On the DEI Linux VMs:** `systemd` injects `/etc/psoft-g1/<env>.env` directly into the process environment via `EnvironmentFile=`.
 

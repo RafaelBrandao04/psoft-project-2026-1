@@ -79,6 +79,49 @@ flowchart TD
 
 ---
 
+### 1.4. Jenkins Installation and Configuration Across Two Execution Contexts (C1.1)
+
+To rigorously validate pipeline portability, reproducibility, and operational trade-offs, Jenkins was installed, configured, and executed across **two distinct execution contexts**:
+
+#### Context 1: Institutional Linux Container (DEI Private Cloud VM `vs806` — Ubuntu 22.04 LTS, Port `2226`)
+1. **Host & Network Topology:**
+   * **Infrastructure:** DEI Virtual Servers Private Cloud (`vs-ctl.dei.isep.ipp.pt`), Ubuntu 22.04 LTS (Jammy Jellyfish) LXD container (`vs806`).
+   * **SSH Access:** `ssh root@vsgate-ssh.dei.isep.ipp.pt -p 10806`.
+   * **Web UI Gateway:** Routed via `vs-gate.dei.isep.ipp.pt` to internal container port **`2226`** (rebound from default `8080` to avoid port collisions with running services).
+2. **Runtime & Jenkins Provisioning:**
+   ```bash
+   sudo apt update && sudo apt install openjdk-21-jdk maven curl git nano -y
+   curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2026.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+   echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+   sudo apt update && sudo apt install jenkins -y
+   ```
+3. **Systemd Port Rebinding (`/lib/systemd/system/jenkins.service`):**
+   Configured `Environment="JENKINS_PORT=2226"`, followed by `sudo systemctl daemon-reload && sudo systemctl restart jenkins`.
+4. **Empirical Limitation Observed:** While lightweight builds succeeded, running concurrent multi-threaded Maven compilations combined with **2,999 PITest bytecode mutations** inside the constrained LXD container caused severe CPU throttling and Linux OOM-Killer terminations.
+
+#### Context 2: Local Workstation Controller (`localhost:8080`) + Webhook Relay (`WSS`) + Remote SSH Deployment
+1. **Host & Runtime:** Windows 11 Workstation running Jenkins LTS (`2.479.x`) on Java 17/21 (`localhost:8080`), with local `.env` setting `PORT=8085` for local app testing to avoid port collision with Jenkins on `8080`.
+2. **Installed Plugins & Capabilities:**
+   * **Pipeline (`workflow-aggregator`):** Declarative pipeline orchestration (`.Jenkinsfile`, `.Jenkinsfile_uat`, `.Jenkinsfile_prod`).
+   * **Git Plugin (`git`) & Credentials Binding:** Authenticated SCM checkout and commit SHA extraction (`env.GIT_COMMIT`).
+   * **Webhook Relay Plugin (`webhook-relay`):** Persistent outbound WebSocket (`WSS`) subscription to bucket `jenkins-plugin`, receiving GitHub push events in real time (< 5s) behind NAT/firewalls without port forwarding.
+   * **Copy Artifact Plugin (`copyartifact`):** Enforces the *Single-Build Immutable Artifact* pattern across `lms-dev` $\rightarrow$ `lms-uat` $\rightarrow$ `lms-prod` with SHA-256 fingerprinting.
+   * **JUnit Plugin (`junit`):** Publishes Surefire (358 tests) and Failsafe (44 tests) XML reports and trend graphs.
+3. **Connectivity & Permissions:** Outbound SSH/SCP to `vsgate-ssh.dei.isep.ipp.pt` (`10806` for `vs806`, `10336` for `vs336`) using dedicated SSH keys (sanitized on Windows via `icacls` in `deploy/jenkins-deploy.groovy`) and least-privilege `sudoers` rules (`deploy/psoft-g1.sudoers`).
+
+#### Comparative Evaluation of Both Execution Contexts (C1.1 Evidence)
+
+| Dimension | Context 1: DEI Cloud Container (`vs806:2226`) | Context 2: Workstation Controller (`localhost:8080`) + Remote DEI VMs |
+| :--- | :--- | :--- |
+| **Operating System & JVM** | Ubuntu 22.04 LTS (Linux x86_64), OpenJDK 21 | Windows 11 / PowerShell + Linux Remote Targets, OpenJDK 17/21 |
+| **Shell Execution Path in `.Jenkinsfile`** | Executes `isUnix() == true` branch (`sh "./mvnw ..."`, `cp`). | Executes `isUnix() == false` branch (`bat "mvnw.cmd ..."`, `copy /B /Y`). |
+| **SCM Trigger Connectivity** | Direct HTTP webhook via `vs-gate.dei.isep.ipp.pt` or SCM polling (`H/5 * * * *`). | Outbound `WSS` tunnel via **Webhook Relay** (`jenkins-plugin` bucket) — zero inbound firewall exposure. |
+| **Compute Performance (Build + PITest)** | **Constrained:** LXD CPU/RAM limits cause freezes or >15 min builds during 2,999 PITest mutations. | **High & Deterministic:** Multi-core CPU executes 358 unit + 44 IT + 2,999 PIT mutations in **~3 min 17 s**. |
+| **Deployment Mechanism** | Local/loopback copy on `vs806` + remote SSH to `vs336`. | Remote SSH/SCP via `deploy/jenkins-deploy.groovy` to both `vs806` (`10806`) and `vs336` (`10336`). |
+| **Limitations & Operational Risks** | Risk of OOM-Killer aborting CI builds; shared resource contention with running DEV/UAT apps. | Requires developer workstation or dedicated runner host to be online during build windows; requires binary mode `copy /B /Y` on Windows. |
+
+---
+
 ## 2. Target Multi-Environment Infrastructure Strategy
 
 ### 2.1. Environment Parity and Multi-VM Topology
