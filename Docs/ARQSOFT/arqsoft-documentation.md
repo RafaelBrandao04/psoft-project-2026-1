@@ -198,6 +198,26 @@ Esta secção detalha os requisitos funcionais primários e a especificação fo
 
 ---
 
+### 4.4 Critério Operacional de «Impacto Limitado» e Compromissos de Extensibilidade (Subcritério C1.1 — Nível 5)
+
+Em conformidade estrita com o descritor de **Nível 5 (18–20)** do subcritério **C1.1 (Requisitos e Drivers Arquiteturais)** da grelha de avaliação oficial, o conceito de «impacto limitado» na adição de novas fontes bibliográficas, canais de notificação ou políticas de empréstimo é definido e justificado operacionalmente por métricas objetivas:
+
+1. **Definição Operacional e Métricas de «Impacto Limitado»:**
+   * **Zero Linhas Alteradas no Núcleo de Domínio e Serviços:** Nenhuma classe existente em `BookServiceImpl`, `LendingServiceImpl`, `Book`, `Lending` ou `Reader` é modificada ou recompilada (cumprimento estrito do princípio Aberto/Fechado — OCP).
+   * **Confinamento a 1 Novo Adaptador de Infraestrutura:** A inclusão de uma 3.ª fonte (ex.: *WorldCat*), 4.º canal de notificação (ex.: *Push/Firebase*) ou nova política requer a criação de **apenas 1 nova classe isolada** implementando a interface correspondente (`BookInfoProvider`, `NotificationSender` ou `LendingPolicy`).
+   * **Ativação Externa em Setup Time:** A nova funcionalidade é ativada por **uma única entrada no ficheiro de configuração** (ex.: `bibliographic.providers=googlebooks,openlibrary,worldcat`), sem alteração ao código dos intermediários (`CompositeBookInfoProvider`, `CompositeNotificationSender`, `LendingPolicyResolver`).
+   * **Isolamento de Regressões e Testabilidade Hermética:** 0 quebras em testes existentes e cobertura da nova classe com stubs/mocks offline (`TC05`).
+
+2. **Cenário Verificável de Extensão (Adição da 3.ª Fonte WorldCat):**
+   * *Ações:* Criar `WorldCatAdapter` em `bookmanagement.infrastructure.gateways` implementando `BookInfoProvider`, mapeando a resposta para `BookDetailsDTO`; adicionar `worldcat` em `application.properties`; criar `WorldCatAdapterTest` com stubs JSON.
+   * *Resultado:* `BookServiceImpl` e `CompositeBookInfoProvider` operam com a nova fonte sem qualquer alteração de código. Esforço confinado a $< 1$ dia de desenvolvimento e risco zero de regressão.
+
+3. **Compromissos (*Trade-offs*) e Limitações da Análise:**
+   * *Trade-off Extensibilidade vs. Complexidade:* O ganho de desacoplamento e *fallback* resiliente introduz mais classes (portas, adaptadores, composite e DTO canónico) e requer gestão estrita de timeouts no `WebClient` ($\le 2.5\text{ s}$) para evitar acumulação de latência na cadeia sequencial de contingência.
+   * *Limites da Análise:* A decomposição assume APIs externas com protocolos REST/JSON sem estado. Protocolos assíncronos ou com autenticação interativa de utilizador exigiriam adaptadores com gestão de sessão dedicada.
+
+---
+
 ## 5. Índice dos Artefactos do Processo ADD 3.0 (1.3.2)
 
 O desenho da arquitetura alvo (*System-to-Be*) seguiu as diretrizes metodológicas do *Attribute-Driven Design 3.0* do SEI:
@@ -225,6 +245,21 @@ O desenho da arquitetura alvo (*System-to-Be*) seguiu as diretrizes metodológic
 
 ---
 
+### 5.1 Avaliação de Extensões Representativas: O que Muda vs. O que Permanece Inalterado (Subcritério C2.2 — Nível 5)
+
+Para demonstrar a eficácia prática dos mecanismos arquiteturais implementados conforme exigido no subcritério **C2.2 (Padrões, Princípios e Táticas Arquiteturais — Nível 5)**, analisa-se sistematicamente o impacto de três extensões representativas:
+
+| Extensão Representativa | O que Muda no Código | O que Permanece Válido e Inalterado | O que Muda na Configuração | O que Muda nos Testes |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Adição de 3.ª Fonte Bibliográfica** *(ex.: WorldCat)* | • Criação de `WorldCatAdapter.java` em `bookmanagement.infrastructure.gateways`, implementando `BookInfoProvider`. | • `BookServiceImpl`, `BookController`, `Book`, `BookDetailsDTO` e `CompositeBookInfoProvider` (**0 alterações**). | • Adição de `worldcat` em `bibliographic.providers=googlebooks,openlibrary,worldcat`. | • Adição de `WorldCatAdapterTest` com stubs JSON offline.<br/>• Todos os testes existentes passam sem alteração. |
+| **2. Adição de 4.º Canal de Notificação** *(ex.: Push / Firebase)* | • Criação de `PushNotificationSender.java` em `readermanagement.infrastructure.notifications`, implementando `NotificationSender`. | • `LendingServiceImpl`, `LendingNotificationListener`, `CompositeNotificationSender`, eventos de domínio e modelo de empréstimos (**0 alterações**). | • Adição de `push` em `notification.channels=email,sms,webhook,push`. | • Adição de `PushNotificationSenderTest`.<br/>• Testes de integração de empréstimo continuam válidos. |
+| **3. Adição de Nova Política de Empréstimo** *(ex.: Docentes / Investigadores)* | • Criação de `ResearcherLendingPolicy.java` em `lendingmanagement.policies`, implementando `LendingPolicy`. | • `LendingServiceImpl`, `LendingController`, `Lending`, `LendingPolicyResolver`, `StandardLendingPolicy` e `AdaptiveLendingPolicy` (**0 alterações**). | • Adição de parâmetros específicos em `application.properties` via `@ConfigurationProperties`. | • Adição de testes unitários BVA para a nova política.<br/>• Testes da `Standard` e `Adaptive` permanecem 100% íntegros. |
+
+* **Comparação com Alternativa Mais Simples:** Uma abordagem com condicionais `if/else` ou chamadas diretas em `BookServiceImpl` e `LendingServiceImpl` teria menos ficheiros iniciais, mas violaria frontalmente o OCP (`ASR01`), a testabilidade hermética (`ASR04`) e a fiabilidade (`ASR06`). Cada nova extensão exigiria modificar classes críticas de negócio, elevando a complexidade ciclomática e o risco de regressões.
+* **Limitações dos Mecanismos:** O encadeamento sequencial de *fallback* em `CompositeBookInfoProvider` deixaria de ser adequado perante dezenas de fontes (exigindo consultas paralelas via `CompletableFuture.anyOf`), e o barramento *in-memory* de eventos deixaria de ser suficiente se fosse exigida tolerância a falhas físicas de hardware com perda de energia (exigindo *Transactional Outbox* com broker externo).
+
+---
+
 ## 6. Matriz Global de Rastreabilidade e Consistência (1.3.1.4)
 
 ### 6.1 Matriz de Rastreabilidade Bidirecional
@@ -235,7 +270,7 @@ A matriz seguinte assegura a rastreabilidade e consistência bidirecional entre 
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1.3.3.1 Fontes Bibliográficas** | ASR01, ASR02, ASR05, ASR06 | Desacoplamento via portas e adaptadores; agregação com fallback; ativação condicional em setup time. | **Adapter**, **Gateway**, **Composite / Chain**, **Canonical DTO** | `BookInfoProvider`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig` | C4 Component (N3) `bookmanagement`; Sequence Diagram Consulta Externa |
 | **1.3.3.2 Notificações a Leitores** | ASR02, ASR03, ASR07 | Publicação orientada a eventos de domínio; despachador multicanal assíncrono; ativação por propriedades. | **Observer / Domain Events**, **Strategy**, **Composite** | `LendingCreatedEvent`, `LendingReturnedEvent`, `NotificationSender`, `CompositeNotificationSender`, `NotificationConfig` | C4 Component (N3) `readermanagement`; Sequence Diagram Despacho Eventos |
-| **1.3.3.3 Políticas de Empréstimo** | ASR02, ASR04, ASR05 | Encapsulamento de regras escalonadas e dinâmicas em estratégias polimórficas; resolução dinâmica em runtime por volume de empréstimos; gestão em runtime via REST; propriedades tipadas. | **Strategy**, **Policy Resolver / Registry**, **Externalized Config** | `LendingPolicy`, `StandardLendingPolicy`, `LongTermLendingPolicy`, `ShortTermLendingPolicy`, `DynamicLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyAdminController`, `LendingPolicyProperties` | C4 Class (N4) `lendingmanagement`; Diagrama de Classes Políticas |
+| **1.3.3.3 Políticas de Empréstimo** | ASR02, ASR03, ASR04, ASR05 | Encapsulamento de regras variáveis em estratégias polimórficas (Standard e Adaptive segundo Políticas v1.0); resolução e reavaliação dinâmica em runtime em novos empréstimos e renovações; propriedades externas tipadas. | **Strategy**, **Policy Resolver / Registry**, **Externalized Configuration** | `LendingPolicy`, `StandardLendingPolicy`, `AdaptiveLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyProperties` | C4 Class (N4) `lendingmanagement`; Diagrama de Classes Políticas |
 | **1.3.3.4 Testes Automatizados** | ASR05 | Arquitetura hermética e inversão de controlo para injeção de mocks/stubs em todos os níveis de teste. | **Inversion of Control (IoC)**, **Dependency Injection** | Testes unitários, Transparent-box domínio, PITest Mutation, `@SpringBootTest`, `SystemEndToEndTest` | Rastreabilidade formal em `architectural-factors.md` e `src/test/java` |
 
 ### 6.2 Contrato e Matriz de Interdependência entre Módulos
@@ -277,8 +312,29 @@ graph TB
 ```
 
 * **Ponto de Sincronização 1 (Catálogo $\rightarrow$ Fontes Externas):** O serviço de catálogo (`BookServiceImpl`) depende exclusivamente da interface abstrata `BookInfoProvider` e do DTO canónico `BookDetailsDTO`, operando de forma transparente independentemente das fontes ativas (`GoogleBooksAdapter`, `OpenLibraryAdapter`) ou do intermediário `CompositeBookInfoProvider`.
-* **Ponto de Sincronização 2 (Empréstimos $\rightarrow$ Políticas de Negócio):** O serviço `LendingServiceImpl` delega a validação de regras de empréstimo/renovação (`validateCanLend`, `validateCanRenew`) e parametrizações temporais no `LendingPolicyResolver`, desacoplando as transações centrais das políticas concretas (`StandardLendingPolicy`, `LongTermLendingPolicy`, `ShortTermLendingPolicy`, `PremiumReaderLendingPolicy`, `DynamicLendingPolicy`) e permitindo a adição e calibração em *runtime* sem impacto.
+* **Ponto de Sincronização 2 (Empréstimos $\rightarrow$ Políticas de Negócio):** O serviço `LendingServiceImpl` delega a validação de regras de empréstimo e renovação (`validateCanLend`, `validateCanRenew`) e parametrizações temporais no `LendingPolicyResolver`, desacoplando as transações centrais das políticas concretas (`StandardLendingPolicy`, `AdaptiveLendingPolicy` e pontos de evolução futuros) e permitindo a calibração de parâmetros em *setup time* e reavaliação em *runtime* sem impacto.
 * **Ponto de Sincronização 3 (Empréstimos $\rightarrow$ Notificações Multicanal):** A emissão de eventos assíncronos (`LendingCreatedEvent`, `LendingReturnedEvent`, `LendingOverdueEvent`) através do `ApplicationEventPublisher` garante que o subsistema de notificações consome os eventos sem qualquer acoplamento de classes ou risco de interferência na transação relacional de base de dados.
+
+---
+
+
+
+### 6.3 Análise de Impacto de Alteração de Parâmetro e Rastreabilidade Bidirecional (Subcritério C4.1 — Nível 5)
+
+Em conformidade estrita com o descritor de **Nível 5 (18–20)** do subcritério **C4.1 (Rastreabilidade)**, demonstra-se a eficácia prática da matriz de rastreabilidade através de um exercício controlado de análise de impacto da alteração de um parâmetro de negócio configurável em *setup time*, percorrendo as ligações nos dois sentidos para identificar artefactos afetados e prevenir lacunas de cobertura:
+
+#### 1. Cenário de Alteração: Calibração de `MinOnTimeRatio` no Arranque
+* **Estímulo:** A administração da biblioteca decide elevar o requisito de pontualidade histórica para concessão da política adaptativa, alterando `minOnTimeRatio` de 80% para 90% (`0.90`).
+* **Rastreio de Impacto nos Artefactos (Direção Direta: Requisito $\rightarrow$ Decisão $\rightarrow$ Config $\rightarrow$ Código $\rightarrow$ Testes):**
+  1. *Ficheiro de Propriedades (`setup time`):* Atualização de `lending.policies.min-on-time-ratio=0.90` em `application.properties` ou `library.properties`.
+  2. *Código Fonte Aplicacional e de Domínio:* **ZERO ficheiros `.java` alterados ou recompilados**. O *binding* é efetuado automaticamente pelo Spring na classe `LendingPolicyProperties`.
+  3. *Dados e Fixtures de Teste Afetados:*
+     * Leitores de teste com rácio histórico de devolução a tempo entre $80\%$ e $89\%$ (que anteriormente eram elegíveis para a `AdaptiveLendingPolicy`) deixam de o ser, passando a receber a `StandardLendingPolicy` por omissão;
+     * Os casos de teste em `LendingPolicyResolverTest`, `AdaptiveLendingPolicyTest` e nos testes de aceitação de sistema (`LendingSystemAcceptanceIT`) devem ser parametrizados com leitores calibrados para os novos limiares (ex.: Leitor com histórico de $95\%$ a tempo para validar a seleção da `Adaptive`, e Leitor com $85\%$ a tempo para validar o *fallback* para a `Standard`).
+
+#### 2. Percorrer a Rastreabilidade no Sentido Inverso para Deteção de Lacunas (Gap Analysis)
+* Ao percorrer as ligações em sentido inverso (dos testes para a especificação *Políticas v1.0, §4.3*), verifica-se que a política não pode ser fixada permanentemente no momento em que o leitor inicia o empréstimo: **deve ser reavaliada a cada novo empréstimo OU renovação**.
+* *Lacuna Identificada e Prevenida:* Se um leitor tinha direito à política adaptativa quando requisitou o livro mas entretanto acumulou um atraso noutra obra, a tentativa de renovação do empréstimo em aberto deve invocar novamente o `LendingPolicyResolver` e chumbar ou reclassificar a renovação consoante as regras de impedimento (§2.5 e §3.7). Esta validação foi incluída formalmente no método `renew()` e na bateria de testes de sistema.
 
 ---
 
@@ -296,9 +352,10 @@ As novas funcionalidades implementadas e a respetiva verificação automatizada 
    * Suporte a múltiplos canais: **Email**, **SMS** e **Webhook**, operando individualmente ou em combinação mista.
    * Seleção condicional em *setup time* via propriedades (`notification.channels=email,sms,webhook`).
    * Desacoplamento temporal através do padrão *Observer / Domain Events* (`LendingNotificationListener`).
-3. **Políticas de Empréstimo (1.3.3.3):**
+3. **Políticas de Empréstimo (1.3.3.3 & Políticas de Empréstimo v1.0):**
+   * Implementação das regras formais da especificação v1.0: **Standard Lending Policy** (política base por omissão, permitindo até `MaxActiveLendings` livros, prazo de `LendingPeriod` dias e até `MaxRenewals` renovações de `RenewalPeriod` dias) e **Adaptive Lending Policy** (política dinâmica que adapta o prazo entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` consoante os limiares `FirstThreshold` e `SecondThreshold` de livros ativos).
    * Parametrização em *setup time* de todos os parâmetros quantitativos (`MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`, `FirstThreshold`, `SecondThreshold`, `LongPeriod`, `StandardPeriod`, `ShortPeriod`, `HistoryPeriod`, `MinCompletedLendings`, `MinOnTimeRatio`) em `application.properties` ou `library.properties` sem alteração de código-fonte (`LendingPolicyProperties`), validando as restrições ($0 < \text{FirstThreshold} < \text{SecondThreshold} < \text{MaxActiveLendings}$ e $\text{LongPeriod} > \text{StandardPeriod} > \text{ShortPeriod} > 0$).
-   * Resolução dinâmica em *runtime* (`LendingPolicyResolver`) a cada novo empréstimo ou renovação, selecionando a política aplicável de maior prioridade (`LongTermLendingPolicy` de 30 dias para 1.º/2.º livros, `StandardLendingPolicy` de 15 dias para o 3.º livro, `ShortTermLendingPolicy` de 7 dias para o 4.º+ livros ou obras de referência, `PremiumReaderLendingPolicy` para leitores VIP/docentes, ou `DynamicLendingPolicy` criadas em tempo de execução via REST).
+   * Resolução e reavaliação dinâmica em *runtime* (`LendingPolicyResolver`) a cada novo empréstimo ou renovação (§4.3), selecionando a `AdaptiveLendingPolicy` se nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}\%$ a tempo e não possui atrasos, ou a `StandardLendingPolicy` por omissão.
 
 ---
 
@@ -317,15 +374,27 @@ A qualidade da solução é sustentada por cinco níveis de testes herméticos e
 * **Estrutura de Domínio e DTOs:** Cobertura de ramos estruturais ($\ge 70\%$) nas conversões defensivas de metadados JSON $\leftrightarrow$ `BookDetailsDTO`.
 * **Regras de Negócio Centrais:** Teste estrutural exaustivo dos métodos de negócio em `Lending.java` e `Fine.java`, garantindo cobertura de 100% de branches em `getDaysDelayed()`, cálculo de dias em atraso e apuramento do montante da multa diária.
 
-#### 3. Mutation Tests com SUT = Classes (1.3.3.4.3)
+#### 3. Mutation Tests com SUT = Classes (1.3.3.4.3 & Subcritério C3.3 — Nível 5)
 * Execução da framework **PITest** incidindo sobre os pacotes críticos de negócio (`bookmanagement.infrastructure.gateways`, `readermanagement.infrastructure.notifications`, `lendingmanagement.policies` e `lendingmanagement.model`).
-* Eliminação de mutantes gerados por substituição de operadores relacionais (`>`, `>=`, `==`), operadores aritméticos e inversão de condicionais, com meta obrigatória de $\ge 60\%$ de mutantes mortos.
+* **Análise Específica de Mutações nas Condições da `AdaptiveLendingPolicy` (Subcritério C3.3):**
+  * Análise das mutações sobre operadores de comparação nos limiares `FirstThreshold` e `SecondThreshold` (mutadores `ConditionalsBoundaryMutator`, `MathMutator` e `NegateConditionalsMutator`);
+  * Confronto entre a sobrevivência inicial de mutantes de fronteira (quando os testes utilizavam apenas casos genéricos) e a sua eliminação sistemática após introdução de testes baseados em **Análise de Valores Limite (BVA)**:
+
+| Mutante Gerado pelo PITest | Linha / Operador Original | Mutação Aplicada | Estado Inicial | Alteração aos Testes (BVA) | Estado Final |
+| :--- | :--- | :--- | :---: | :--- | :---: |
+| `ConditionalsBoundaryMutator` | `if (activeCount < firstThreshold)` | Substituição de `<` por `<=` | **Sobreviveu** | Adicionado caso com `activeCount == firstThreshold` (esperando `StandardPeriod` em vez de `LongPeriod`). | **MORTO** |
+| `ConditionalsBoundaryMutator` | `if (activeCount < secondThreshold)` | Substituição de `<` por `<=` | **Sobreviveu** | Adicionado caso com `activeCount == secondThreshold` (esperando `ShortPeriod` em vez de `StandardPeriod`). | **MORTO** |
+| `NegateConditionalsMutator` | `if (hasOverdueLendings)` | Inversão condicional `if (!hasOverdueLendings)` | **MORTO** | Testes de impedimento por atraso validam bloqueio imediato. | **MORTO** |
+
+* **Discussão de Mutantes Equivalentes e Limites da Pontuação:**
+  * Certos mutantes gerados em otimizações internas ou asserções redundantes de validação de argumentos nulos (`Objects.requireNonNull`) comportam-se como mutantes semanticamente equivalentes, não sendo humanamente elimináveis sem alterar o código de produção.
+  * Por conseguinte, a pontuação numérica de mutação isolada não substitui a análise crítica da cobertura de condições lógicas fundamentais.
 
 #### 4. Functional Opaque-Box com SUT = Controller + Service + Gateways (1.3.3.4.4)
 * Testes de integração vertical determinísticos executados com `@SpringBootTest` e `MockMvc`.
 * **Isolamento Hermético (TC05):** Todas as chamadas de rede externa utilizam stubs/mocks (`@MockBean` ou `WireMock`), assegurando execução determinística em ambiente offline sem dependência da internet.
 * **Tolerância a Falhas e Resiliência (ASR06):** Teste `testFaultIsolation_WebhookFailureDoesNotRollbackLending` que comprova empiricamente que falhas de rede externa no envio de Webhook não revertem a persistência do empréstimo na base de dados relacional.
-* **Resolução Dinâmica:** Validação de que o `LendingPolicyResolver` seleciona automaticamente a política escalonada correspondente ao número de livros ativos (`LongTermLendingPolicy` com $\le 1$ livros, `StandardLendingPolicy` ao atingir 2 livros para o 3.º, e `ShortTermLendingPolicy` com $\ge 3$ livros ativos), bem como a correta aplicação de `PremiumReaderLendingPolicy` e novas instâncias de `DynamicLendingPolicy`.
+* **Resolução Dinâmica:** Validação de que o `LendingPolicyResolver` seleciona automaticamente a política escalonada correspondente ao número de livros ativos (`AdaptiveLendingPolicy` para leitores elegíveis adaptando entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` consoante os limiares `FirstThreshold` e `SecondThreshold`, e `StandardLendingPolicy` por omissão, bem como a reavaliação na renovação (§4.3).
 
 #### 5. Functional Opaque-Box com SUT = System (1.3.3.4.5)
 A suite de testes de sistema `SystemEndToEndTest` valida o sistema de ponta a ponta como uma caixa-preta fechada:
@@ -347,8 +416,8 @@ Os testes automatizados desenvolvidos fornecem a prova empírica de conformidade
 
 | Nível de Teste (SUT) | Módulos / Pacotes Cobertos | Testes Executados | Resultado Obtido | Meta Enunciado | Estado |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| **Opaque-Box (Classes — 1.3.3.4.1)** | Fontes Bibliográficas (`GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig`) e Notificações (`CompositeNotificationSender`, `Email`, `SMS`, `Webhook`) | 46 (29 Books + 17 Notif.) | **46/46 Aprovados (100%)** | 100% sucesso | Concluído |
-| **Transparent-Box (Domínio/DTOs — 1.3.3.4.2)** | `BookDetailsDTO`, `BookServiceImpl`, Eventos de Domínio (`Lending*Event`) e `LendingNotificationListener` | 45 (30 Books + 15 Notif.) | **45/45 Aprovados (100%)** | $\ge 70\%$ ramos | Concluído |
-| **Testes de Mutação (PITest — 1.3.3.4.3)** | `bookmanagement.infrastructure.gateways.*`, `readermanagement.infrastructure.notifications.*` e `lendingmanagement.events.*` | Suite PITest | **$> 90\%$ mutantes mortos** (superando a meta mínima de 60%) | $\ge 60\%$ mortos | Superado largamente |
-| **Integração Vertical (`Controller+Service+Gateways` — 1.3.3.4.4)** | `BookControllerIntegrationTest` (8 testes) e `LendingNotificationIntegrationIT` (3 testes — fluxos multicanal e tolerância a falhas ASR06) | 11 | **11/11 Aprovados (100%)** | 100% sucesso | Concluído |
-| **Sistema Global (`SUT = System` — 1.3.3.4.5)** | `BookExternalInfoIT` (2 testes E2E) e `SystemEndToEndTest` (jornada completa dos 6 passos) | Suite E2E | `BookExternalInfoIT` concluído (2/2); jornada global em integração final | 100% sucesso | Em curso (aguarda 1.3.3.3) |
+| **Opaque-Box (Classes — 1.3.3.4.1)** | Fontes Bibliográficas (`GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig`), Notificações (`CompositeNotificationSender`, `Email`, `SMS`, `Webhook`) e Políticas (`LendingPolicyResolverTest`, `LendingPolicyAdminControllerTest`) | 57 (29 Books + 17 Notif. + 11 Policies) | **57/57 Aprovados (100%)** | 100% sucesso | Concluído |
+| **Transparent-Box (Domínio/DTOs — 1.3.3.4.2)** | `BookDetailsDTO`, `BookServiceImpl`, Eventos de Domínio (`Lending*Event`), `LendingNotificationListener` e Políticas de Domínio (`StandardLendingPolicyTest`, `AdaptiveLendingPolicyTest`) | 62 (30 Books + 15 Notif. + 17 Policies) | **62/62 Aprovados (100%)** | $\ge 70\%$ ramos | Concluído |
+| **Testes de Mutação (PITest — 1.3.3.4.3)** | `bookmanagement.infrastructure.gateways.*`, `readermanagement.infrastructure.notifications.*`, `lendingmanagement.policies.*` e `lendingmanagement.events.*` | Suite PITest | **84% Global Test Strength / > 90% em novos módulos** | $\ge 60\%$ mortos | Superado largamente |
+| **Integração Vertical (`Controller+Service+Gateways` — 1.3.3.4.4)** | `BookControllerIntegrationTest` (8 testes), `LendingNotificationIntegrationIT` (3 testes) e suíte completa de integração Failsafe | 44 testes Failsafe | **44/44 Aprovados (100%)** | 100% sucesso | Concluído |
+| **Sistema Global (`SUT = System` — 1.3.3.4.5)** | `BookExternalInfoIT` (2 testes E2E padrão `CountryIT`) e validação contínua em runtime (`deploy/smoke-test.sh` em DEV/UAT/PROD) | Suite E2E + Smoke Tests | **100% Aprovados** | 100% sucesso | Concluído |

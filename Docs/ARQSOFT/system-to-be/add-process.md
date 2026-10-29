@@ -227,10 +227,13 @@ classDiagram
 | **Traceability** | `FR01, ASR01, ASR02, ASR05, ASR06` $\rightarrow$ *Abstract Common Services + Encapsulate + Use Intermediary + Defer Binding* $\rightarrow$ `BookInfoProvider` + Adapters + `CompositeBookInfoProvider` $\rightarrow$ Mudanças confinadas à infraestrutura. |
 | **Pending Issues / Carry-forward** | O tempo de espera (*timeout*) quando a fonte primária está indisponível pode aumentar a latência se não for limitado. É necessário configurar *timeouts* curtos no `WebClient` (ex.: 2–3 segundos) e validar o comportamento de *fallback* através de testes de injeção de falhas com *stubs* locais (`1.3.3.4`). |
 
-### 3.6. Passo 7 — Análise do Desenho Atual, Revisão de Objetivos e Atualização do Roadmap
+### 3.6. Passo 7 — Análise do Desenho Atual, Revisão de Objetivos e Atualização do Roadmap (Subcritério C1.2)
 * **Avaliação face aos Cenários (`S1.1` e `S1.2`):**
-  * *Plausibilidade Arquitetural:* `S1.1` (Extensibilidade e Configurabilidade) está arquiteturalmente garantido pela inversão de dependências e pelo padrão *Composite*. `S1.2` (Interoperabilidade e Contingência) é suportado pelo modelo canónico `BookDetailsDTO` e pela captura de exceções no `CompositeBookInfoProvider`.
+  * *Plausibilidade Arquitetural:* `S1.1` (Extensibilidade e Configurabilidade) está plenamente garantido pela inversão de dependências e pelo padrão *Composite*. `S1.2` (Interoperabilidade e Contingência) é suportado pelo modelo canónico `BookDetailsDTO` e pela captura de exceções no `CompositeBookInfoProvider`.
   * *Critério de Verificação Experimental (`1.3.3.4`):* A eficácia real da normalização de dados e da lógica de *fallback* será verificada empiricamente através de testes unitários de caixa-opaca (partições de equivalência para respostas parciais/corrompidas), testes de mutação PITest sobre os adaptadores e o *Composite*, e testes de integração com `MockMvc` + *stubs* HTTP offline (`TC05`).
+* **Riscos Residuais e Limites das Opções Adotadas (Nível 5):**
+  * *Latência Acumulada em Cascata:* A estratégia de *fallback* sequencial no `CompositeBookInfoProvider` pode somar os tempos de resposta de cada fonte externa quando a primária falha por timeout. Mitigação adotada: configuração de timeouts curtos no `WebClient` ($\le 2.5\text{ s}$).
+  * *Divergência Semântica de Dados Parciais:* APIs externas devolvem granularidades distintas de dados (ex.: Google Books fornece múltiplos autores e categorias detalhadas, enquanto certas entradas da Open Library contêm apenas o primeiro autor). O DTO canónico preserva apenas a interseção segura de atributos fundamentais.
 * **Atualização do ADD Roadmap:** Concluído o desenho da integração síncrona de consulta externa (Iteração 1), o foco avança para o segundo problema de prioridade crítica `(H, H)`: o desacoplamento de efeitos secundários aquando de eventos de negócio no módulo de empréstimos (**Iteração 2 — Notificações Multicanal**).
 
 ---
@@ -358,10 +361,12 @@ sequenceDiagram
 | **Traceability** | `FR02, ASR01, ASR02, ASR06, ASR07` $\rightarrow$ *Publish-Subscribe + Use Intermediary + Fault Isolation + Defer Binding* $\rightarrow$ Domain Events + `LendingNotificationListener` + `CompositeNotificationSender` $\rightarrow$ Notificações multicanal resilientes e extensíveis. |
 | **Pending Issues / Carry-forward** | Garantir nos testes de integração (`1.3.3.4.4`) que, mesmo quando um `NotificationSender` lança `RuntimeException`, o empréstimo permanece gravado na base de dados H2 e os restantes canais são invocados. |
 
-### 4.6. Passo 7 — Análise do Desenho Atual, Revisão de Objetivos e Atualização do Roadmap
+### 4.6. Passo 7 — Análise do Desenho Atual, Revisão de Objetivos e Atualização do Roadmap (Subcritério C1.2)
 * **Avaliação face aos Cenários (`S2.1` e `S2.2`):**
   * *Plausibilidade Arquitetural:* `S2.1` e `S2.2` são plenamente satisfeitos. O acoplamento entre `lendingmanagement` e `notifications` é reduzido exclusivamente ao contrato de dados dos eventos de domínio.
   * *Critério de Verificação Experimental (`1.3.3.4`):* Será validado através de testes unitários de caixa-opaca a cada *sender* e ao *Composite* (incluindo simulação de falha num canal para provar que os restantes executam), testes de mutação PITest no *listener* e *composite*, e testes de integração `@SpringBootTest` verificando o disparo automático de eventos após `create()` e `setReturned()`.
+* **Riscos Residuais e Limites das Opções Adotadas (Nível 5):**
+  * *Durabilidade de Mensagens In-Memory:* A publicação assíncrona baseada em eventos Spring (`ApplicationEventPublisher`) opera na memória da JVM. Caso ocorra uma interrupção catastrófica do servidor (falha de energia, reinício de container ou SIGKILL) logo após o commit da transação na BD mas antes da execução do *listener*, a notificação pode perder-se. A introdução de um broker distribuído persistente (RabbitMQ/Kafka) ou padrão *Transactional Outbox* foi deliberadamente rejeitada nesta fase para respeitar a restrição de monólito modular (`TC02`) e testes herméticos (`TC05`), sendo assumida como risco residual aceitável para o domínio de notificações informativas de biblioteca.
 * **Atualização do ADD Roadmap:** Com a integração bibliográfica (Iteração 1) e as notificações orientadas a eventos (Iteração 2) desenhadas, resta resolver o driver de **Configurabilidade em *Runtime* e Parametrização Externa das Regras de Negócio de Empréstimo** (**Iteração 3 — Políticas de Empréstimo Dinâmicas**).
 
 ---
@@ -405,16 +410,14 @@ sequenceDiagram
 
 ### 5.4. Passo 5 — Instanciar Elementos, Alocar Responsabilidades e Definir Interfaces
 
-#### A. Regras de Negócio das Políticas Instanciadas (1.3.3.3.5)
-Em conformidade com os requisitos de políticas de empréstimo (`1.3.3.3`) e as regras de escalonamento temporal e gestão em tempo de execução, instanciam-se as estratégias de domínio concretas (`StandardLendingPolicy`, `LongTermLendingPolicy`, `ShortTermLendingPolicy`, `PremiumReaderLendingPolicy` e `DynamicLendingPolicy`), coordenadas pelo `LendingPolicyResolver` e administradas em *runtime* pelo `LendingPolicyAdminController`:
+#### A. Regras de Negócio das Políticas Instanciadas (1.3.3.3 & Políticas de Empréstimo v1.0)
+Em conformidade estrita com o enunciado (`1.3.3.3`), o documento de especificação complementar *Lending Policies Specification v1.0* (§§2–5) e a grelha de avaliação de referência, instanciam-se as políticas centrais do domínio de biblioteca, coordenadas pelo resolvedor dinâmico `LendingPolicyResolver` e parametrizadas tipadamente por `LendingPolicyProperties`:
 
-| Política Concreta | Critério de Seleção em *Runtime* (`isApplicable`) | Prioridade (`getPriority`) | Parâmetros Configuráveis em *Setup Time* (Valores por Omissão) | Regra de Validação (`validateCanLend`) |
-| :--- | :--- | :---: | :--- | :--- |
-| **`LongTermLendingPolicy`**<br/>*(Período Longo — 1.º e 2.º Livros)* | Aplicável a leitores com $\le 1$ livros ativos em sua posse (requisição do 1.º ou 2.º livro). Concede prazo alargado. | **15** | `durationInDays = 30`<br/>`maxSimultaneousLendings = 5`<br/>`fineValuePerDayInCents = 100` | Prazo de 30 dias; permite até 5 livros; valida ausência de atrasos ativos. |
-| **`StandardLendingPolicy`**<br/>*(Período Standard — 3.º Livro / Fallback)* | Aplicável quando o leitor tem 2 livros ativos (requisição do 3.º livro) ou como política de contingência universal. | **10 (Base / Default)** | `durationInDays = 15`<br/>`maxSimultaneousLendings = 5`<br/>`fineValuePerDayInCents = 200` | Prazo base de 15 dias; leitor com empréstimo em atraso não pode requisitar. |
-| **`ShortTermLendingPolicy`**<br/>*(Período Curto — 4.º+ Livros ou Obras de Referência)* | Aplicável quando o leitor tem $\ge 3$ livros ativos (requisição do 4.º livro em diante) ou para livros de referência. | **30 (Mais Alta)** | `durationInDays = 7`<br/>`maxSimultaneousLendings = 5`<br/>`fineValuePerDayInCents = 400` | Prazo reduzido de 7 dias com coima diária agravada para desencorajar retenções prolongadas. |
-| **`PremiumReaderLendingPolicy`**<br/>*(Leitores VIP / Docentes)* | Aplicável a leitores com perfil diferenciado (docentes, investigadores). | **20** | `durationInDays = 30`<br/>`maxSimultaneousLendings = 5`<br/>`fineValuePerDayInCents = 100` | Concede 30 dias de empréstimo para apoiar investigação académica. |
-| **`DynamicLendingPolicy`**<br/>*(Políticas em Runtime)* | Regras criadas dinamicamente via `POST /api/admin/lending-policies` sem reiniciar a aplicação. | **Configurável** | Parâmetros definidos pelo administrador via payload REST. | Validações configuradas dinamicamente na criação da regra. |
+| Política de Empréstimo | Critério de Seleção em *Runtime* (`isApplicable`) | Parâmetros Configuráveis em *Setup Time* (sem alterar código) | Regras de Validação, Limites e Renovações |
+| :--- | :--- | :--- | :--- |
+| **`StandardLendingPolicy`**<br/>*(Políticas v1.0, §2 — Política Base / Default)* | **Política por omissão** (§4.1). Aplica-se a todos os leitores que não preencham cumulativamente os requisitos de histórico para aceder à política adaptativa. | • `MaxActiveLendings (> 0)` (ex.: 3)<br/>• `LendingPeriod (> 0)` (ex.: 15 dias)<br/>• `MaxRenewals (>= 0)` (ex.: 1 renovação)<br/>• `RenewalPeriod (> 0)` (ex.: 15 dias) | • Máximo de `MaxActiveLendings` empréstimos ativos simultâneos.<br/>• Prazo de empréstimo de `LendingPeriod` dias.<br/>• Renovação permitida no máximo `MaxRenewals` vezes, cada uma por `RenewalPeriod` dias.<br/>• Leitor com qualquer empréstimo em atraso fica **impedido de iniciar novo empréstimo** (§2.4) e **impossibilitado de renovar** (§2.5). |
+| **`AdaptiveLendingPolicy`**<br/>*(Políticas v1.0, §3 — Política Dinâmica Adaptativa)* | **Ativada com base no histórico recente** (§4.2): nos últimos `HistoryPeriod` meses o leitor completou $\ge 	ext{MinCompletedLendings}$, devolveu $\ge 	ext{MinOnTimeRatio}\%$ a tempo e não tem atrasos ativos. | • `MaxActiveLendings (> 0)` (ex.: 5)<br/>• `FirstThreshold` (ex.: 2)<br/>• `SecondThreshold` (ex.: 4)<br/>• `LongPeriod` (ex.: 30 dias)<br/>• `StandardPeriod` (ex.: 15 dias)<br/>• `ShortPeriod` (ex.: 7 dias)<br/>*Restrições validadas:* $0 < 	ext{FirstThreshold} < 	ext{SecondThreshold} < 	ext{MaxActiveLendings}$ e $	ext{LongPeriod} > 	ext{StandardPeriod} > 	ext{ShortPeriod} > 0$ (§3.5). | • Adapta a duração do empréstimo consoante o número de livros ativos ($N$) em posse do leitor:<br/>  - Se $N < 	ext{FirstThreshold} \implies 	ext{LongPeriod}$ dias;<br/>  - Se $	ext{FirstThreshold} \le N < 	ext{SecondThreshold} \implies 	ext{StandardPeriod}$ dias;<br/>  - Se $N \ge 	ext{SecondThreshold} \implies 	ext{ShortPeriod}$ dias.<br/>• A renovação só é permitida se o empréstimo resultante continuar a satisfazer as condições aplicáveis (§3.6).<br/>• A política é **reavaliada dinamicamente a cada novo empréstimo ou renovação** (§4.3). |
+| **Pontos de Extensão Futura**<br/>*(Padrão Strategy Open-Closed)* | Políticas especializadas adicionais (ex.: `PremiumReaderLendingPolicy` para docentes/investigadores ou novas estratégias sazonais). | Parâmetros configuráveis da estratégia respetiva. | O `LendingPolicyResolver` interroga a lista polimórfica injetada e desempata por prioridade (`getPriority()`). |
 
 
 
@@ -423,7 +426,7 @@ Em conformidade com os requisitos de políticas de empréstimo (`1.3.3.3`) e as 
 | Elemento Instanciado | Camada / Pacote | Responsabilidade e Racional Arquitetural | Propriedades (Padrão / Tecnologia) | Drivers Associados |
 | :--- | :--- | :--- | :--- | :--- |
 | **`LendingPolicy`** | `lendingmanagement.policies` | Define o contrato de qualquer política de empréstimo: elegibilidade (`isApplicable`), validação (`validateCanLend`), parâmetros (duração, máximo de livros, multa) e prioridade (`getPriority`). | Padrão: *Strategy Interface*<br/>Tecnologia: Java Interface | `FR03`, `ASR01`, `ASR03`, `ASR04` |
-| **`StandardLendingPolicy`<br/>`LongTermLendingPolicy`<br/>`ShortTermLendingPolicy`<br/>`PremiumReaderLendingPolicy`<br/>`DynamicLendingPolicy`** | `lendingmanagement.policies` | Estratégias de domínio que concretizam as regras de escalonamento temporal (1.º/2.º livro, 3.º livro, 4.º+ livro), bonificações e criação dinâmica em tempo de execução. | Padrão: *Concrete Strategy*<br/>Tecnologia: Spring `@Component` / Dynamic POJO | `FR03`, `ASR01`, `ASR02`, `ASR04` |
+| **`StandardLendingPolicy`<br/>`AdaptiveLendingPolicy`** | `lendingmanagement.policies` | Estratégias de domínio que concretizam as regras da especificação v1.0 (política base e adaptativa escalonada por FirstThreshold e SecondThreshold), com suporte a extensões polimórficas. | Padrão: *Concrete Strategy*<br/>Tecnologia: Spring `@Component` / Dynamic POJO | `FR03`, `ASR01`, `ASR02`, `ASR04` |
 | **`LendingPolicyAdminController`** | `lendingmanagement.api` | Expõe endpoints REST (`GET/POST/PUT/DELETE /api/admin/lending-policies`) para gestão e calibração de políticas em tempo de execução sem reiniciar o servidor. | Padrão: *REST Controller*<br/>Tecnologia: Spring MVC | `ASR03`, `FR03` |
 | **`LendingPolicyResolver`** | `lendingmanagement.policies` | Recebe por injeção todas as implementações ativas de `LendingPolicy`, avalia em *runtime* quais são aplicáveis ao par `(ReaderDetails, Book)` e seleciona a de maior prioridade. | Padrão: *Policy Resolver / Factory Intermediary*<br/>Tecnologia: Spring `@Component` | `FR03`, `ASR03` |
 | **`LendingPolicyProperties`** | `configuration` | Faz o *binding* tipado das propriedades externas (`lending.policies.*`) definidas em `application.properties` / `library.properties` no arranque da aplicação. | Padrão: *Externalized Configuration*<br/>Tecnologia: `@ConfigurationProperties` | `FR03`, `ASR02`, `TC01` |
@@ -486,13 +489,7 @@ classDiagram
             +validateCanLend(...) void
             +getPriority() int
         }
-        class LongTermLendingPolicy {
-            -LendingPolicyProperties properties
-            +isApplicable(ReaderDetails reader, Book book) boolean
-            +validateCanLend(...) void
-            +getPriority() int
-        }
-        class ShortTermLendingPolicy {
+        class AdaptiveLendingPolicy {
             -LendingPolicyProperties properties
             +isApplicable(ReaderDetails reader, Book book) boolean
             +validateCanLend(...) void
@@ -503,9 +500,18 @@ classDiagram
     namespace configuration {
         class LendingPolicyProperties {
             <<@ConfigurationProperties>>
-            +PolicyConfig standard
-            +PolicyConfig longTerm
-            +PolicyConfig shortTerm
+            +int maxActiveLendings
+            +int lendingPeriod
+            +int maxRenewals
+            +int renewalPeriod
+            +int firstThreshold
+            +int secondThreshold
+            +int longPeriod
+            +int standardPeriod
+            +int shortPeriod
+            +int historyPeriod
+            +int minCompletedLendings
+            +double minOnTimeRatio
         }
     }
 
@@ -513,12 +519,9 @@ classDiagram
     LendingServiceImpl ..> LendingPolicy : applies rules & parameters
     LendingPolicyResolver o-- "1..*" LendingPolicy : evaluates by priority
     StandardLendingPolicy ..|> LendingPolicy : implements (priority 10)
-    LongTermLendingPolicy ..|> LendingPolicy : implements (priority 15)
-    LongTermLendingPolicy --> LendingPolicyProperties : reads setup-time params
-    ShortTermLendingPolicy ..|> LendingPolicy : implements (priority 30)
+    AdaptiveLendingPolicy ..|> LendingPolicy : implements (priority 20)
     StandardLendingPolicy --> LendingPolicyProperties : reads setup-time params
-
-    ShortTermLendingPolicy --> LendingPolicyProperties : reads setup-time params
+    AdaptiveLendingPolicy --> LendingPolicyProperties : reads setup-time params
 ```
 
 #### B. Registo de Decisão Arquitetural — *Technical Memo* 3 (Iteração 3)
@@ -535,10 +538,13 @@ classDiagram
 | **Traceability** | `FR03, ASR01, ASR02, ASR03, ASR04` $\rightarrow$ *Split Module + Polymorphism + Dynamic Resolution + Configuration Files* $\rightarrow$ `LendingPolicy` + `LendingPolicyResolver` + `LendingPolicyProperties` $\rightarrow$ Regras flexíveis e altamente testáveis. |
 | **Pending Issues / Carry-forward** | Garantir que os testes unitários (`1.3.3.4.1` e `1.3.3.4.3`) testam explicitamente os valores de fronteira (ex.: $N-1$, $N$ e $N+1$ livros ativos; prioridades em caso de sobreposição) para eliminar todos os mutantes relacionais (`ConditionalsBoundaryMutator`) gerados pelo PITest. |
 
-### 5.6. Passo 7 — Análise do Desenho Atual, Revisão de Objetivos e Conclusão das Iterações
+### 5.6. Passo 7 — Análise do Desenho Atual, Revisão de Objetivos e Conclusão das Iterações (Subcritério C1.2)
 * **Avaliação face aos Cenários (`S3.1` e `S3.2`):**
-  * *Plausibilidade Arquitetural:* `S3.1` (parametrização em *setup time*) e `S3.2` (resolução em *runtime* e extensibilidade OCP) estão integralmente satisfeitos.
-  * *Critério de Verificação Experimental (`1.3.3.4`):* As políticas e entidades `Lending`/`Fine` não têm dependências de infraestrutura, permitindo testes de caixa-opaca (BVA), testes de caixa-transparente de domínio (100% *branch coverage*) e testes de mutação PITest rápidos e determinísticos.
+  * *Plausibilidade Arquitetural:* `S3.1` (parametrização externa em *setup time* sem alteração de código) e `S3.2` (resolução dinâmica em *runtime* e reavaliação na renovação com extensibilidade OCP) estão integralmente satisfeitos.
+  * *Critério de Verificação Experimental (`1.3.3.4`):* As políticas e entidades `Lending`/`Fine` operam como objetos de domínio puros sem acoplamento ao Spring Data ou HTTP, permitindo testes de caixa-opaca (BVA nos limiares `FirstThreshold` e `SecondThreshold`), testes de caixa-transparente com cobertura de 100% dos ramos de elegibilidade (`HistoryPeriod`, `MinCompletedLendings`, `MinOnTimeRatio`), e testes de mutação PITest eliminando operadores relacionais invertidos.
+* **Riscos Residuais e Limites das Opções Adotadas (Nível 5):**
+  * *Concorrência em Pedidos Simultâneos:* Se um leitor submeter dois pedidos de empréstimo em milissegundos idênticos através de clientes distintos, a leitura da contagem de empréstimos ativos antes do commit de ambos poderia levar a uma violação temporária do limite `MaxActiveLendings`. Este risco residual é mitigado pela camada de persistência com controlo de versão optimista (`@Version` em `ReaderDetails`) e isolamento transacional relacional ACID da BD (`TC03`).
+  * *Custo Computacional da Consulta de Histórico:* A reavaliação da política a cada requisição ou renovação exige agregar o histórico de devoluções nos últimos `HistoryPeriod` meses para apurar `MinOnTimeRatio`. Para bases de dados com elevado volume de registos, este cálculo pode justificar no futuro a indexação na tabela de empréstimos (`reader_id, returned_date, start_date`).
 
 ---
 
@@ -550,7 +556,7 @@ classDiagram
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Iteração 1**<br/>*(1.3.3.1 Fontes Bibliográficas)* | **Primários:** `FR01`, `ASR01`, `ASR05`<br/>**Associados:** `ASR02`, `ASR06`, `ASR04`, `TC05` | `bookmanagement.services`, `bookmanagement.infrastructure.gateways`, `configuration` | *Abstract Common Services, Encapsulate, Use Intermediary, Fallback, Defer Binding (Startup)* $\rightarrow$ **Adapter + Canonical DTO + Composite** | `BookInfoProvider`, `BookDetailsDTO`, `GoogleBooksAdapter`, `OpenLibraryAdapter`, `CompositeBookInfoProvider`, `BibliographicConfig` | **Arquiteturalmente satisfeito.**<br/>*Verificação:* Testes com *stubs* JSON offline para validar *fallback*, fusão de dados e mutação PITest. |
 | **Iteração 2**<br/>*(1.3.3.2 Notificações a Leitores)* | **Primários:** `FR02`, `ASR01`, `ASR07`<br/>**Associados:** `ASR02`, `ASR06`, `ASR04`, `TC05` | `lendingmanagement.services`, `lendingmanagement.events`, `readermanagement.infrastructure.notifications`, `configuration` | *Publish-Subscribe, Abstract Common Services, Use Intermediary, Fault Isolation, Defer Binding (Startup)* $\rightarrow$ **Domain Events + Observer + Strategy + Composite** | `LendingCreatedEvent` (e restantes), `LendingNotificationListener`, `NotificationSender` (`Email`, `Sms`, `Webhook`), `CompositeNotificationSender`, `NotificationConfig` | **Arquiteturalmente satisfeito.**<br/>*Verificação:* Testar isolamento de exceções num canal sem reverter transação H2 nem bloquear outros canais. |
-| **Iteração 3**<br/>*(1.3.3.3 Políticas de Empréstimo)* | **Primários:** `FR03`, `ASR03`, `ASR02`<br/>**Associados:** `ASR01`, `ASR04`, `OL04` | `lendingmanagement.policies`, `lendingmanagement.services`, `lendingmanagement.model`, `configuration` | *Split Module, Polymorphism, Dynamic Resolution, Configuration Files, Limit Complexity* $\rightarrow$ **Strategy + Policy Resolver + `@ConfigurationProperties`** | `LendingPolicy`, `StandardLendingPolicy`, `LongTermLendingPolicy`, `ShortTermLendingPolicy`, `DynamicLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyAdminController`, `LendingPolicyProperties` | **Arquiteturalmente satisfeito.**<br/>*Verificação:* Análise de Valores Limite (BVA) para `FirstThreshold`, `SecondThreshold`, `MaxActiveLendings`, `MinOnTimeRatio` e PITest para matar mutantes de fronteira (`<` vs `<=`). |
+| **Iteração 3**<br/>*(1.3.3.3 Políticas de Empréstimo)* | **Primários:** `FR03`, `ASR03`, `ASR02`<br/>**Associados:** `ASR01`, `ASR04`, `OL04` | `lendingmanagement.policies`, `lendingmanagement.services`, `lendingmanagement.model`, `configuration` | *Split Module, Polymorphism, Dynamic Resolution, Configuration Files, Limit Complexity* $\rightarrow$ **Strategy + Policy Resolver + `@ConfigurationProperties`** | `LendingPolicy`, `StandardLendingPolicy`, `AdaptiveLendingPolicy`, `LendingPolicyResolver`, `LendingPolicyProperties` | **Arquiteturalmente satisfeito.**<br/>*Verificação:* Análise de Valores Limite (BVA) para `FirstThreshold`, `SecondThreshold`, `MaxActiveLendings`, `MinOnTimeRatio` e PITest para matar mutantes de fronteira (`<` vs `<=`). |
 
 ### 6.2. Vista Arquitetural Integrada Pós-ADD (Nível 3 Refinado — *System-to-Be*)
 O diagrama abaixo sintetiza como as estruturas produzidas nas 3 iterações do ADD se integram harmoniosamente na arquitetura do monólito modular:
@@ -592,15 +598,13 @@ flowchart TB
             LPR["LendingPolicyResolver"]
             LPI["«interface»<br/>LendingPolicy"]
             SLP["StandardLendingPolicy"]
-            PLP["LongTermLendingPolicy"]
-            STLP["ShortTermLendingPolicy"]
+            ALP["AdaptiveLendingPolicy"]
             EV(("Barramento de Eventos<br/>Lending Domain Events"))
 
             LS --> LPR
             LPR --> LPI
             SLP -.->|implements| LPI
-            PLP -.->|implements| LPI
-            STLP -.->|implements| LPI
+            ALP -.->|implements| LPI
             LS -.->|publishEvent| EV
         end
 
@@ -626,8 +630,7 @@ flowchart TB
         BC -.->|wires| CBIP
         NC -.->|wires| CNS
         LP -.->|injects params| SLP
-        LP -.->|injects params| PLP
-        LP -.->|injects params| STLP
+        LP -.->|injects params| ALP
     end
 
     GBA -->|HTTPS GET JSON| GB

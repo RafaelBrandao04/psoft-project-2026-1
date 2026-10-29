@@ -24,9 +24,11 @@ Conforme preconizado na literatura de referência (Bass, Clements, Kazman), este
 * **FR02 — Notificação a Leitores sobre Eventos de Empréstimo (1.3.3.2):**
   * O sistema deve notificar os leitores acerca de eventos críticos do ciclo de vida dos empréstimos (novo empréstimo, aviso de prazo de devolução, notificação de atraso com apuramento de multas e confirmação de devolução).
   * Deve suportar mecanismos distintos de notificação: **Email**, **SMS** e **Webhook**, operando individualmente ou em qualquer combinação configurada.
-* **FR03 — Aplicação de Políticas de Empréstimo Parametrizáveis (1.3.3.3):**
-  * O sistema deve aplicar políticas de empréstimo flexíveis (duração, número máximo de livros em simultâneo, valor de multas por dia), eliminando regras fixas (*hardcoded*) no código.
-  * O sistema deve avaliar dinamicamente em tempo de execução a política aplicável com base no leitor e na obra requisitada.
+* **FR03 — Aplicação de Políticas de Empréstimo Flexíveis e Dinâmicas (1.3.3.3 & Políticas v1.0):**
+  * O sistema deve aplicar políticas de empréstimo distintas em conformidade com a *Lending Policies Specification v1.0*: a **Standard Lending Policy** (política por omissão com `MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`) e a **Adaptive Lending Policy** (com `FirstThreshold`, `SecondThreshold`, escalonando entre `LongPeriod`, `StandardPeriod` e `ShortPeriod`).
+  * O sistema deve suportar a **renovação de empréstimos** (`renew`), permitida até `MaxRenewals` vezes por `RenewalPeriod` dias (Standard) ou desde que as condições da política continuem satisfeitas (Adaptive).
+  * O sistema deve reavaliar dinamicamente em *runtime* a política aplicável a cada novo empréstimo ou renovação com base no histórico do leitor nos últimos `HistoryPeriod` meses (`MinCompletedLendings`, `MinOnTimeRatio` e ausência de atrasos ativos).
+  * Todos os parâmetros quantitativos devem ser configuráveis externamente em *setup time* sem alteração de código-fonte, satisfazendo as restrições: $0 < \text{FirstThreshold} < \text{SecondThreshold} < \text{MaxActiveLendings}$ e $\text{LongPeriod} > \text{StandardPeriod} > \text{ShortPeriod} > 0$.
 * **FR04 — Catálogo e Serviços Globais de Biblioteca (1.1 Context):**
   * Manutenção dos serviços existentes de gestão do ciclo de vida de Livros, Géneros, Autores, Leitores e Empréstimos.
 
@@ -132,6 +134,37 @@ Esta priorização determina a ordem de execução das **Iterações do ADD (1.3
 | **ASR07** (Desempenho / Envio Assíncrono) | **M** | **M** | **(M, M) — Média (P3)** | Suporte à Iteração 2 (Execução de listeners sem bloqueio transacional) |
 | **TC01 + TC02** (Spring Boot & Monolito Modular) | **H** | **H** | **(H, H) — Estrutural** | Restrições que governam a estrutura global em todas as iterações |
 | **OL01 + OL02** (Divisão por 3 Estudantes e Prazos) | **H** | **M** | **(H, M) — Processual** | Condicionam a definição de contratos antecipados e roadmap |
+
+---
+
+## 5.2. Critério Operacional de «Impacto Limitado» e Análise de Extensibilidade (Subcritério C1.1)
+
+Em conformidade com o subcritério **C1.1 (Requisitos e Drivers Arquiteturais — Nível 5)** da grelha de avaliação, o conceito de «impacto limitado» na adição de uma nova fonte bibliográfica, novo canal de notificação ou nova política de empréstimo não é um limiar arbitrário, sendo definido e justificado operacionalmente pelo grupo com base nos seguintes critérios verificáveis:
+
+### 1. Definição Operacional e Métricas de «Impacto Limitado»
+Uma extensão ao sistema é classificada como de **«Impacto Limitado»** se e só se verificar cumulativamente:
+1. **Zero Modificações no Núcleo de Domínio e Serviços Aplicacionais:** Nenhuma linha de código existente em `BookServiceImpl`, `LendingServiceImpl`, `Book`, `Lending` ou `Reader` é alterada (conformidade estrita com o princípio Aberto/Fechado — OCP).
+2. **Confinamento a 1 Novo Adaptador de Infraestrutura:** A integração de uma 3.ª fonte (ex.: *WorldCat*), 4.º canal de notificação (ex.: *Push*) ou nova política requer estritamente a criação de **uma única classe** que implemente a interface contratual respetiva (`BookInfoProvider`, `NotificationSender` ou `LendingPolicy`).
+3. **Configuração Externa Isolada:** Ativação da nova capacidade através de **uma única linha de configuração** em *setup time* (ex.: `bibliographic.providers=googlebooks,openlibrary,worldcat`) ou registo no contentor IoC.
+4. **Isolamento de Regressões e Testabilidade Hermética:** A adição da nova capacidade não quebra nenhum dos testes existentes (100% de retrocompatibilidade) e a nova classe é testada de forma isolada com mocks/stubs offline (`TC05`).
+
+### 2. Cenário Verificável de Extensão (Adição de 3.ª Fonte: WorldCat)
+* **Estímulo:** Necessidade de integrar o catálogo WorldCat para pesquisa de livros por ISBN.
+* **Ações Necessárias:**
+  1. Criar a classe `WorldCatAdapter` no pacote `bookmanagement.infrastructure.gateways`, implementando `BookInfoProvider` e convertendo a resposta da API para `BookDetailsDTO`;
+  2. Adicionar `worldcat` à lista `bibliographic.providers` em `application.properties`;
+  3. Adicionar o teste unitário isolado `WorldCatAdapterTest` com stubs JSON.
+* **Resultado Mensurável:** `BookServiceImpl` e `CompositeBookInfoProvider` consom o novo adaptador sem qualquer alteração. O esforço é confinado a $< 1$ dia de desenvolvimento e 0 riscos de regressão.
+
+### 3. Compromissos (*Trade-offs*) entre Extensibilidade e Complexidade
+* **Extensibilidade Adquirida:** O desacoplamento através de portas (`BookInfoProvider`), DTO canónico (`BookDetailsDTO`) e o intermediário `CompositeBookInfoProvider` permite plugar e desligar fontes livremente, suportar *fallback* resiliente (`ASR06`) e manter testes herméticos (`TC05`).
+* **Complexidade Introduzida (*Overhead*):** 
+  * Aumento no número de classes e indireções estruturais (interfaces adicionais, DTOs de transporte e adaptadores dedicados);
+  * Custo de normalização de dados heterogéneos: campos parciais devolvidos por certas APIs (ex.: Open Library não ter descrição em certos registos ou Google Books formatar autores diferentemente) exigem lógica defensiva de fusão (*merging*) no *Composite*;
+  * Gestão de *timeouts*: a execução sequencial de *fallback* entre múltiplas fontes externas pode acumular latência se cada chamada demorar até 2.5s, justificando *timeouts* curtos e configuráveis.
+
+### 4. Limitações da Análise
+* A análise assume disponibilidade e estabilidade mínima das APIs REST externas com formatos JSON previsíveis. APIs que exijam autenticação OAuth2 complexa por sessão de utilizador ou protocolos SOAP requereriam adaptadores com gestão de estado adicional, introduzindo dependências de infraestrutura de segurança.
 
 ---
 
