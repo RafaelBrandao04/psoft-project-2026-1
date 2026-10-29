@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import org.hibernate.StaleObjectStateException;
 import pt.psoft.g1.psoftg1.bookmanagement.model.Book;
+import pt.psoft.g1.psoftg1.exceptions.LendingForbiddenException;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 
 import java.time.LocalDate;
@@ -117,12 +118,18 @@ public class Lending {
     @Getter
     private int fineValuePerDayInCents;
 
+    /**
+     * Number of times this lending has been renewed.
+     */
+    @Getter
+    private int renewalCount = 0;
+
 
     /**
      * Constructs a new {@code Lending} object to be persisted in the database.
      * <p>
      * Sets {@code startDate} as the current date, and {@code limitDate} as the current date plus the
-     * business specified number of days a reader can take to return the book ({@link Lending#MAX_DAYS_PER_LENDING}).
+     * business specified number of days a reader can take to return the book.
      *
      * @param       book {@code Book} object, which should be retrieved from the database.
      * @param       readerDetails {@code Reader} object, which should be retrieved from the database.
@@ -141,6 +148,7 @@ public class Lending {
         this.limitDate = LocalDate.now().plusDays(lendingDuration);
         this.returnedDate = null;
         this.fineValuePerDayInCents = fineValuePerDayInCents;
+        this.renewalCount = 0;
         setDaysUntilReturn();
         setDaysOverdue();
     }
@@ -167,6 +175,41 @@ public class Lending {
             this.commentary = commentary;
 
         this.returnedDate = LocalDate.now();
+    }
+
+    /**
+     * Renews this lending by extending its limitDate by {@code renewalDays} days
+     * and incrementing {@code renewalCount}.
+     *
+     * @param renewalDays    number of days to extend the limit date (> 0)
+     * @param desiredVersion expected version for optimistic locking
+     */
+    public void renew(final int renewalDays, final long desiredVersion) {
+        if (this.returnedDate != null) {
+            throw new LendingForbiddenException("Cannot renew a lending that has already been returned");
+        }
+        if (getDaysDelayed() > 0) {
+            throw new LendingForbiddenException("An overdue lending cannot be renewed");
+        }
+        if (renewalDays <= 0) {
+            throw new IllegalArgumentException("Renewal period must be greater than 0");
+        }
+        if (this.version != desiredVersion) {
+            throw new StaleObjectStateException("Object was already modified by another user", this.pk);
+        }
+        this.limitDate = this.limitDate.plusDays(renewalDays);
+        this.renewalCount++;
+        setDaysUntilReturn();
+        setDaysOverdue();
+    }
+
+    /**
+     * Renews this lending without version check (used in unit tests or internal policy operations).
+     *
+     * @param renewalDays number of days to extend the limit date (> 0)
+     */
+    public void renew(final int renewalDays) {
+        renew(renewalDays, this.version);
     }
 
     /**
@@ -255,6 +298,7 @@ public class Lending {
         lending.limitDate = startDate.plusDays(lendingDuration);
         lending.fineValuePerDayInCents = fineValuePerDayInCents;
         lending.returnedDate = returnedDate;
+        lending.renewalCount = 0;
         return lending;
 
     }

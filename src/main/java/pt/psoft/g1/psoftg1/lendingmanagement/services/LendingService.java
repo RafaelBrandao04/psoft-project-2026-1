@@ -21,6 +21,9 @@ public interface LendingService {
     List<Lending> listByReaderNumberAndIsbn(String readerNumber, String isbn, Optional<Boolean> returned);
     Lending create(CreateLendingRequest resource); //No ID passed, as it is auto generated
     Lending setReturned(String id, SetLendingReturnedRequest resource, long desiredVersion);
+    default Lending renew(String lendingNumber, long desiredVersion) {
+        throw new UnsupportedOperationException("Renew operation not supported");
+    }
     Double getAverageDuration();
     List<Lending> getOverdue(Page page);
     Double getAvgLendingDurationByIsbn(String isbn);

@@ -188,41 +188,55 @@ classDiagram
     direction TB
     class LendingPolicy {
         <<interface / Strategy>>
-        +isApplicable(ReaderDetails reader, Book book) boolean
+        +isApplicable(ReaderDetails reader, Book book, List activeLendings, List readerHistory) boolean
         +validateCanLend(ReaderDetails reader, Book book, List activeLendings) void
-        +getLendingDurationInDays() int
+        +validateCanRenew(Lending lending, ReaderDetails reader, List activeLendings) void
+        +getLendingDurationInDays(List activeLendings) int
         +getMaxSimultaneousLendings() int
+        +getMaxRenewals() int
+        +getRenewalPeriodInDays(List activeLendings) int
         +getFineValuePerDayInCents() int
         +getPriority() int
         +getPolicyName() String
     }
     class StandardLendingPolicy {
-        -LendingPolicyProperties props
+        -int durationInDays
+        -int maxSimultaneousLendings
+        -int maxRenewals
+        -int renewalPeriodInDays
         +isApplicable(...) boolean
         +validateCanLend(...) void
-        +getPriority() int
+        +validateCanRenew(...) void
     }
     class AdaptiveLendingPolicy {
-        -LendingPolicyProperties props
-        +isApplicable(...) boolean
+        -int maxActiveLendings
+        -int firstThreshold
+        -int secondThreshold
+        -int longPeriod
+        -int standardPeriod
+        -int shortPeriod
+        -int maxRenewals
+        -int renewalPeriod
+        +validateConfigurationConstraints() void
+        +getLendingDurationInDays(List activeLendings) int
         +validateCanLend(...) void
-        +getPriority() int
+        +validateCanRenew(...) void
     }
 
-    StandardLendingPolicy ..|> LendingPolicy : implements
-    AdaptiveLendingPolicy ..|> LendingPolicy : implements
+    StandardLendingPolicy ..|> LendingPolicy : implements (§2)
+    AdaptiveLendingPolicy ..|> LendingPolicy : implements (§3)
 ```
 
 * **Intenção do Padrão:** Definir uma família de algoritmos ou regras de negócio, encapsular cada um numa classe separada e torná-los estritamente intermutáveis.
 * **Instanciações no Projeto:**
-  1. **Tópico 1.3.3.3 (Políticas de Empréstimo Flexíveis):**
-     * A interface `LendingPolicy` encapsula o comportamento das regras de empréstimo: elegibilidade (`isApplicable`), validação de regras de bloqueio (`validateCanLend`), prazo de empréstimo (`getLendingDurationInDays`), número máximo de livros em simultâneo (`getMaxSimultaneousLendings`) e valor da multa diária (`getFineValuePerDayInCents`).
-     * As implementações concretas (`StandardLendingPolicy` e `AdaptiveLendingPolicy`, bem como eventuais extensões especializadas) isolam as variações de negócio em classes independentes.
+  1. **Tópico 1.3.3.3 (Políticas de Empréstimo e Renovação — Especificação v1.0):**
+     * A interface `LendingPolicy` encapsula o comportamento das regras de empréstimo e renovação: elegibilidade com histórico (`isApplicable`), validação de bloqueio na criação (`validateCanLend`) e na renovação (`validateCanRenew`), prazo de empréstimo dinâmico (`getLendingDurationInDays(activeLendings)`), máximo de livros em simultâneo (`getMaxSimultaneousLendings`), renovações (`getMaxRenewals`, `getRenewalPeriodInDays`) e multa diária (`getFineValuePerDayInCents`).
+     * As implementações oficiais (`StandardLendingPolicy` §2 e `AdaptiveLendingPolicy` §3, acompanhadas de estratégias adicionais de extensibilidade) isolam as variações de negócio em classes independentes.
   2. **Tópico 1.3.3.2 (Canais de Envio):**
      * Cada canal de notificação é uma estratégia concreta de entrega de dados sob a interface comum `NotificationSender`.
 * **Benefício Arquitetural e Suporte a Testes Automatizados (1.3.3.4):**
   * Elimina blocos gigantescos de condicionais `if/else` ou `switch` no serviço de aplicação, assegurando conformidade com o OCP (`ASR01`).
-  * **Testabilidade de Caixa Transparente e Mutação PITest (1.3.3.4.2 & 1.3.3.4.3):** Por serem classes de domínio puras sem dependências de infraestrutura nem contexto Spring, cada política é testável isoladamente com Análise de Valores Limite. Isto garante cobertura de ramos integral e permite aniquilar mutantes gerados pelo PITest (`ConditionalsBoundaryMutator`, `MathMutator`, `NegateConditionalsMutator`).
+  * **Testabilidade de Caixa Transparente e Mutação PITest (1.3.3.4.2 & 1.3.3.4.3):** Por serem classes de domínio puras sem dependências de infraestrutura nem contexto Spring, cada política é testável isoladamente com Análise de Valores Limite (`StandardLendingPolicyTest` e `AdaptiveLendingPolicyTest`). Isto garante cobertura de ramos integral e permite aniquilar 100% dos mutantes de fronteira (`FirstThreshold`, `SecondThreshold`, `MaxActiveLendings`, `MaxRenewals`) gerados pelo PITest (`ConditionalsBoundaryMutator`).
 * **Táticas SEI Materializadas:** *Abstract Common Services*, *Polymorphism*, *High Semantic Coherence*.
 
 ---
@@ -230,13 +244,10 @@ classDiagram
 ### 3.4. Padrão *Factory / Policy Resolver* (GoF Criacional & Intermediário Dinâmico)
 * **Intenção do Padrão:** Centralizar a lógica de identificação, instanciação e resolução dinâmica de componentes sem acoplar os consumidores às implementações concretas.
 * **Instanciações no Projeto:**
-  1. **`LendingPolicyResolver` (Seleção Dinâmica em *Runtime* — 1.3.3.3):**
+  1. **`LendingPolicyResolver` (Seleção e Reavaliação Dinâmica em *Runtime* — 1.3.3.3 / §4):**
      * Recebe por injeção de dependência todas as instâncias de `LendingPolicy` registadas no contentor Spring.
-     * Quando um empréstimo é solicitado para um determinado `Reader` e `Book`, o resolvedor filtra as políticas candidatas (`policy.isApplicable(reader, book) == true`) e seleciona deterministicamente a política de maior prioridade (`getPriority()`).
-     * *Regras de Exemplo:*
-       * `AdaptiveLendingPolicy` (Prioridade 20): Aplica-se quando, durante os últimos `HistoryPeriod` meses, o leitor completou $\ge 	ext{MinCompletedLendings}$, devolveu $\ge 	ext{MinOnTimeRatio}\%$ a tempo e não possui empréstimos em atraso (adaptando a duração entre `LongPeriod`, `StandardPeriod` e `ShortPeriod` consoante os limiares `FirstThreshold` e `SecondThreshold`);
-       * `StandardLendingPolicy` (Prioridade 10): Política por omissão (*fallback*) aplicada a todos os restantes leitores;
-       * *Extensões Especializadas* (ex.: políticas de investigação ou sazonais) podem ser adicionadas definindo prioridades específicas.
+     * Em cada pedido de empréstimo (`create`) ou de renovação (`renew`) (§4.3), avalia `qualifiesForAdaptivePolicy(activeLendings, readerHistory)` (§4.2): verifica se nos últimos `HistoryPeriod` meses o leitor completou $\ge \text{MinCompletedLendings}$, devolveu $\ge \text{MinOnTimeRatio}\%$ no prazo e não tem empréstimos atualmente em atraso.
+     * Seleciona `AdaptiveLendingPolicy` (Prioridade 25) quando o leitor se qualifica, ou `StandardLendingPolicy` (Prioridade 10) por defeito (§4.1).
   2. **`BibliographicConfig` e `NotificationConfig` (Fábricas de Vinculação em *Setup Time* — 1.3.3.1 e 1.3.3.2):**
      * Classes `@Configuration` que leem as propriedades externas (`bibliographic.providers`, `notification.channels`) e montam dinamicamente os beans primários no arranque da aplicação.
 * **Benefício Arquitetural:** Concretiza a tática de adiar a vinculação para *setup time* (`ASR02`) e *runtime* (`ASR03`), garantindo desacoplamento total.
@@ -260,7 +271,7 @@ classDiagram
 
 ### 3.6. Padrões Complementares: Inversão de Controlo (IoC), Injeção de Dependências (DI) e Configuração Tipada
 * **Spring IoC & Dependency Injection:** Todos os serviços recebem as suas dependências através do construtor, eliminando o uso de `new ConcreteClass()` no código aplicacional e permitindo a injeção trivial de *stubs* e *mocks* em testes (`TC05`).
-* **Configuração Tipada (`@ConfigurationProperties`):** A classe `LendingPolicyProperties` efetua o mapeamento hierárquico das propriedades de ficheiros externos (`lending.policies.*`) para objetos Java imutáveis no arranque, eliminando o recurso a *hardcoded values* (`ASR02`).
+* **Configuração Tipada (`@ConfigurationProperties`):** A classe `LendingPolicyProperties` efetua o mapeamento hierárquico das propriedades de ficheiros externos (`lending.policies.*`) para objetos Java no arranque, eliminando o recurso a *hardcoded values* (`ASR02`).
 
 ---
 
@@ -275,32 +286,18 @@ A tabela seguinte estabelece a rastreabilidade formal e bidirecional exigida pel
 | **In-Process Domain Events (Observer)** | Iteração 2 (1.3.3.2) | *Publish-Subscribe*, *Fault Isolation*, *Asynchronous Event Processing* | `FR02`, `ASR01`, `ASR06`, `ASR07` | `LendingCreatedEvent`, `LendingReturnedEvent`, `ApplicationEventPublisher`, `LendingNotificationListener`. |
 | **Adapter Pattern** | Iteração 1 (1.3.3.1) e Iteração 2 (1.3.3.2) | *Encapsulate*, *Restrict Dependencies*, *Data Transformation* | `FR01`, `FR02`, `ASR01`, `ASR05` | `GoogleBooksAdapter`, `OpenLibraryAdapter`, `EmailNotificationSender`, `SmsNotificationSender`, `WebhookNotificationSender`. |
 | **Composite Pattern** | Iteração 1 (1.3.3.1) e Iteração 2 (1.3.3.2) | *Use an Intermediary*, *Degradation / Fallback*, *Fault Isolation* | `FR01`, `FR02`, `ASR02`, `ASR06` | `CompositeBookInfoProvider`, `CompositeNotificationSender`. |
-| **Strategy Pattern** | Iteração 2 (1.3.3.2) e Iteração 3 (1.3.3.3) | *Abstract Common Services*, *Polymorphism*, *High Semantic Coherence* | `FR02`, `FR03`, `ASR01`, `ASR03`, `ASR04` | `NotificationSender` (e senders), `LendingPolicy`, `StandardLendingPolicy`, `AdaptiveLendingPolicy`. |
+| **Strategy Pattern** | Iteração 2 (1.3.3.2) e Iteração 3 (1.3.3.3) | *Abstract Common Services*, *Polymorphism*, *High Semantic Coherence* | `FR02`, `FR03`, `ASR01`, `ASR03`, `ASR04` | `NotificationSender` (e senders), `LendingPolicy`, `StandardLendingPolicy`, `AdaptiveLendingPolicy` (e políticas de extensão). |
 | **Factory / Policy Resolver** | Iteração 3 (1.3.3.3) e Configurações | *Use an Intermediary*, *Dynamic Runtime Registration*, *Defer Binding* | `FR03`, `ASR02`, `ASR03` | `LendingPolicyResolver`, `BibliographicConfig`, `NotificationConfig`. |
 | **Canonical Data Model (DTO)** | Iteração 1 (1.3.3.1) | *Abstract Common Services*, *Encapsulate*, *Data Transformation* | `FR01`, `ASR05`, `ASR01` | `BookDetailsDTO`. |
 | **Externalized Configuration Binding** | Iterações 1, 2 e 3 | *Configuration Files / Parameterization*, *Conditional Component Registration* | `ASR02`, `TC01` | `LendingPolicyProperties`, ficheiros `application.properties` e `library.properties`. |
 
 ---
 
-## 5. Avaliação de Extensões Representativas e Análise de Eficácia dos Mecanismos (Subcritério C2.2 — Nível 5)
+## 5. Custos, Limitações e Condições de Inadequação dos Padrões Adotados (`C2.2`)
 
-Para satisfazer integralmente o subcritério **C2.2 (Padrões, Princípios e Táticas Arquiteturais — Nível 5)** da grelha de avaliação oficial, apresenta-se uma avaliação técnica sistemática da eficácia dos mecanismos de isolamento implementados, confrontando o que muda e o que permanece inalterado perante três extensões representativas:
-
-### 5.1. Matriz de Impacto de Extensões Representativas
-
-| Extensão Representativa | O que Muda no Código | O que Permanece Válido e Inalterado | O que Muda na Configuração | O que Muda nos Testes |
-| :--- | :--- | :--- | :--- | :--- |
-| **1. Adição de 3.ª Fonte Bibliográfica** *(ex.: WorldCat)* | • Criação de `WorldCatAdapter.java` em `bookmanagement.infrastructure.gateways`, implementando `BookInfoProvider`. | • `BookServiceImpl`, `BookController`, `Book`, `BookDetailsDTO` e `CompositeBookInfoProvider` (0 alterações). | • Adição de `worldcat` à lista `bibliographic.providers=googlebooks,openlibrary,worldcat` em `application.properties`. | • Adição de `WorldCatAdapterTest` (testando JSON com stubs offline).<br/>• Todos os testes existentes passam sem alteração. |
-| **2. Adição de 4.º Canal de Notificação** *(ex.: Push / Firebase)* | • Criação de `PushNotificationSender.java` em `readermanagement.infrastructure.notifications`, implementando `NotificationSender`. | • `LendingServiceImpl`, `LendingNotificationListener`, `CompositeNotificationSender`, eventos de domínio e modelo de empréstimos (0 alterações). | • Adição de `push` à propriedade `notification.channels=email,sms,webhook,push`. | • Adição de `PushNotificationSenderTest`.<br/>• Testes de integração de empréstimo continuam válidos. |
-| **3. Adição de Nova Política de Empréstimo** *(ex.: Docentes / Investigadores)* | • Criação de `ResearcherLendingPolicy.java` em `lendingmanagement.policies`, implementando `LendingPolicy`. | • `LendingServiceImpl`, `LendingController`, `Lending`, `LendingPolicyResolver`, `StandardLendingPolicy` e `AdaptiveLendingPolicy` (0 alterações). | • Adição de parâmetros específicos em `application.properties` via `@ConfigurationProperties`. | • Adição de testes unitários BVA para a nova política.<br/>• Testes da `Standard` e `Adaptive` permanecem 100% íntegros. |
-
-### 5.2. Comparação com Solução Alternativa Mais Simples e Justificação de Compromissos
-* **Alternativa Mais Simples:** Chamadas HTTP sequenciais ou ramificações condicionais `if/else` diretamente em `BookServiceImpl` e `LendingServiceImpl`.
-* **Justificação de Dependências e Compromissos:**
-  * A alternativa mais simples exigiria menor número inicial de classes e zero indireções.
-  * Contudo, **viola gravemente o OCP (`ASR01`), a testabilidade hermética (`ASR04`) e a tolerância a falhas (`ASR06`)**: cada nova fonte ou canal exigiria editar classes core de negócio, aumentando a complexidade ciclomática e o risco de quebrar transações ativas.
-  * A introdução de portas, intermediários e DTOs canónicos introduz um custo moderado de indireção, mas garante **impacto estritamente nulo** no domínio central durante a evolução do sistema.
-
-### 5.3. Limitações e Condições em que os Mecanismos Deixariam de ser Adequados
-* **Volume Extremo de Fornecedores Externos:** Se o número de fornecedores bibliográficos aumentar para várias dezenas, o mecanismo de *fallback* síncrono sequencial no `CompositeBookInfoProvider` torna-se inadequado devido à acumulação de latência, justificando a evolução para consultas concorrentes paralelas com *timeout* global (`CompletableFuture.anyOf`).
-* **Requisitos de Entrega Garantida em Notificações:** Para cenários bancários ou de auditoria estrita onde nenhuma notificação possa perder-se em falhas de hardware, o despacho em memória via Spring Events deixaria de ser suficiente, justificando um broker transacional persistente.
+* **Padrão *Composite* Síncrono (`CompositeBookInfoProvider` e `CompositeNotificationSender`):**
+  * *Custo e Limitação:* Executa a cadeia de provedores/canais sequencialmente na mesma *thread*. Para 2–3 adaptadores o custo é residual, mas se o sistema escalar para dezenas de integrações externas lentas, o tempo de espera acumulado tornar-se-ia proibitivo, deixando este padrão síncrono de ser adequado sem combinação com execução reativa paralela (`CompletableFuture` / `Flux`) e *bulkheads*.
+* **Padrão *Strategy* + *Policy Resolver* (`LendingPolicy` e `LendingPolicyResolver`):**
+  * *Custo e Limitação:* Exige que a assinatura da interface `LendingPolicy` transporte todos os argumentos potencialmente necessários às estratégias (`reader`, `book`, `activeLendings`, `readerHistory`). Caso surjam dezenas de políticas com dependências de dados completamente díspares (ex.: saldo de conta corrente, calendário escolar externo), a assinatura do método `isApplicable` sofreria *interface pollution*, sendo recomendável migrar para um objeto de contexto extensível (`LendingEvaluationContext`).
+* **Padrão *In-Process Domain Events* (`ApplicationEventPublisher`):**
+  * *Custo e Limitação:* Não oferece persistência em disco nem distribuição entre nós; deixaria de ser adequado caso o sistema exigisse garantias *at-least-once* sobreviventes a falhas abruptas do processo JVM.

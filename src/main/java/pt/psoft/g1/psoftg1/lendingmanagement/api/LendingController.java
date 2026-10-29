@@ -20,7 +20,6 @@ import pt.psoft.g1.psoftg1.lendingmanagement.services.CreateLendingRequest;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.SearchLendingQuery;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.SetLendingReturnedRequest;
-import pt.psoft.g1.psoftg1.readermanagement.api.ReaderLendingsAvgPerMonthView;
 import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
 import pt.psoft.g1.psoftg1.shared.api.ListResponse;
@@ -138,6 +137,33 @@ public class LendingController {
                 .body(lendingViewMapper.toLendingView(lending));
     }
 
+    @Operation(summary = "Renews an active lending")
+    @PostMapping(value = "/{year}/{seq}/renew")
+    public ResponseEntity<LendingView> renewLending(
+            final WebRequest request,
+            @PathVariable("year")
+                @Parameter(description = "The year component of the Lending to renew")
+                final Integer year,
+            @PathVariable("seq")
+                @Parameter(description = "The sequential component of the Lending to renew")
+                final Integer seq) {
+        String ln = year + "/" + seq;
+        final var existingLending = lendingService.findByLendingNumber(ln)
+                .orElseThrow(() -> new NotFoundException(Lending.class, ln));
+
+        final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
+        long desiredVersion = (ifMatchValue != null && !ifMatchValue.isEmpty() && !ifMatchValue.equals("null"))
+                ? concurrencyService.getVersionFromIfMatchHeader(ifMatchValue)
+                : existingLending.getVersion();
+
+        final var renewedLending = lendingService.renew(ln, desiredVersion);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/hal+json"))
+                .eTag(Long.toString(renewedLending.getVersion()))
+                .body(lendingViewMapper.toLendingView(renewedLending));
+    }
+
     @Operation(summary = "Get average lendings duration")
     @GetMapping(value = "/avgDuration")
     public @ResponseBody ResponseEntity<LendingsAverageDurationView> getAvgDuration() {
@@ -160,14 +186,5 @@ public class LendingController {
         final var readerList = lendingService.searchLendings(request.getPage(), request.getQuery());
         return new ListResponse<>(lendingViewMapper.toLendingView(readerList));
     }
-
-/*    @Operation(summary = "Get list monthly average lendings per reader")
-    @GetMapping(value = "/averageMonthlyPerReader")
-    public ListResponse<ReaderLendingsAvgPerMonthView>getAverageMonthlyPerReader(
-            @RequestParam("startDate") final String start,
-            @RequestParam("endDate") final String end){
-
-
-    }*/
 
 }

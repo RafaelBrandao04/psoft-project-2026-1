@@ -24,11 +24,9 @@ Conforme preconizado na literatura de referência (Bass, Clements, Kazman), este
 * **FR02 — Notificação a Leitores sobre Eventos de Empréstimo (1.3.3.2):**
   * O sistema deve notificar os leitores acerca de eventos críticos do ciclo de vida dos empréstimos (novo empréstimo, aviso de prazo de devolução, notificação de atraso com apuramento de multas e confirmação de devolução).
   * Deve suportar mecanismos distintos de notificação: **Email**, **SMS** e **Webhook**, operando individualmente ou em qualquer combinação configurada.
-* **FR03 — Aplicação de Políticas de Empréstimo Flexíveis e Dinâmicas (1.3.3.3 & Políticas v1.0):**
-  * O sistema deve aplicar políticas de empréstimo distintas em conformidade com a *Lending Policies Specification v1.0*: a **Standard Lending Policy** (política por omissão com `MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`) e a **Adaptive Lending Policy** (com `FirstThreshold`, `SecondThreshold`, escalonando entre `LongPeriod`, `StandardPeriod` e `ShortPeriod`).
-  * O sistema deve suportar a **renovação de empréstimos** (`renew`), permitida até `MaxRenewals` vezes por `RenewalPeriod` dias (Standard) ou desde que as condições da política continuem satisfeitas (Adaptive).
-  * O sistema deve reavaliar dinamicamente em *runtime* a política aplicável a cada novo empréstimo ou renovação com base no histórico do leitor nos últimos `HistoryPeriod` meses (`MinCompletedLendings`, `MinOnTimeRatio` e ausência de atrasos ativos).
-  * Todos os parâmetros quantitativos devem ser configuráveis externamente em *setup time* sem alteração de código-fonte, satisfazendo as restrições: $0 < \text{FirstThreshold} < \text{SecondThreshold} < \text{MaxActiveLendings}$ e $\text{LongPeriod} > \text{StandardPeriod} > \text{ShortPeriod} > 0$.
+* **FR03 — Aplicação de Políticas de Empréstimo e Renovação Parametrizáveis (1.3.3.3):**
+  * O sistema deve suportar e parametrizar no arranque (*setup time*) a **`StandardLendingPolicy`** (`MaxActiveLendings`, `LendingPeriod`, `MaxRenewals`, `RenewalPeriod`) e a **`AdaptiveLendingPolicy`** (`MaxActiveLendings`, `FirstThreshold`, `SecondThreshold`, `LongPeriod`, `StandardPeriod`, `ShortPeriod`, `MaxRenewals`, `RenewalPeriod`), validando estritamente as restrições ($0 < \text{FirstThreshold} < \text{SecondThreshold} < \text{MaxActiveLendings}$ e $\text{LongPeriod} > \text{StandardPeriod} > \text{ShortPeriod} > 0$).
+  * O sistema deve avaliar dinamicamente em tempo de execução (*runtime*), em cada pedido de **criação de empréstimo ou renovação** (`POST /api/lendings` e `POST /api/lendings/{year}/{seq}/renew`), o histórico do leitor nos últimos `HistoryPeriod` meses (`MinCompletedLendings`, `MinOnTimeRatio` e ausência de atrasos ativos) para selecionar entre a política `Standard` e a política `Adaptive`.
 * **FR04 — Catálogo e Serviços Globais de Biblioteca (1.1 Context):**
   * Manutenção dos serviços existentes de gestão do ciclo de vida de Livros, Géneros, Autores, Leitores e Empréstimos.
 
@@ -137,37 +135,6 @@ Esta priorização determina a ordem de execução das **Iterações do ADD (1.3
 
 ---
 
-## 5.2. Critério Operacional de «Impacto Limitado» e Análise de Extensibilidade (Subcritério C1.1)
-
-Em conformidade com o subcritério **C1.1 (Requisitos e Drivers Arquiteturais — Nível 5)** da grelha de avaliação, o conceito de «impacto limitado» na adição de uma nova fonte bibliográfica, novo canal de notificação ou nova política de empréstimo não é um limiar arbitrário, sendo definido e justificado operacionalmente pelo grupo com base nos seguintes critérios verificáveis:
-
-### 1. Definição Operacional e Métricas de «Impacto Limitado»
-Uma extensão ao sistema é classificada como de **«Impacto Limitado»** se e só se verificar cumulativamente:
-1. **Zero Modificações no Núcleo de Domínio e Serviços Aplicacionais:** Nenhuma linha de código existente em `BookServiceImpl`, `LendingServiceImpl`, `Book`, `Lending` ou `Reader` é alterada (conformidade estrita com o princípio Aberto/Fechado — OCP).
-2. **Confinamento a 1 Novo Adaptador de Infraestrutura:** A integração de uma 3.ª fonte (ex.: *WorldCat*), 4.º canal de notificação (ex.: *Push*) ou nova política requer estritamente a criação de **uma única classe** que implemente a interface contratual respetiva (`BookInfoProvider`, `NotificationSender` ou `LendingPolicy`).
-3. **Configuração Externa Isolada:** Ativação da nova capacidade através de **uma única linha de configuração** em *setup time* (ex.: `bibliographic.providers=googlebooks,openlibrary,worldcat`) ou registo no contentor IoC.
-4. **Isolamento de Regressões e Testabilidade Hermética:** A adição da nova capacidade não quebra nenhum dos testes existentes (100% de retrocompatibilidade) e a nova classe é testada de forma isolada com mocks/stubs offline (`TC05`).
-
-### 2. Cenário Verificável de Extensão (Adição de 3.ª Fonte: WorldCat)
-* **Estímulo:** Necessidade de integrar o catálogo WorldCat para pesquisa de livros por ISBN.
-* **Ações Necessárias:**
-  1. Criar a classe `WorldCatAdapter` no pacote `bookmanagement.infrastructure.gateways`, implementando `BookInfoProvider` e convertendo a resposta da API para `BookDetailsDTO`;
-  2. Adicionar `worldcat` à lista `bibliographic.providers` em `application.properties`;
-  3. Adicionar o teste unitário isolado `WorldCatAdapterTest` com stubs JSON.
-* **Resultado Mensurável:** `BookServiceImpl` e `CompositeBookInfoProvider` consom o novo adaptador sem qualquer alteração. O esforço é confinado a $< 1$ dia de desenvolvimento e 0 riscos de regressão.
-
-### 3. Compromissos (*Trade-offs*) entre Extensibilidade e Complexidade
-* **Extensibilidade Adquirida:** O desacoplamento através de portas (`BookInfoProvider`), DTO canónico (`BookDetailsDTO`) e o intermediário `CompositeBookInfoProvider` permite plugar e desligar fontes livremente, suportar *fallback* resiliente (`ASR06`) e manter testes herméticos (`TC05`).
-* **Complexidade Introduzida (*Overhead*):** 
-  * Aumento no número de classes e indireções estruturais (interfaces adicionais, DTOs de transporte e adaptadores dedicados);
-  * Custo de normalização de dados heterogéneos: campos parciais devolvidos por certas APIs (ex.: Open Library não ter descrição em certos registos ou Google Books formatar autores diferentemente) exigem lógica defensiva de fusão (*merging*) no *Composite*;
-  * Gestão de *timeouts*: a execução sequencial de *fallback* entre múltiplas fontes externas pode acumular latência se cada chamada demorar até 2.5s, justificando *timeouts* curtos e configuráveis.
-
-### 4. Limitações da Análise
-* A análise assume disponibilidade e estabilidade mínima das APIs REST externas com formatos JSON previsíveis. APIs que exijam autenticação OAuth2 complexa por sessão de utilizador ou protocolos SOAP requereriam adaptadores com gestão de estado adicional, introduzindo dependências de infraestrutura de segurança.
-
----
-
 ## 6. Rastreabilidade com as Iterações do ADD
 
 A priorização formal acima estabelecida justifica diretamente as três iterações do processo ADD:
@@ -208,5 +175,30 @@ flowchart TD
 
 1. **Iteração 1 — Fontes Bibliográficas Plugáveis:** Aborda os drivers `ASR01`, `FR01`, `ASR05`, `ASR02` e `TC05`. Resolve a heterogeneidade e a contingência através dos padrões **Adapter**, **Gateway** e **Composite**.
 2. **Iteração 2 — Notificações Multicanal Desacopladas:** Aborda os drivers `ASR01`, `FR02`, `ASR06`, `ASR07` e `ASR02`. Resolve o desacoplamento de canais externos através do padrão **Observer / Domain Events** com Spring Events e **Strategy / Composite**.
-3. **Iteração 3 — Políticas de Empréstimo Dinâmicas em Runtime:** Aborda os drivers `ASR03`, `FR03`, `ASR02` e `ASR01`. Resolve a flexibilidade de regras de empréstimo através dos padrões **Strategy** e **Factory / Policy Resolver**, suportados por `@ConfigurationProperties`.
+3. **Iteração 3 — Políticas de Empréstimo Dinâmicas em Runtime:** Aborda os drivers `ASR03`, `FR03`, `ASR02` e `ASR01`. Resolve a flexibilidade de regras de empréstimo e renovação (`StandardLendingPolicy`, `AdaptiveLendingPolicy` e estratégias adicionais) através dos padrões **Strategy** e **Factory / Policy Resolver**, suportados por `@ConfigurationProperties`.
 4. **Decisões Transversais de Testabilidade:** Aborda `ASR04`, `TC05` e `OL04`, garantindo que todas as interfaces expostas nas iterações 1, 2 e 3 permitem substituição direta por mocks sem necessidade de rede externa.
+
+---
+
+## 7. Critério Operacional de «Impacto Limitado», Trade-offs e Limites da Análise (`C1.1`)
+
+### 7.1. Justificação do Critério Operacional de «Impacto Limitado»
+O enunciado exige que o sistema suporte novas fontes bibliográficas, novos mecanismos de notificação e novas políticas de empréstimo com *«impacto limitado na funcionalidade existente»*. Uma vez que este limiar não é imposto numericamente pelo enunciado, a equipa estabeleceu e justifica o seguinte **critério operacional quantificável de impacto limitado**:
+
+1. **Zero Ficheiros Existentes de Domínio ou Serviço Aplicacional Modificados ($M_{\text{core}} = 0$):**
+   * A adição de uma 3.ª fonte bibliográfica, de um 4.º canal de notificação ou de uma nova política de empréstimo **não pode alterar nenhuma linha de código** nas entidades de domínio (`Book`, `Lending`, `ReaderDetails`, `Fine`) nem nos serviços aplicacionais (`BookServiceImpl`, `LendingServiceImpl`, `LendingNotificationListener`).
+   * *Justificação:* Qualquer edição em classes de serviço ou domínio invalida os testes unitários existentes e introduz risco de regressão em fluxos críticos já validados.
+2. **Esforço de Extensão Confinado a 1 Nova Classe Concreta + 1 Registo de Configuração ($A_{\text{new}} = 1$):**
+   * Cada extensão deve exigir unicamente a criação de **1 nova classe** que implemente a porta/interface respetiva (`BookInfoProvider`, `NotificationSender` ou `LendingPolicy`) e a eventual adição da chave correspondente no ficheiro `.properties` / fábrica de configuração (`BibliographicConfig` ou `NotificationConfig`).
+3. **Preservação de 100% da Suite de Testes Existente:**
+   * Todos os testes unitários e de integração prévios devem continuar a passar sem qualquer modificação nas suas asserções ou configuração de mocks.
+
+### 7.2. Compromissos (*Trade-offs*) entre Extensibilidade, Configurabilidade e Complexidade
+A satisfação simultânea de `ASR01` (Extensibilidade), `ASR02` (Configurabilidade em *Setup Time*) e `ASR03` (Configurabilidade em *Runtime*) introduz compromissos arquiteturais conscientes:
+* **Extensibilidade (`ASR01`) vs. Indireção Estrutural:** A introdução de portas abstratas (`BookInfoProvider`, `NotificationSender`, `LendingPolicy`) e de intermediários compostos (`CompositeBookInfoProvider`, `CompositeNotificationSender`, `LendingPolicyResolver`) aumenta o número de artefactos e níveis de indireção face ao *system-as-is*, mas elimina o acoplamento direto e reduz a complexidade ciclomática dentro de cada classe individual.
+* **Configurabilidade em *Setup Time* (`ASR02`) vs. Segurança em Tempo de Compilação:** Externalizar limiares (`FirstThreshold`, `SecondThreshold`, `MinOnTimeRatio`, etc.) para ficheiros `.properties` transfere a deteção de configurações incoerentes do compilador Java para o momento de arranque ou execução. Para mitigar este risco, implementou-se validação explícita de invariantes em `StandardLendingPolicy`, `AdaptiveLendingPolicy` e `LendingPolicyResolver` (§2, §3.5 e §4.2 da especificação).
+* **Reavaliação Dinâmica em *Runtime* (`ASR03`) vs. Custo de Consulta ao Histórico:** Avaliar a elegibilidade para a `AdaptiveLendingPolicy` em cada pedido de empréstimo ou renovação (§4.3) requer consultar o histórico de empréstimos do leitor (`listByReaderNumber`) e filtrar a janela temporal (`HistoryPeriod`). Embora introduza uma leitura adicional na base de dados por transação, garante precisão imediata sempre que o leitor conclui um empréstimo ou entra em incumprimento.
+
+### 7.3. Limites da Análise de Requisitos e Fatores
+* **Escopo Monolítico e Transacional Local:** A análise assume que o sistema opera sob uma instância única com base de dados relacional partilhada (`TC02`, `TC03`). Caso o sistema evoluísse para múltiplas réplicas horizontais, o despacho de eventos em memória (`ApplicationEventPublisher`) e o registo dinâmico de políticas em memória (`CopyOnWriteArrayList`) teriam de ser revistos em favor de persistência partilhada ou *message brokers*.
+* **Dependência da Semântica dos Fornecedores Externos:** O modelo canónico `BookDetailsDTO` harmoniza os campos essenciais de catálogo, mas não garante equivalência taxonómica perfeita entre categorias literárias do Google Books e *subjects* da Open Library.

@@ -71,19 +71,16 @@ public class LendingServiceImpl implements LendingService {
         int count = 0;
         List<Lending> lendingList = lendingRepository.listOutstandingByReaderNumber(resource.getReaderNumber());
         for (Lending lending : lendingList) {
-            // Business rule: cannot create a lending if user has late outstanding books to return.
+            // Business rule (Section 2.4 & 3.7): cannot create a lending if reader has any overdue lending.
             if (lending.getDaysDelayed() > 0) {
                 throw new LendingForbiddenException("Reader has book(s) past their due date");
             }
             count++;
         }
 
-        // Fast check against standard baseline limit; checks reader status if already at/above standard limit
-        if (count >= 3) {
-            Optional<ReaderDetails> readerOpt = readerRepository.findByReaderNumber(resource.getReaderNumber());
-            if (readerOpt.isEmpty() || !isPremiumReader(readerOpt.get()) || count >= 5) {
-                throw new LendingForbiddenException("Reader has three books outstanding already");
-            }
+        // Legacy fallback when no LendingPolicyResolver is injected (e.g., isolated unit tests without policy beans)
+        if (lendingPolicyResolver == null && count >= 3) {
+            throw new LendingForbiddenException("Reader has three books outstanding already");
         }
 
         final var b = bookRepository.findByIsbn(resource.getIsbn())
@@ -94,7 +91,8 @@ public class LendingServiceImpl implements LendingService {
         LendingPolicy policy = null;
         if (lendingPolicyResolver != null) {
             try {
-                policy = lendingPolicyResolver.resolvePolicy(r, b, lendingList);
+                List<Lending> readerHistory = lendingRepository.listByReaderNumber(resource.getReaderNumber());
+                policy = lendingPolicyResolver.resolvePolicy(r, b, lendingList, readerHistory);
             } catch (Exception ignored) {
                 // fallback to default parameters when resolver is mocked or unconfigured
             }
@@ -104,7 +102,7 @@ public class LendingServiceImpl implements LendingService {
             policy.validateCanLend(r, b, lendingList);
         }
 
-        int duration = policy != null ? policy.getLendingDurationInDays() : lendingDurationInDays;
+        int duration = policy != null ? policy.getLendingDurationInDays(lendingList) : lendingDurationInDays;
         int fine = policy != null ? policy.getFineValuePerDayInCents() : fineValuePerDayInCents;
 
         int seq = lendingRepository.getCountFromCurrentYear() + 1;
@@ -131,17 +129,48 @@ public class LendingServiceImpl implements LendingService {
         return saved;
     }
 
-    private boolean isPremiumReader(ReaderDetails reader) {
-        if (reader == null || reader.getReader() == null) {
-            return false;
+    /**
+     * Renews an active lending after re-evaluating the applicable lending policy
+     * for the reader (Section 2.3, 2.5, 3.6, and 4.3 of Lending Policies Specification v1.0).
+     */
+    @Override
+    public Lending renew(final String lendingNumber, final long desiredVersion) {
+        var lending = lendingRepository.findByLendingNumber(lendingNumber)
+                .orElseThrow(() -> new NotFoundException("Cannot renew lending with this lending number"));
+
+        if (lending.getReturnedDate() != null) {
+            throw new LendingForbiddenException("Cannot renew a lending that has already been returned");
         }
-        String username = reader.getReader().getUsername();
-        String name = reader.getReader().getName() != null ? reader.getReader().getName().toString() : null;
-        return (username != null && username.toLowerCase().contains("premium"))
-                || (name != null && (name.toLowerCase().contains("premium")
-                || name.toLowerCase().contains("prof")
-                || name.toLowerCase().contains("professor")
-                || name.toLowerCase().contains("investigador")));
+
+        if (lending.getDaysDelayed() > 0) {
+            throw new LendingForbiddenException("An overdue lending cannot be renewed");
+        }
+
+        ReaderDetails reader = lending.getReaderDetails();
+        String readerNumber = reader != null ? reader.getReaderNumber() : null;
+        List<Lending> activeLendings = readerNumber != null
+                ? lendingRepository.listOutstandingByReaderNumber(readerNumber)
+                : List.of(lending);
+
+        for (Lending active : activeLendings) {
+            if (active.getDaysDelayed() > 0) {
+                throw new LendingForbiddenException("Reader has book(s) past their due date");
+            }
+        }
+
+        int renewalDays = lendingDurationInDays > 0 ? lendingDurationInDays : 15;
+        if (lendingPolicyResolver != null) {
+            List<Lending> readerHistory = readerNumber != null
+                    ? lendingRepository.listByReaderNumber(readerNumber)
+                    : List.of();
+            // Section 4.3: Re-evaluate the applicable lending policy whenever a renewal is requested
+            LendingPolicy policy = lendingPolicyResolver.resolvePolicy(reader, lending.getBook(), activeLendings, readerHistory);
+            policy.validateCanRenew(lending, reader, activeLendings);
+            renewalDays = policy.getRenewalPeriodInDays(activeLendings);
+        }
+
+        lending.renew(renewalDays, desiredVersion);
+        return lendingRepository.save(lending);
     }
 
     @Override
