@@ -1,0 +1,2032 @@
+{
+	"info": {
+		"_postman_id": "be7a15de-1709-4bd7-89a3-dc7990150583",
+		"name": "Psoft-G1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login as Librarian",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"packages": {},
+								"exec": [
+									"const year = new Date().getFullYear().toString();",
+									"pm.environment.set(\"currentYear\", year);"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"packages": {},
+								"exec": [
+									"pm.test(\"OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"let token = pm.response.headers.get(\"Authorization\");",
+									"pm.environment.set(\"librarianToken\", token);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"maria@gmail.com\",\n    \"password\": \"Mariaroberta!123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}{{baseUrl}}/public/login",
+							"host": [
+								"{{host}}{{baseUrl}}"
+							],
+							"path": [
+								"public",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Reader",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"packages": {},
+								"exec": [
+									"pm.test(\"OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"let token = pm.response.headers.get(\"Authorization\");",
+									"pm.environment.set(\"readerToken\", token);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"manuel@gmail.com\",\n    \"password\": \"Manuelino123!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}{{baseUrl}}/public/login",
+							"host": [
+								"{{host}}{{baseUrl}}"
+							],
+							"path": [
+								"public",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Reader (Clean)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"packages": {},
+								"exec": [
+									"pm.test(\"OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"let token = pm.response.headers.get(\"Authorization\");",
+									"pm.environment.set(\"cleanReaderToken\", token);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"antonio@gmail.com\",\n    \"password\": \"Antoniocosta!123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}{{baseUrl}}/public/login",
+							"host": [
+								"{{host}}{{baseUrl}}"
+							],
+							"path": [
+								"public",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Invalid Credentials",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"packages": {},
+								"exec": [
+									"pm.test(\"Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"maria@gmail.com\",\n    \"password\": \"WrongPassword!999\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}{{baseUrl}}/public/login",
+							"host": [
+								"{{host}}{{baseUrl}}"
+							],
+							"path": [
+								"public",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Author",
+			"item": [
+				{
+					"name": "As Reader",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{readerToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "GetAuthorById",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"authorEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors/7",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"7"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "FindAuthorsByName",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors?name=Manuel",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors"
+									],
+									"query": [
+										{
+											"key": "name",
+											"value": "Manuel"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetAuthorBooks",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors/1/books",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"1",
+										"books"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetAuthorWithCoAuthors",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors/7/coauthors",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"7",
+										"coauthors"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetTop5Authors",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors/top5",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"top5"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "CreateAuthor - Forbidden",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Forbidden\", function () {",
+											"    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "name",
+											"value": "Autor Nao Autorizado",
+											"type": "text"
+										},
+										{
+											"key": "bio",
+											"value": "Tentativa por Reader",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "As Librarian",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{librarianToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "CreateAuthor",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Created\", function () {",
+											"    pm.response.to.have.status(201);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"createdAuthorEtag\", etag);",
+											"    let body = pm.response.json();",
+											"    pm.environment.set(\"createdAuthorNumber\", body.authorNumber);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "name",
+											"value": "José Saramago",
+											"type": "text"
+										},
+										{
+											"key": "bio",
+											"value": "Escritor português galardoado com o Prémio Nobel da Literatura em 1998.",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "UpdateAuthor",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"createdAuthorEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "If-Match",
+										"value": "{{createdAuthorEtag}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "name",
+											"value": "José Saramago",
+											"type": "text"
+										},
+										{
+											"key": "bio",
+											"value": "Escritor português, Nobel da Literatura (1998), autor de Ensaio sobre a Cegueira.",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors/{{createdAuthorNumber}}",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors",
+										"{{createdAuthorNumber}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "CreateAuthor - Blank Bio",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Bad Request\", function () {",
+											"    pm.response.to.have.status(400);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "name",
+											"value": "Irineu José",
+											"type": "text"
+										},
+										{
+											"key": "bio",
+											"value": "",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/authors",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"authors"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Book",
+			"item": [
+				{
+					"name": "External",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{librarianToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "GetExternalBookByIsbn",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+											"    if (pm.response.code === 200) {",
+											"        let body = pm.response.json();",
+											"        pm.expect(body).to.have.property(\"title\");",
+											"    }",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/external/9780134494166",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"external",
+										"9780134494166"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetExternalBookByIsbn - Not Found",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Not Found\", function () {",
+											"    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/external/9780000000999",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"external",
+										"9780000000999"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "As Reader",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{readerToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "GetBookByIsbn",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let body = pm.response.json();",
+											"    pm.expect(body.isbn).to.eql(\"9789897776090\");",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/9789897776090",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"9789897776090"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetBookByIsbn - Not Found",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Not Found\", function () {",
+											"    pm.response.to.have.status(404);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/9782722203426",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"9782722203426"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "FindBooksByTitle",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books?title=Hobbit",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books"
+									],
+									"query": [
+										{
+											"key": "title",
+											"value": "Hobbit"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "FindBooksByGenre",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books?genre=Infantil",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books"
+									],
+									"query": [
+										{
+											"key": "genre",
+											"value": "Infantil"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetBookSuggestionsForReader",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK or Not Found\", function () {",
+											"    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+											"    if (pm.response.code === 200) {",
+											"        let body = pm.response.json();",
+											"        pm.expect(body.items).to.be.an(\"array\");",
+											"    }",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/suggestions",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"suggestions"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "SearchBooks",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"page\": {\n        \"number\": 1,\n        \"limit\": 10\n    },\n    \"query\": {\n        \"title\": \"\",\n        \"genre\": \"Fantasia\",\n        \"authorName\": \"\"\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/search",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"search"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "As Librarian",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{librarianToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "CreateBook",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Created\", function () {",
+											"    pm.expect(pm.response.code).to.be.oneOf([201, 400, 409]);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    if (etag) {",
+											"        pm.environment.set(\"bookEtag\", etag);",
+											"    }",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "title",
+											"value": "Clean Code",
+											"type": "text"
+										},
+										{
+											"key": "description",
+											"value": "A Handbook of Agile Software Craftsmanship",
+											"type": "text"
+										},
+										{
+											"key": "genre",
+											"value": "Informação",
+											"type": "text"
+										},
+										{
+											"key": "authors",
+											"value": "3",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/9780132350884",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"9780132350884"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetBookByIsbn",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"bookEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/9780132350884",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"9780132350884"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "UpdateBook",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"bookEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "If-Match",
+										"value": "{{bookEtag}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "title",
+											"value": "Clean Code",
+											"type": "text"
+										},
+										{
+											"key": "description",
+											"value": "A Handbook of Agile Software Craftsmanship - Edição Revista",
+											"type": "text"
+										},
+										{
+											"key": "genre",
+											"value": "Informação",
+											"type": "text"
+										},
+										{
+											"key": "authors",
+											"value": "3",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/9780132350884",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"9780132350884"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetTop5BooksLent",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/top5",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"top5"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetAvgLendingDurationByIsbn",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/books/9789720706386/avgDuration",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"books",
+										"9789720706386",
+										"avgDuration"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetTop5Genres",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/genres/top5",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"genres",
+										"top5"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetAverageLendingsPerGenre",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"page\": {\n        \"number\": 1,\n        \"limit\": 10\n    },\n    \"query\": {\n        \"year\": 2024,\n        \"month\": 5\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/genres/avgLendingsPerGenre",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"genres",
+										"avgLendingsPerGenre"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetLendingsAverageDurationPerMonth",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/genres/lendingsAverageDurationPerMonth?startDate=2024-01-01&endDate=2024-06-30",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"genres",
+										"lendingsAverageDurationPerMonth"
+									],
+									"query": [
+										{
+											"key": "startDate",
+											"value": "2024-01-01"
+										},
+										{
+											"key": "endDate",
+											"value": "2024-06-30"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Reader",
+			"item": [
+				{
+					"name": "As Reader",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{readerToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "GetOwnReaderProfile",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"readerEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/readers",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"readers"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetReaderLendingsByIsbn",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/readers/{{currentYear}}/1/lendings?isbn=9789720706386",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"readers",
+										"{{currentYear}}",
+										"1",
+										"lendings"
+									],
+									"query": [
+										{
+											"key": "isbn",
+											"value": "9789720706386"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetReaderLendingsByIsbn - Invalid ISBN",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Not Found\", function () {",
+											"    pm.response.to.have.status(404);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/readers/{{currentYear}}/1/lendings?isbn=9780000000000",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"readers",
+										"{{currentYear}}",
+										"1",
+										"lendings"
+									],
+									"query": [
+										{
+											"key": "isbn",
+											"value": "9780000000000"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "As Librarian",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{librarianToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "GetReaderByNumber",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let body = pm.response.json();",
+											"    pm.expect(body.readerNumber).to.eql(pm.environment.get(\"currentYear\") + \"/1\");",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/readers/{{currentYear}}/1",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"readers",
+										"{{currentYear}}",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetTop5ReadersByGenre",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/readers/top5ByGenre?genre=Infantil&startDate=2024-01-01&endDate=2024-06-01",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"readers",
+										"top5ByGenre"
+									],
+									"query": [
+										{
+											"key": "genre",
+											"value": "Infantil"
+										},
+										{
+											"key": "startDate",
+											"value": "2024-01-01"
+										},
+										{
+											"key": "endDate",
+											"value": "2024-06-01"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetTop5Readers",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/readers/top5",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"readers",
+										"top5"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Lendings",
+			"item": [
+				{
+					"name": "Policies",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{librarianToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "GetAllPolicies",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/admin/lending-policies",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"lending-policies"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetPolicyByName",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/admin/lending-policies/STANDARD",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"lending-policies",
+										"STANDARD"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "As Librarian",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{librarianToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "LendBook",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Created\", function () {",
+											"    pm.response.to.have.status(201);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"createdLendingEtag\", etag);",
+											"    let body = pm.response.json();",
+											"    pm.environment.set(\"createdLendingNumber\", body.lendingNumber);",
+											"    let parts = body.lendingNumber.split(\"/\");",
+											"    pm.environment.set(\"createdLendingYear\", parts[0]);",
+											"    pm.environment.set(\"createdLendingSeq\", parts[1]);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"isbn\": \"9782722203402\",\n    \"readerNumber\": \"{{currentYear}}/7\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "LendBook - Reader has overdue lendings",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Forbidden\", function () {",
+											"    pm.response.to.have.status(403);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"isbn\": \"9782722203402\",\n    \"readerNumber\": \"{{currentYear}}/1\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "LendBook - Reader has 3 lendings",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"Forbidden\", function () {",
+											"    pm.response.to.have.status(403);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"isbn\": \"9782722203402\",\n    \"readerNumber\": \"{{currentYear}}/2\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetLending - returned, not over limit",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"lendingEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings/2024/1",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings",
+										"2024",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetLending - not returned, overdue",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings/2024/6",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings",
+										"2024",
+										"6"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetAverageDuration",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings/avgDuration",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings",
+										"avgDuration"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GetOverdueLendings",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"number\": 1,\n    \"limit\": 5\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings/overdue",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings",
+										"overdue"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "As Reader",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{cleanReaderToken}}",
+								"type": "string"
+							}
+						]
+					},
+					"item": [
+						{
+							"name": "ReaderGetLending",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"    let etag = pm.response.headers.get(\"ETag\");",
+											"    pm.environment.set(\"createdLendingEtag\", etag);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings/{{createdLendingYear}}/{{createdLendingSeq}}",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings",
+										"{{createdLendingYear}}",
+										"{{createdLendingSeq}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "SetReturned",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"packages": {},
+										"exec": [
+											"pm.test(\"OK\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "If-Match",
+										"value": "{{createdLendingEtag}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"commentary\": \"Excelente livro!\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}{{baseUrl}}/lendings/{{createdLendingYear}}/{{createdLendingSeq}}",
+									"host": [
+										"{{host}}{{baseUrl}}"
+									],
+									"path": [
+										"lendings",
+										"{{createdLendingYear}}",
+										"{{createdLendingSeq}}"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "host",
+			"value": "http://localhost:8085",
+			"type": "string"
+		},
+		{
+			"key": "baseUrl",
+			"value": "/api",
+			"type": "string"
+		},
+		{
+			"key": "currentYear",
+			"value": "2026",
+			"type": "string"
+		}
+	]
+}
