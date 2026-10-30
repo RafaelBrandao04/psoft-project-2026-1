@@ -33,9 +33,21 @@ pipeline {
             }
             post {
                 always {
-                    echo '>>> Archiving Test, Mutation & Quality Reports as Evidence...'
-                    archiveArtifacts artifacts: 'target/pit-reports/**', allowEmptyArchive: true
+                    echo '>>> Archiving Test, Mutation, Coverage & Quality Reports as Evidence...'
+                    archiveArtifacts artifacts: 'target/pit-reports/**, target/site/jacoco/**, target/site/jacoco-it/**', allowEmptyArchive: true
                     junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml', allowEmptyResults: true
+                    script {
+                        try {
+                            recordCoverage(tools: [[parser: 'JACOCO', pattern: '**/jacoco.xml']])
+                        } catch (Throwable t) {
+                            echo "Notice: recordCoverage step was not executed: ${t.message}"
+                            try {
+                                jacoco()
+                            } catch (Throwable t2) {
+                                echo "Notice: jacoco step was not executed: ${t2.message}"
+                            }
+                        }
+                    }
                 }
             }
         }
