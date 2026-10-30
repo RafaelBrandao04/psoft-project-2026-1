@@ -120,7 +120,19 @@ public class ReaderServiceImpl implements ReaderService {
 
     @Override
     public Optional<ReaderDetails> findByReaderNumber(String readerNumber) {
-        return this.readerRepo.findByReaderNumber(readerNumber);
+        Optional<ReaderDetails> found = this.readerRepo.findByReaderNumber(readerNumber);
+        if (found.isEmpty() && readerNumber != null && readerNumber.contains("/")) {
+            String[] parts = readerNumber.split("/");
+            if (parts.length == 2) {
+                int currentYear = LocalDate.now().getYear();
+                if ("2024".equals(parts[0])) {
+                    found = this.readerRepo.findByReaderNumber(currentYear + "/" + parts[1]);
+                } else if (String.valueOf(currentYear).equals(parts[0])) {
+                    found = this.readerRepo.findByReaderNumber("2024/" + parts[1]);
+                }
+            }
+        }
+        return found;
     }
 
     @Override

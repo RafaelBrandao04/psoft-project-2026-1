@@ -39,6 +39,13 @@ public class UserBootstrapper implements CommandLineRunner {
     @Override
     @Transactional
     public void run(final String... args)  {
+        try {
+            java.nio.file.Path target = java.nio.file.Paths.get("uploads-psoft-g1/readerPhotoTest.jpg");
+            java.nio.file.Path source = java.nio.file.Paths.get("uploads-psoft-g1/dev/readerPhotoTest.jpg");
+            if (!java.nio.file.Files.exists(target) && java.nio.file.Files.exists(source)) {
+                java.nio.file.Files.copy(source, target);
+            }
+        } catch (Exception ignored) {}
         createReaders();
         createLibrarian();
         executeQueries();

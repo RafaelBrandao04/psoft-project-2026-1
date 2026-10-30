@@ -38,3 +38,4 @@ public class CreateBookRequest {
     @NotNull
     private List<Long> authors;
 }
+

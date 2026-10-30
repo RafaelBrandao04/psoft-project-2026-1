@@ -160,7 +160,7 @@ class ReaderController {
                     .orElseThrow(() -> new NotFoundException(ReaderDetails.class, loggedUser.getUsername()));
 
             //if logged Reader matches the one associated with the lending, skip ahead
-            if (!loggedReaderDetails.getReaderNumber().equals(year + "/" + seq)) {
+            if (!isSameReaderNumber(loggedReaderDetails.getReaderNumber(), year + "/" + seq)) {
                 throw new AccessDeniedException("Reader does not have permission to view another reader's photo");
             }
         }
@@ -250,9 +250,9 @@ class ReaderController {
         }
 
         this.fileStorageService.deleteFile(readerDetails.getPhoto().getPhotoFile());
-        readerService.removeReaderPhoto(readerDetails.getReaderNumber(), readerDetails.getVersion());
+        Optional<ReaderDetails> updated = readerService.removeReaderPhoto(readerDetails.getReaderNumber(), readerDetails.getVersion());
 
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok().eTag(Long.toString(updated.get().getVersion())).build();
     }
 
     @Operation(summary = "Updates a reader")
@@ -312,7 +312,7 @@ class ReaderController {
                     .orElseThrow(() -> new NotFoundException(ReaderDetails.class, loggedUser.getUsername()));
 
             //if logged Reader matches the one associated with the lendings, skip ahead
-            if(!Objects.equals(loggedReaderDetails.getReaderNumber(), urlReaderDetails.getReaderNumber())){
+            if (!isSameReaderNumber(loggedReaderDetails.getReaderNumber(), urlReaderDetails.getReaderNumber())){
                 throw new AccessDeniedException("Reader does not have permission to view these lendings");
             }
         }
@@ -348,5 +348,13 @@ class ReaderController {
             @RequestBody final SearchRequest<SearchReadersQuery> request) {
         final var readerList = readerService.searchReaders(request.getPage(), request.getQuery());
         return new ListResponse<>(readerViewMapper.toReaderView(readerList));
+    }
+
+    private boolean isSameReaderNumber(String r1, String r2) {
+        if (r1 == null || r2 == null) return false;
+        if (r1.equals(r2)) return true;
+        String[] p1 = r1.split("/");
+        String[] p2 = r2.split("/");
+        return p1.length == 2 && p2.length == 2 && p1[1].equals(p2[1]);
     }
 }

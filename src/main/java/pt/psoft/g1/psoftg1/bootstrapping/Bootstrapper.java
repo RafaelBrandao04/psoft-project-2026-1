@@ -514,7 +514,7 @@ public class Bootstrapper implements CommandLineRunner {
         for(i = 0; i < 6; i++){
             ++seq;
             if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
-                startDate = LocalDate.of(2024, 6,(i/3+1));
+                startDate = LocalDate.now().minusDays(i/3+1);
                 lending = Lending.newBootstrappingLending(books.get(i), readers.get(i%2+3), 2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
                 lendingRepository.save(lending);
             }
@@ -524,10 +524,18 @@ public class Bootstrapper implements CommandLineRunner {
         for(i = 0; i < 10; i++){
             ++seq;
             if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
-                startDate = LocalDate.of(2024, 6,(2+i/4));
+                startDate = LocalDate.now().minusDays(2+i/4);
                 lending = Lending.newBootstrappingLending(books.get(i), readers.get(4-i%4), 2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
                 lendingRepository.save(lending);
             }
+        }
+
+        // Lending 46 (overdue, not returned, for Pedro - for return test isolation)
+        ++seq;
+        if(lendingRepository.findByLendingNumber("2024/" + seq).isEmpty()){
+            startDate = LocalDate.now().minusDays(35);
+            lending = Lending.newBootstrappingLending(books.get(0), readers.get(2), 2024, seq, startDate, null, lendingDurationInDays, fineValuePerDayInCents);
+            lendingRepository.save(lending);
         }
     }
 

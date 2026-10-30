@@ -55,8 +55,14 @@ public class BookController {
     @Operation(summary = "Register a new Book")
     @PutMapping(value = "/{isbn}")
     @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<BookView> create( CreateBookRequest resource, @PathVariable("isbn") String isbn) {
+    public ResponseEntity<BookView> create(
+            CreateBookRequest resource,
+            @RequestParam(value = "authors[]", required = false) List<Long> authorsParam,
+            @PathVariable("isbn") String isbn) {
 
+        if ((resource.getAuthors() == null || resource.getAuthors().isEmpty()) && authorsParam != null) {
+            resource.setAuthors(authorsParam);
+        }
 
         //Guarantee that the client doesn't provide a link on the body, null = no photo or error
         resource.setPhotoURI(null);
@@ -71,7 +77,9 @@ public class BookController {
         Book book;
         try {
             book = bookService.create(resource, isbn);
-        }catch (Exception e){
+        } catch (ConflictException ce) {
+            throw ce;
+        } catch (Exception e){
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
         //final var savedBook = bookService.save(book);

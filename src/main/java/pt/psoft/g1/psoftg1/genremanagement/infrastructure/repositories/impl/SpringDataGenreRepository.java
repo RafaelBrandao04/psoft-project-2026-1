@@ -73,8 +73,8 @@ class GenreRepoCustomImpl implements GenreRepoCustom {
         LocalDate now = LocalDate.now();
         LocalDate twelveMonthsAgo = now.minusMonths(12);
         Predicate datePredicate = cb.between(lendingRoot.get("startDate"),
-                java.sql.Date.valueOf(twelveMonthsAgo),
-                java.sql.Date.valueOf(now));
+                twelveMonthsAgo,
+                now);
 
         cq.where(datePredicate);
         cq.orderBy(cb.asc(year), cb.asc(month), cb.asc(genreJoin.get("genre")));

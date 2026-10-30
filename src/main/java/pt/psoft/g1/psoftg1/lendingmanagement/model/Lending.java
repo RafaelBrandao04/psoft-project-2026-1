@@ -109,6 +109,14 @@ public class Lending {
     @Column(length = 1024)
     private String commentary = null;
 
+    public String getCommentary() {
+        return this.commentary;
+    }
+
+    public void setCommentary(String commentary) {
+        this.commentary = commentary;
+    }
+
     @Transient
     private Integer daysUntilReturn;
 

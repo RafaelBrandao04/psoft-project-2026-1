@@ -47,10 +47,25 @@ public class GenreController {
         return new ListResponse<>(viewList);
     }
 
-    @GetMapping("/lendingsAverageDurationPerMonth")
+    @GetMapping(value = {"/lendingsAverageDurationPerMonth", "/avgLendings"})
     public ListResponse<GenreLendingsAvgPerMonthView> getLendingsAverageDurationPerMonth(
-            @RequestParam("startDate") final String start,
-            @RequestParam("endDate") final String end) {
+            @RequestParam(value = "startDate", required = false) final String startParam,
+            @RequestParam(value = "endDate", required = false) final String endParam,
+            @RequestParam(value = "start", required = false) final String startLegacy,
+            @RequestParam(value = "end", required = false) final String endLegacy,
+            @RequestParam(value = "period", required = false) final String period) {
+
+        if (period != null && !period.equalsIgnoreCase("day") && !period.equalsIgnoreCase("month")) {
+            throw new IllegalArgumentException("Invalid period: " + period);
+        }
+
+        String start = startParam != null ? startParam : startLegacy;
+        String end = endParam != null ? endParam : endLegacy;
+
+        if (start == null || end == null) {
+            throw new IllegalArgumentException("Start and end dates are required");
+        }
+
         final var list = genreService.getLendingsAverageDurationPerMonth(start, end);
 
         if(list.isEmpty())
