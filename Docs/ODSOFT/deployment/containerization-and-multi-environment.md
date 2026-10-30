@@ -1,4 +1,4 @@
-# Multi-Environment Configuration and Systemd Service Isolation
+﻿# Multi-Environment Configuration and Systemd Service Isolation
 
 ## 1. Overview and Scope (Goal 1.3.5)
 
@@ -127,7 +127,7 @@ file.photo_max_size=${FILE_PHOTO_MAX_SIZE:20000}
 The template file [`.env.example`](../../../.env.example) at the repository root documents all externalized variables supported by `application.properties`, including `PORT`, `DEMO_ENVIRONMENT`, `SPRING_PROFILES_ACTIVE`, database connection strings, JWT key paths, external bibliographic providers (`BIBLIOGRAPHIC_PROVIDERS`), notification channels (`NOTIFICATION_CHANNELS`), and lending policy parameters.
 
 Because `application.properties` includes `spring.config.import=optional:file:.env[.properties]`:
-* **Without a local `.env`:** The application and all 402 automated tests run out-of-the-box using the fallback defaults.
+* **Without a local `.env`:** The application and all 421 automated tests run out-of-the-box using the fallback defaults.
 * **With a local `.env`:** Developers can override `PORT=8085` (for example, when port `8080` is occupied by a local Jenkins controller) without modifying tracked files.
 * **On the DEI Linux VMs:** `systemd` injects `/etc/psoft-g1/<env>.env` directly into the process environment via `EnvironmentFile=`.
 

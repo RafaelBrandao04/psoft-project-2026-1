@@ -1,4 +1,4 @@
-# System-to-Be: Target Development, CI/CD Pipeline, and Multi-Environment Deployment Architecture
+﻿# System-to-Be: Target Development, CI/CD Pipeline, and Multi-Environment Deployment Architecture
 
 ## 1. Target Development and Continuous Delivery Architecture
 
@@ -34,7 +34,7 @@ flowchart TD
     end
 
     subgraph JobDEV["1. Pipeline DEV (lms-dev)"]
-        STAGE_BUILD["Stage 1: Build & Verify<br/>• Compile & SpotBugs SAST<br/>• Surefire Unit Tests (358/358)<br/>• Failsafe IT Tests (44/44)<br/>• PIT Mutation Testing (Threshold >= 30%, Strength 84%)<br/>• Package 72MB Fat JAR + Git Commit Stamp"]
+        STAGE_BUILD["Stage 1: Build & Verify<br/>• Compile & SpotBugs SAST<br/>• Surefire Unit Tests (377/377)<br/>• Failsafe IT Tests (44/44)<br/>• PIT Mutation Testing (Threshold >= 30%, Strength 84%)<br/>• Package 72MB Fat JAR + Git Commit Stamp"]
         STAGE_DEV_DEPLOY["Stage 2: Deploy DEV<br/>• SCP to DEI VM vs806:10806 (/opt/psoft-g1/dev)<br/>• Restart systemd psoft-g1@dev.service (port 8081)<br/>• Smoke Test (/info + /actuator/health/readiness)<br/>• Archive validated/** with Fingerprint"]
         STAGE_BUILD --> STAGE_DEV_DEPLOY
     end
@@ -70,7 +70,7 @@ flowchart TD
 
 | Pipeline Job | Stage Name | Purpose | Execution Scope | Target Environment | Approval & Gate Criteria | Failure Action |
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`lms-dev`** | **Build & Verify** | Clean build, static analysis, unit tests, integration tests, mutation testing | `mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 -Drelease.commit="${env.GIT_COMMIT}"` | Local Jenkins Agent | 0 compiler errors, 358/358 unit tests, 44/44 IT tests, PIT $\ge 30\%$ | Aborts build (`FAILURE`). Publishes JUnit/PIT reports. |
+| **`lms-dev`** | **Build & Verify** | Clean build, static analysis, unit tests, integration tests, mutation testing | `mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 -Drelease.commit="${env.GIT_COMMIT}"` | Local Jenkins Agent | 0 compiler errors, 377/377 unit tests, 44/44 IT tests, PIT $\ge 30\%$ | Aborts build (`FAILURE`). Publishes JUnit/PIT reports. |
 | **`lms-dev`** | **Deploy DEV** | Binary packaging, release tracking, remote deployment | `copy /B /Y`, `deploy/jenkins-deploy.groovy` (`scp` + `systemctl restart psoft-g1@dev`) | **DEV:** `vs806:8081` (`/opt/psoft-g1/dev`) | Contract smoke test (`/info` + `/actuator/health/readiness`) within 60s | Aborts deployment, displays `journalctl` / log tail. |
 | **`lms-uat`** | **Deploy UAT** | Pull validated artifact from DEV build, deploy to staging | `copyArtifacts` from `validated/`, `deploy.call('uat')` | **UAT:** `vs806:8082` (`/opt/psoft-g1/uat`) | Matching `CI_BUILD` in `release.properties`, contract smoke test | Aborts UAT deployment. |
 | **`lms-uat`** | **UAT Acceptance** | Free agent and await authorized stakeholder validation | `agent none`, `input` step with timeout 7 days | Jenkins UI Gate | Manual click on "Aceitar e promover" by authorized user | Aborts promotion upon timeout or reject. |

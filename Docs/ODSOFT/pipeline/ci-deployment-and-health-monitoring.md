@@ -1,4 +1,4 @@
-# Automated Deployment, Immutable Artifact Management, and Health Monitoring Pipeline
+﻿# Automated Deployment, Immutable Artifact Management, and Health Monitoring Pipeline
 
 ## 1. Overview and Objectives (Goal 1.3.3 & Goal 1.3.5)
 
@@ -67,7 +67,7 @@ Rather than coupling all stages into an unwieldy single job, delivery is orchest
 * **Build & Verification Stage:**
   * Clean build with OpenJDK 17/21.
   * Static code analysis via SpotBugs (0 P1 defects permitted).
-  * 358 unit tests via Surefire (100% pass rate).
+  * 377 unit tests via Surefire (100% pass rate).
   * 44 integration tests via Failsafe (100% pass rate).
   * PITest mutation analysis with minimum threshold $\ge 30\%$ (Test strength: 84%).
   * Spring Boot packaging into `target/psoft-g1-0.0.1-SNAPSHOT.jar` and Git commit stamping via `-Drelease.commit="${env.GIT_COMMIT}"`.

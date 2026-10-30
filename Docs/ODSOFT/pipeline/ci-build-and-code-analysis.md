@@ -1,4 +1,4 @@
-# Automated CI/CD Pipeline: Build, Packaging, and Static Code Analysis
+﻿# Automated CI/CD Pipeline: Build, Packaging, and Static Code Analysis
 
 ## 1. Overview and Scope (Goal 1.3.3)
 
@@ -104,7 +104,7 @@ Running SpotBugs on the baseline codebase identified **125 bug instances**, incl
 #### Verification Post-Remediation:
 * **Remaining High-Priority (P1) Bugs:** **0**
 * **SpotBugs Build Status:** `BUILD SUCCESS`.
-* **Current Test Suite:** 358/358 Unit Tests and 44/44 Integration Tests pass with 0 regressions.
+* **Current Test Suite:** 377/377 Unit Tests and 44/44 Integration Tests pass with 0 regressions.
 
 ---
 
@@ -239,7 +239,7 @@ The pipeline establishes **Hard Gates** and **Soft Gates** as taught in the theo
 | :--- | :---: | :--- | :--- |
 | **Compilation** | **Hard Gate** | 0 compilation errors, 0 annotation processor errors | Aborts build immediately (`FAILURE`). Stops line. |
 | **Static Code Analysis (SpotBugs)** | **Hard Gate** | 0 High-Priority (P1) defects | Halts pipeline before packaging or deployment. |
-| **Unit Tests (Surefire)** | **Hard Gate** | 100% pass rate (358/358 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
+| **Unit Tests (Surefire)** | **Hard Gate** | 100% pass rate (377/377 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
 | **Integration Tests (Failsafe)** | **Hard Gate** | 100% pass rate (44/44 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
 | **Mutation Testing (PITest)** | **Hard Gate** | Mutation threshold $\ge 30\%$ | Aborts build if mutation score degrades below threshold. |
 | **Artifact Packaging** | **Hard Gate** | Binary JAR preserved (~72 MB) via `copy /B /Y` | Aborts build if artifact missing or truncated. |

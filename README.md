@@ -1,4 +1,4 @@
-# Library Management System (LMS) — `psoft-g1`
+﻿# Library Management System (LMS) — `psoft-g1`
 
 Repositório unificado do Sistema de Gestão de Biblioteca (*Library Management System* - LMS) desenvolvido no âmbito do **Mestrado em Engenharia Informática (MEI)** do **Instituto Superior de Engenharia do Porto (ISEP)** para as unidades curriculares de:
 * **ARQSOFT** — Arquitetura de Software
@@ -42,13 +42,6 @@ psoft-g1/
 │   └── bootstrapping/       # Inicialização de dados para ambiente de desenvolvimento/teste
 ```
 
-### Funcionalidade 1.3.3.1 — Informação Bibliográfica Externa Extensível
-Implementada com recurso aos padrões **Ports and Adapters (Hexagonal)**, **Composite** e **Reflective Factory**:
-* **Porta:** [`BookInfoProvider`](src/main/java/pt/psoft/g1/psoftg1/bookmanagement/services/BookInfoProvider.java)
-* **Adaptadores:** [`GoogleBooksAdapter`](src/main/java/pt/psoft/g1/psoftg1/bookmanagement/infrastructure/gateways/GoogleBooksAdapter.java) e [`OpenLibraryAdapter`](src/main/java/pt/psoft/g1/psoftg1/bookmanagement/infrastructure/gateways/OpenLibraryAdapter.java)
-* **Composição e Resiliência:** [`CompositeBookInfoProvider`](src/main/java/pt/psoft/g1/psoftg1/bookmanagement/infrastructure/gateways/CompositeBookInfoProvider.java) (tolerância a falhas, priorização e fusão inteligente de dados parciais)
-* **Configurabilidade a Setup-Time:** Resolução dinâmica via propriedades em [`BibliographicConfig`](src/main/java/pt/psoft/g1/psoftg1/configuration/BibliographicConfig.java) sem necessidade de recompilar código para suportar novos provedores.
-
 ---
 
 ## 2. Engenharia de Software e Pipeline CI/CD (ODSOFT)
@@ -58,7 +51,7 @@ O projeto integra uma esteira automatizada de **Continuous Delivery (CD)** estru
 ```mermaid
 flowchart TD
     subgraph Job1["1. Pipeline DEV (lms-dev)"]
-        COMPILE["Clean Compile & SAST<br/>(SpotBugs 0 P1)"] --> UNIT["Unit Tests<br/>(Surefire 358 Tests)"]
+        COMPILE["Clean Compile & SAST<br/>(SpotBugs 0 P1)"] --> UNIT["Unit Tests<br/>(Surefire 377 Tests)"]
         UNIT --> IT["Integration Tests<br/>(Failsafe 44 Tests)"]
         IT --> PIT["PIT Mutation Testing<br/>(Gate >= 30%, Strength 84%)"]
         PIT --> PKG["Package Immutable app.jar<br/>+ release.properties"]
@@ -81,7 +74,7 @@ flowchart TD
 ```
 
 ### Quality Gates Aplicados
-* **Sucesso dos Testes:** 100% de testes unitários (358) e de integração (44) verdes sem regressões.
+* **Sucesso dos Testes:** 100% de testes unitários (377) e de integração (44) verdes sem regressões.
 * **Análise Estática (SAST):** 0 novos *bugs* ou vulnerabilidades de alta prioridade (P1) no SpotBugs.
 * **Cobertura de Código:** Cobertura de instruções/linhas $\ge 60\%$ nos módulos core (JaCoCo).
 * **Testes de Mutação (PITest):** Limiar global de CI $\ge 30\%$ (`-Dpitest.mutationThreshold=30`), com 100% dos pacotes core entre $64\%$ e $100\%$ de eliminação de mutantes e *Test Strength* global de $84\%$.
@@ -149,7 +142,7 @@ A esteira de entrega contínua é composta por **três pipelines declarativas em
   * **Controlador Jenkins:** Executado localmente em `localhost:8080`, eliminando o risco de congelamento/OOM das máquinas virtuais do DEI durante compilações Maven e testes de mutação PITest pesados.
   * **Túnel Seguro de Webhook:** Integração com o GitHub através de túnel persistente de saída WebSocket (`WSS`) gerido pelo **Webhook Relay Plugin** (sem necessidade de expor portas públicas no router).
 * **Os 3 Pipelines Declarativos:**
-  1. **[`.Jenkinsfile`](.Jenkinsfile) (`lms-dev`):** Disparado automaticamente a cada `git push` na branch `main`. Executa compilação, análise SpotBugs, 358 testes unitários, 44 testes de integração, PITest ($\ge 30\%$), empacota o binário imutável `app.jar` com carimbo de commit, implanta em **DEV** (`vs806:8081`), valida o smoke test contratual e dispara o job seguinte.
+  1. **[`.Jenkinsfile`](.Jenkinsfile) (`lms-dev`):** Disparado automaticamente a cada `git push` na branch `main`. Executa compilação, análise SpotBugs, 377 testes unitários, 44 testes de integração, PITest ($\ge 30\%$), empacota o binário imutável `app.jar` com carimbo de commit, implanta em **DEV** (`vs806:8081`), valida o smoke test contratual e dispara o job seguinte.
   2. **[`.Jenkinsfile_uat`](.Jenkinsfile_uat) (`lms-uat`):** Recupera o binário validado via `copyArtifacts` (sem recompilar), implanta em **UAT** (`vs806:8082`), valida o smoke test e liberta o agente Jenkins (`agent none` + `stash`) enquanto aguarda aprovação humana (até 7 dias) no botão *"Aceitar e promover"*. Após aprovação, revalida a saúde do serviço e dispara PROD.
   3. **[`.Jenkinsfile_prod`](.Jenkinsfile_prod) (`lms-prod`):** Recupera o binário aceite, imprime a trilha de auditoria completa (*Production Audit Trail*), implanta na VM dedicada e isolada de **PROD** (`vs336:8080`), valida o smoke test e arquiva o pacote final auditado em `final_artifact/**`.
 * **Como Disparar Manualmente:**
@@ -272,7 +265,7 @@ suggestionsLimitPerGenre=2
 O projeto está estruturado segundo a pirâmide de testes e os 5 níveis de teste estipulados em ARQSOFT e ODSOFT:
 
 ### 8.1. Testes Unitários (Surefire)
-Executa a suíte de 358 testes unitários isolados em memória (DTOs, regras de domínio, políticas de empréstimo, gateways mockados e serviços):
+Executa a suíte de 377 testes unitários isolados em memória (DTOs, regras de domínio, políticas de empréstimo, gateways mockados e serviços):
 ```bash
 ./mvnw test -B
 ```
@@ -324,7 +317,7 @@ A documentação detalhada encontra-se organizada na pasta `Docs/`:
   * [Análise do System-as-is (Diagnóstico e Limitações do Processo Manual)](Docs/ODSOFT/system-as-is/system-as-is.md)
   * [Correções e Estabilização da Baseline (System-fixes)](Docs/ODSOFT/system-fixes/system-fixes.md)
   * [System-to-Be: Arquitetura Alvo de Desenvolvimento e CI/CD](Docs/ODSOFT/system-to-be/system-to-be.md)
-  * [Estratégia e Níveis de Testes Automatizados (402 Testes e Mutação)](Docs/ODSOFT/testing-strategy/testing-strategy.md)
+  * [Estratégia e Níveis de Testes Automatizados (421 Testes e Mutação)](Docs/ODSOFT/testing-strategy/testing-strategy.md)
   * [Pipeline CI: Build, Empacotamento e Análise Estática SAST](Docs/ODSOFT/pipeline/ci-build-and-code-analysis.md)
   * [Pipeline CI: Testes, Cobertura JaCoCo, Mutação PITest e Quality Gates](Docs/ODSOFT/pipeline/ci-testing-coverage-and-quality-gates.md)
   * [Pipeline CI: Deployment Automatizado, Gestão de Artefactos e Monitorização de Saúde](Docs/ODSOFT/pipeline/ci-deployment-and-health-monitoring.md)

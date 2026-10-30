@@ -1,4 +1,4 @@
-# Automated Testing Strategy, Quality Assessment, and Defect Detection
+﻿# Automated Testing Strategy, Quality Assessment, and Defect Detection
 
 ## 1. Baseline Limitations (*As-Is*)
 As established in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
@@ -136,16 +136,16 @@ The Maven build lifecycle (`pom.xml`) enforces strict phase segregation, automat
 
 ## 4. Test Suite Implementation
 
-The test suite was systematically expanded from 102 tests (baseline) to **402 automated tests** across segregated lifecycles:
+The test suite was systematically expanded from 102 tests (baseline) to **421 automated tests** across segregated lifecycles:
 
 ```
-Total Test Suite: 402 Automated Tests (100% Pass Rate)
-├── Surefire Unit Tests (mvn test): 358 tests (~14s execution)
+Total Test Suite: 421 Automated Tests (100% Pass Rate)
+├── Surefire Unit Tests (mvn test): 377 tests (~14s execution)
 └── Failsafe Integration Tests (mvn verify): 44 tests (~15s execution)
 ```
 
 ### 4.1. Unit Testing Suite (`src/test/java/.../*Test.java`)
-Executed by Maven Surefire (`mvn test`). All 358 tests run with complete isolation and zero Spring context overhead:
+Executed by Maven Surefire (`mvn test`). All 377 tests run with complete isolation and zero Spring context overhead:
 
 1. **`LendingServiceImplTest.java` (20 tests):**
    * Business invariant: maximum 3 outstanding books (`LendingForbiddenException`).
@@ -178,9 +178,9 @@ Executed by Maven Surefire (`mvn test`). All 358 tests run with complete isolati
    * `OpenLibraryAdapterTest` (10 tests): JSON payload mapping, missing fields handling, HTTP failure resilience, and empty response safety.
    * `GoogleBooksAdapterTest` (7 tests): Google Books `items[].volumeInfo` JSON extraction, author list parsing, and error handling.
    * `CompositeBookInfoProviderTest` (6 tests): Chain-of-responsibility fallback across ordered providers, partial field enrichment merging, and fault isolation.
-8. **Event-Driven Multichannel Notifications (`readermanagement.infrastructure.notifications` & `lendingmanagement.events` — 39 tests):**
+8. **Event-Driven Multichannel Notifications (`readermanagement.infrastructure.notifications` & `lendingmanagement.events` — 43 tests):**
    * `LendingNotificationListenerTest` (9 tests): `@TransactionalEventListener(phase = AFTER_COMMIT)` event handling for loan creation, return, and overdue alerts.
-   * `WebhookNotificationSenderTest` (7 tests), `SmsNotificationSenderTest` (6 tests), `EmailNotificationSenderTest` (5 tests): Channel-specific strategy dispatching, formatting, and error handling.
+   * `WebhookNotificationSenderTest` (7 tests), `SmsNotificationSenderTest` (8 tests), `EmailNotificationSenderTest` (7 tests): Channel-specific strategy dispatching, formatting, and error handling.
    * `CompositeNotificationSenderTest` (6 tests): Multichannel broadcast orchestration and fault isolation when an individual channel fails.
    * `LendingEventsTest` (6 tests): Domain event payload immutability and invariant validation.
 9. **Web Controllers & Configuration Wiring (23 tests):**
@@ -201,7 +201,7 @@ Executed by Maven Surefire (`mvn test`). All 358 tests run with complete isolati
     * `LendingPolicyResolverTest.java` (6 tests): Runtime policy selection based on reader type, book characteristics, and system settings.
     * `LendingPolicyAdminControllerTest.java` (5 tests): Administrative REST endpoints for runtime policy management with isolated WebMvc slices.
 
-**Surefire Results:** **358 tests run, 0 failures, 0 errors, 0 skipped.**
+**Surefire Results:** **377 tests run, 0 failures, 0 errors, 0 skipped.**
 
 ### 4.2. Integration Testing Suite (`src/test/java/.../*IT.java`, `*IntegrationTest.java`)
 Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Spring Security, Spring Data JPA, transactional domain events, and the H2 database fake:
@@ -380,8 +380,8 @@ In mutation testing theory, not all surviving mutants represent test defects:
 
 | Metric | Baseline (*As-Is*) | Target State (*To-Be*) | Net Improvement | Impact |
 |:---|:---:|:---:|:---:|:---|
-| **Total Automated Test Suite** | 102 tests | **402 tests** | **+294.1%** | Comprehensive regression net across domain & architecture |
-| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **358 (pure isolated SUT)** | **+251.0%** | Ultra-fast feedback (~14s) |
+| **Total Automated Test Suite** | 102 tests | **421 tests** | **+312.7%** | Comprehensive regression net across domain & architecture |
+| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **377 (pure isolated SUT)** | **+269.6%** | Ultra-fast feedback (~14s) |
 | **Integration Tests (`mvn verify`)** | 0 configured | **44 (Failsafe automated)** | **+100% (New)** | Full security, DB, concurrency & event dispatch |
 | **Security & RBAC Tests** | 0 active tests | **24+ active tests** | **+100% (New)** | Automated access control |
 | **Concurrency & Event Fault-Isolation Tests** | 0 tests | **4 active Failsafe tests** | **+100% (New)** | Validates optimistic locking & multichannel fault isolation |

@@ -1,4 +1,4 @@
-# Automated CI/CD Pipeline: Testing, Coverage, Mutation, and Quality Gates
+﻿# Automated CI/CD Pipeline: Testing, Coverage, Mutation, and Quality Gates
 
 ## 1. Overview and Objectives (Goal 1.3.3)
 
@@ -17,7 +17,7 @@ Following the architectural segregation designed in [`Docs/ODSOFT/testing-strate
 ```mermaid
 %%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
-    COMPILE["1. Clean Compile & SAST<br/>(Bytecode & SpotBugs)"] --> UNIT["2. Unit Tests<br/>(Surefire: 358 Tests, 100% Pass)"]
+    COMPILE["1. Clean Compile & SAST<br/>(Bytecode & SpotBugs)"] --> UNIT["2. Unit Tests<br/>(Surefire: 377 Tests, 100% Pass)"]
     UNIT --> PKG["3. Package & Repackage<br/>(Spring Boot Fat JAR)"]
     PKG --> IT["4. Integration Tests<br/>(Failsafe: 44 Tests, 100% Pass)"]
     IT --> PIT["5. PIT Mutation Testing<br/>(Threshold: 30%, Test Strength: 84%)"]
@@ -26,11 +26,11 @@ flowchart TD
 ```
 
 ### 2.1. Level 1: Unit Tests (`maven-surefire-plugin`)
-* **Scope:** 358 isolated unit tests covering Domain Value Objects, Aggregate Roots, Application Services, Lending Policies, Notification Listeners, and Configuration using Mockito test doubles.
+* **Scope:** 362 isolated unit tests covering Domain Value Objects, Aggregate Roots, Application Services, Lending Policies, Notification Listeners, and Configuration using Mockito test doubles.
 * **Execution:** Executed during the Maven `test` phase.
 * **Characteristics:** Runs entirely in memory without Spring context or database overhead, finishing in ~14 seconds to provide immediate developer feedback.
 * **Surefire Configuration:** Includes `**/*Test.java`, strictly excluding `**/*IT.java` and `**/*IntegrationTest.java`.
-* **Observed Result:** 358 tests executed, 0 failures, 0 errors, 0 skipped.
+* **Observed Result:** 377 tests executed, 0 failures, 0 errors, 0 skipped.
 
 ### 2.2. Level 2: Integration Tests (`maven-failsafe-plugin`)
 * **Scope:** 44 integration tests verifying Spring Data JPA repository queries, Spring Security filter chains, role-based authorization (RBAC), database concurrency locking (`@Version` on `LendingServiceImplIT`), and multichannel notification dispatch (`LendingNotificationIntegrationIT`).
@@ -149,7 +149,7 @@ In alignment with the quality gate patterns defined in *Something about Apache J
 | Gate Category | Gate Scope | Threshold / Condition | Enforcement Mechanism | Failure Action |
 | :--- | :--- | :--- | :---: | :--- |
 | **Compilation Gate** | Source code & annotations | 0 compilation errors, 0 annotation processor errors | **Hard Gate** | Halts build immediately (`FAILURE`). Stops line. |
-| **Unit Test Pass Gate** | Surefire unit test suite | 100% pass rate (358/358 tests pass) | **Hard Gate** | Halts build immediately (`FAILURE`). |
+| **Unit Test Pass Gate** | Surefire unit test suite | 100% pass rate (377/377 tests pass) | **Hard Gate** | Halts build immediately (`FAILURE`). |
 | **Integration Test Gate**| Failsafe integration suite | 100% pass rate (44/44 tests pass against H2) | **Hard Gate** | Halts build immediately (`FAILURE`). |
 | **Mutation Testing Gate**| PITest mutation threshold | Mutation threshold $\ge 30\%$ | **Hard Gate** | Maven fails build in `verify` phase if threshold is unmet. |
 | **Packaging Gate** | Executable Spring Boot JAR | `psoft-g1-0.0.1-SNAPSHOT.jar` present and complete (~72 MB) | **Hard Gate** | Aborts pipeline before deployment if artifact corrupted or missing. |

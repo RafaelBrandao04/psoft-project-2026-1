@@ -1,4 +1,4 @@
-# Avaliação e Melhoria do Processo de CI/CD
+﻿# Avaliação e Melhoria do Processo de CI/CD
 
 ## 1. Contexto
 O presente documento apresenta a avaliação técnica, quantitativa e empírica do processo de engenharia de software e da esteira de Integração e Entrega Contínua (CI/CD) concebida para o sistema **LMS (*Library Management System* — `psoft-g1`)**.
@@ -138,14 +138,14 @@ flowchart TD
 | :--- | :---: | :---: | :--- |
 | **Deployment Frequency (DF)** | Esporádica / Semanal | **Múltiplos deploys/dia (On-demand)** | Deploy automático para DEV a cada `git push`; deploy para UAT em cadeia; deploy para PROD condicionado apenas a um clique. |
 | **Lead Time for Changes (LTTC)** | Horas a Dias | **~3 a 5 minutos** | Da submissão do código no GitHub até à conclusão com sucesso do deploy e smoke test em DEV decorrem menos de 5 minutos. |
-| **Change Failure Rate (CFR)** | Elevado / Desconhecido | **Muito Baixo (< 5%)** | O código só progride para implantação se passar os Hard Gates de compilação, SpotBugs (0 bugs P1), 402 testes e PITest $\ge 30\%$. |
+| **Change Failure Rate (CFR)** | Elevado / Desconhecido | **Muito Baixo (< 5%)** | O código só progride para implantação se passar os Hard Gates de compilação, SpotBugs (0 bugs P1), 421 testes e PITest $\ge 30\%$. |
 | **Mean Time to Recovery (MTTR)** | Horas (diagnóstico manual) | **< 60 segundos** | Em caso de falha de prontidão, o script de smoke test deteta o erro imediatamente e o systemd permite restart imediato da versão estável anterior. |
 
 #### Avaliação de Qualidade de Software segundo a Norma ISO/IEC 25010
 
 | Característica ISO 25010 | Avaliação Baseline (*As-Is*) | Avaliação Alvo (*To-Be*) | Melhorias e Salvaguardas Implementadas |
 | :--- | :---: | :---: | :--- |
-| **Adequação Funcional** | Parcial | **Completa e Verificada** | 402 testes automatizados cobrem as jornadas de utilizador e regras de negócio de livros, autores, leitores, empréstimos, políticas e notificações. |
+| **Adequação Funcional** | Parcial | **Completa e Verificada** | 421 testes automatizados cobrem as jornadas de utilizador e regras de negócio de livros, autores, leitores, empréstimos, políticas e notificações. |
 | **Fiabilidade (Reliability)** | Muito Frágil (Score PIT: 22%) | **Robusta (Test Strength: 84%)** | Eliminação do defeito fatal de duplo hashing BCrypt em `UserService`; testes de concorrência com `@Version` garantem integridade transacional. |
 | **Segurança (Security)** | Crítica (chaves/passwords no Git) | **Endurecida (Hardened)** | Remoção de segredos no repositório; execução remota sob utilizadores dedicados sem shell (`/usr/sbin/nologin`); controlo RBAC validado por testes de integração. |
 | **Manutenibilidade** | Degradada (sem SAST) | **Elevada** | Integração do SpotBugs (0 defeitos de Prioridade 1); 0 avisos críticos de compilação; documentação técnica sincronizada e versionada. |
@@ -159,8 +159,8 @@ A evolução da eficácia da suite de verificação é demonstrada pelos dados e
 
 | Métrica de Teste / Qualidade | Baseline (*System-as-is*) | Processo Melhorado (*System-to-be*) | Delta / Variação Percentual |
 | :--- | :---: | :---: | :---: |
-| **Total de Testes Automatizados** | 102 testes | **402 testes (100% aprovação)** | **+294.1%** |
-| • Testes Unitários Isolados (Surefire) | 102 testes | **358 testes** (~14s) | **+251.0%** |
+| **Total de Testes Automatizados** | 102 testes | **421 testes (100% aprovação)** | **+312.7%** |
+| • Testes Unitários Isolados (Surefire) | 102 testes | **377 testes** (~14s) | **+269.6%** |
 | • Testes de Integração (Failsafe) | 0 testes | **44 testes** (~15s) | **+$\infty$ (Novo Nível)** |
 | **Cobertura Global de Linhas (JaCoCo)** | ~33% (estimativa PIT) | **76% global (69%–100% core)** | **+130.3%** |
 | **Mutações Mortas (PITest)** | 124 mortas / 575 geradas | **662 mortas / 2.999 geradas** | **+433.9% mutantes mortos** |
@@ -278,7 +278,7 @@ mindmap
       ::icon(fa fa-shield-alt)
       Hard Quality Gates sequenciais
       SpotBugs P1 = 0
-      100% aprovação de 402 testes
+      100% aprovação de 421 testes
       PITest Mutation Strength >= 84%
     Keep Everything under VCS
       ::icon(fa fa-code-branch)
@@ -304,20 +304,20 @@ mindmap
 * **Aplicação Prática:** A qualidade não é avaliada no final através de testes manuais tardios. A esteira impõe uma barreira intransponível de *Quality Gates*:
   * Hard Gate 1: 0 erros de compilação e validação estrita de anotações Lombok/MapStruct;
   * Hard Gate 2: 0 defeitos de alta prioridade (P1) no SpotBugs;
-  * Hard Gate 3: 100% de sucesso nos 358 testes unitários do Surefire;
+  * Hard Gate 3: 100% de sucesso nos 377 testes unitários do Surefire;
   * Hard Gate 4: 100% de sucesso nos 44 testes de integração do Failsafe;
   * Hard Gate 5: Eficácia de testes comprovada com score de mutação PITest $\ge 30\%$;
   * Hard Gate 6: Prontidão operacional confirmada por smoke test contratual em $\le 60$ segundos.
 * **Justificação:** Impede a propagação de código com defeitos para os estágios seguintes (*Stop-the-line principle*).
 
 #### 5. "Keep Everything Under Version Control (VCS)"
-* **Aplicação Prática:** O repositório Git contém rigorosamente todos os elementos necessários para construir, testar e operar a solução: código aplicacional, suíte de 402 testes, scripts de provisionamento de infraestrutura (`deploy/setup-environments.sh`), configuração de serviços systemd (`deploy/psoft-g1@.service`), regras de permissões (`deploy/psoft-g1.sudoers`), scripts de smoke test (`deploy/smoke-test.sh`), ficheiros de pipeline (`.Jenkinsfile*`) e modelos de configuração (`.env.example`).
+* **Aplicação Prática:** O repositório Git contém rigorosamente todos os elementos necessários para construir, testar e operar a solução: código aplicacional, suíte de 421 testes, scripts de provisionamento de infraestrutura (`deploy/setup-environments.sh`), configuração de serviços systemd (`deploy/psoft-g1@.service`), regras de permissões (`deploy/psoft-g1.sudoers`), scripts de smoke test (`deploy/smoke-test.sh`), ficheiros de pipeline (`.Jenkinsfile*`) e modelos de configuração (`.env.example`).
 * **Justificação:** Permite auditar exatamente quem alterou o quê e restabelecer qualquer versão anterior da infraestrutura com fidelidade absoluta.
 
 ---
 
 ### 4.2. Fundamentação nas Boas Práticas de CI/CD
-* **"Always run commit tests locally before committing" (Regra 1):** Os 358 testes unitários Surefire foram arquitetados com *Test Doubles* e executam em ~14 segundos na máquina do programador antes de ser efetuado o `git push`.
+* **"Always run commit tests locally before committing" (Regra 1):** Os 377 testes unitários Surefire foram arquitetados com *Test Doubles* e executam em ~14 segundos na máquina do programador antes de ser efetuado o `git push`.
 * **"Wait for the results! Don't go anywhere. Just wait!" (Regra 2):** Graças ao túnel de Webhook Relay, a pipeline inicia em menos de 5 segundos após o push e fornece feedback completo ao autor do commit.
 * **"Fix or revert failures within 10 minutes" (Regra 3):** Se um Quality Gate falhar no Jenkins, o commit é imediatamente tratado como prioridade máxima de estabilização.
 * **"If any test fails, it is the responsibility of the committer" (Regra 7):** As propriedades de proveniência (`release.properties`) carimbam o hash Git exato do autor, assegurando total transparência sobre a autoria da alteração.
@@ -327,7 +327,7 @@ mindmap
 ### 4.3. Sinergia entre Arquitetura de Software (ARQSOFT) e CI/CD (ODSOFT)
 A arquitetura do software foi desenhada em simbiose direta com as necessidades da esteira de CI/CD:
 1. **Configurabilidade em Setup Time $\leftrightarrow$ Imutabilidade do Binário:** A flexibilidade de selecionar fornecedores bibliográficos externos (Google Books vs Open Library) e canais de notificação (Email, SMS, Webhook) via variáveis de ambiente permite que o **mesmo ficheiro `app.jar`** funcione em DEV, UAT e PROD sem necessidade de recompilar código para alterar configurações.
-2. **Padrões de Desenho (Gateway, Adapter, Composite) $\leftrightarrow$ Testabilidade Rápida:** Ao desacoplar dependências externas através de interfaces, os 402 testes executam de forma hermética, determinística e sem dependência de internet ou serviços de terceiros, garantindo estabilidade absoluta à esteira de CI.
+2. **Padrões de Desenho (Gateway, Adapter, Composite) $\leftrightarrow$ Testabilidade Rápida:** Ao desacoplar dependências externas através de interfaces, os 421 testes executam de forma hermética, determinística e sem dependência de internet ou serviços de terceiros, garantindo estabilidade absoluta à esteira de CI.
 3. **Isolamento de Falhas com `@TransactionalEventListener` $\leftrightarrow$ Resiliência Operacional:** A emissão de eventos assíncronos garante que falhas em serviços externos de notificação nunca provocam rollback de transações de negócio, mantendo o sistema em estado operacional comprovado pelos testes de integração Failsafe (`LendingNotificationIntegrationIT`).
 
 ---
