@@ -1,0 +1,41 @@
+@startuml VP_N1_RenewLending
+title Process View (Level 1) - Renew Lending (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Reader" as Actor
+participant "<<system>>\nLMS" as System
+
+activate Actor
+Actor -> System: POST /api/lendings/{year}/{seq}/renew (ifMatch)
+activate System
+
+System --> Actor: 200 OK (renewed lending)
+deactivate System
+deactivate Actor
+
+@enduml
+

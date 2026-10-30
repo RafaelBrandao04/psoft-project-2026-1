@@ -67,14 +67,19 @@ activate ReaderRepo
 ReaderRepo --> Service: reader
 deactivate ReaderRepo
 
-Service -> PolicyResolver: resolvePolicy(reader, book, outstandingLendings)
+Service -> LendingRepo: listByReaderNumber(resource.getReaderNumber)
+activate LendingRepo
+LendingRepo --> Service: readerHistory
+deactivate LendingRepo
+
+Service -> PolicyResolver: resolvePolicy(reader, book, outstandingLendings, readerHistory)
 activate PolicyResolver
 PolicyResolver --> Service: policy
 deactivate PolicyResolver
 
 Service -> Policy: validateCanLend(reader, book, outstandingLendings)
 activate Policy
-Policy --> Service: validated
+Policy --> Service: validated (limit & preconditions check)
 deactivate Policy
 
 Service -> Policy: getPolicyParameters

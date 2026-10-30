@@ -1,0 +1,63 @@
+@startuml VP_N2_RenewLending
+title Process View (Level 2) - Renew Lending (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Reader" as Actor
+participant "<<component>>\nBackend" as Backend
+participant "<<component>>\nDB" as DB
+
+activate Actor
+Actor -> Backend: POST /api/lendings/{year}/{seq}/renew (ifMatch)
+activate Backend
+
+Backend -> DB: get existing lending by number
+activate DB
+DB --> Backend: lending
+deactivate DB
+
+Backend -> Backend: verify lending is active & not overdue
+
+Backend -> DB: get reader's active lendings & lending history
+activate DB
+DB --> Backend: active lendings, reader history
+deactivate DB
+
+Backend -> Backend: re-evaluate applicable policy in runtime
+Backend -> Backend: validate renewal eligibility
+Backend -> Backend: calculate renewal period
+
+Backend -> DB: save renewed lending (extended limit date)
+activate DB
+DB --> Backend: saved renewed lending
+deactivate DB
+
+Backend --> Actor: 200 OK (renewed lending)
+deactivate Backend
+deactivate Actor
+
+@enduml
+

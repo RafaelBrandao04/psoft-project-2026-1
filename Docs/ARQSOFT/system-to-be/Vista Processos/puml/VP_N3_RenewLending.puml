@@ -1,0 +1,108 @@
+@startuml VP_N3_RenewLending
+title Process View (Level 3) - Renew Lending with Dynamic Policy Re-evaluation (To-Be)
+
+autonumber
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    ActorBackgroundColor #EFF6FF
+    ActorFontColor #1E3A8A
+    LifeLineBorderColor #3B82F6
+    LifeLineBackgroundColor #DBEAFE
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E3A8A
+    GroupBorderColor #2563EB
+    GroupBackgroundColor #EFF6FF
+    GroupBodyBackgroundColor #F8FAFC
+    GroupHeaderFontColor #1E3A8A
+    GroupFontColor #1E3A8A
+}
+
+actor "Reader" as Actor
+participant "<<controller>>\nLendingController" as Controller
+participant "<<service>>\nLendingServiceImpl" as Service
+participant "<<service>>\nConcurrencyService" as ConcurrencyService
+participant "<<repository>>\nLendingRepository" as LendingRepo
+participant "<<resolver>>\nLendingPolicyResolver" as PolicyResolver
+participant "<<policy>>\npolicy:LendingPolicy" as Policy
+participant "<<model>>\nlending:Lending" as LendingEntity
+
+activate Actor
+Actor -> Controller: POST /api/lendings/{year}/{seq}/renew (ifMatch)
+activate Controller
+
+Controller -> Controller: ln = year + "/" + seq
+
+Controller -> Service: findByLendingNumber(ln)
+activate Service
+Service -> LendingRepo: findByLendingNumber(ln)
+activate LendingRepo
+LendingRepo --> Service: lending
+deactivate LendingRepo
+Service --> Controller: lending
+deactivate Service
+
+Controller -> ConcurrencyService: getVersionFromIfMatchHeader(ifMatch)
+activate ConcurrencyService
+ConcurrencyService --> Controller: desiredVersion
+deactivate ConcurrencyService
+
+Controller -> Service: renew(ln, desiredVersion)
+activate Service
+
+Service --> Service: verify returnedDate == null and daysDelayed == 0
+
+Service -> LendingRepo: listOutstandingByReaderNumber(readerNumber)
+activate LendingRepo
+LendingRepo --> Service: activeLendings
+deactivate LendingRepo
+
+Service --> Service: verify no active lending has daysDelayed > 0
+
+Service -> LendingRepo: listByReaderNumber(readerNumber)
+activate LendingRepo
+LendingRepo --> Service: readerHistory
+deactivate LendingRepo
+
+Service -> PolicyResolver: resolvePolicy(reader, book, activeLendings, readerHistory)
+activate PolicyResolver
+PolicyResolver --> Service: policy
+deactivate PolicyResolver
+
+Service -> Policy: validateCanRenew(lending, reader, activeLendings)
+activate Policy
+Policy --> Service: validated (renewalCount < maxRenewals)
+deactivate Policy
+
+Service -> Policy: getRenewalPeriodInDays(activeLendings)
+activate Policy
+Policy --> Service: renewalDays
+deactivate Policy
+
+Service -> LendingEntity: renew(renewalDays, desiredVersion)
+activate LendingEntity
+LendingEntity --> Service: updated (limitDate extended, renewalCount++)
+deactivate LendingEntity
+
+Service -> LendingRepo: save(lending)
+activate LendingRepo
+LendingRepo --> Service: savedLending
+deactivate LendingRepo
+
+Service --> Controller: savedLending
+deactivate Service
+
+Controller --> Actor: 200 OK (renewed lending)
+deactivate Controller
+deactivate Actor
+
+@enduml
+

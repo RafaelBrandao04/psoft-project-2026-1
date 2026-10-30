@@ -37,9 +37,9 @@ activate Actor
 Actor -> Backend: POST /api/lendings (resource)
 activate Backend
 
-Backend -> DB: check reader's active lendings
+Backend -> DB: check reader's active lendings & reader history
 activate DB
-DB --> Backend: active lendings
+DB --> Backend: active lendings, reader history
 deactivate DB
 
 Backend -> DB: get book and reader details
@@ -47,7 +47,8 @@ activate DB
 DB --> Backend: book, reader
 deactivate DB
 
-Backend -> Backend: resolve lending policy
+Backend -> Backend: resolve lending policy using reader history
+Backend -> Backend: validate limits & calculate dynamic duration
 
 Backend -> DB: get current year count & save new lending
 activate DB

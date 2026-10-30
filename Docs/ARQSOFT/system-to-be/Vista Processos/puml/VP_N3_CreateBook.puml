@@ -55,15 +55,15 @@ opt needsExternalEnrichment(resource)
 
     CompositeProvider -> GoogleAdapter: findBookByIsbn(isbn)
     activate GoogleAdapter
-    GoogleAdapter --> CompositeProvider: external book data
+    GoogleAdapter --> CompositeProvider: candidateBookDetails
     deactivate GoogleAdapter
-
-    CompositeProvider -> OpenLibAdapter: findBookByIsbn(isbn)
-    activate OpenLibAdapter
-    OpenLibAdapter --> CompositeProvider: external book data
-    deactivate OpenLibAdapter
-
-    CompositeProvider -> CompositeProvider: merge book data
+    alt accumulated data incomplete / fallback
+        CompositeProvider -> OpenLibAdapter: findBookByIsbn(isbn)
+        activate OpenLibAdapter
+        OpenLibAdapter --> CompositeProvider: candidateBookDetails
+        deactivate OpenLibAdapter
+        CompositeProvider -> CompositeProvider: merge candidate details
+    end
 
     CompositeProvider --> Service: externalBookDetails
     deactivate CompositeProvider
