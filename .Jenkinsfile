@@ -24,9 +24,9 @@ pipeline {
                     script {
                         def commitArg = env.GIT_COMMIT ? "-Drelease.commit=${env.GIT_COMMIT}" : ""
                         if (isUnix()) {
-                            sh "./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
+                            sh "./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 -Djacoco.dataFile=target/jacoco.exec -Djacoco-it.dataFile=target/jacoco-it.exec ${commitArg}"
                         } else {
-                            bat "mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
+                            bat "mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30 -Djacoco.dataFile=target/jacoco.exec -Djacoco-it.dataFile=target/jacoco-it.exec ${commitArg}"
                         }
                     }
                 }
@@ -37,14 +37,24 @@ pipeline {
                     archiveArtifacts artifacts: 'target/pit-reports/**, target/site/jacoco/**, target/site/jacoco-it/**', allowEmptyArchive: true
                     junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml', allowEmptyResults: true
                     script {
+                        boolean recorded = false
                         try {
-                            recordCoverage(tools: [[parser: 'JACOCO', pattern: '**/jacoco.xml']])
+                            recordCoverage(id: 'unit-coverage', name: 'Cobertura: testes unitários', tools: [[parser: 'JACOCO', pattern: 'target/site/jacoco/jacoco.xml']])
+                            recorded = true
                         } catch (Throwable t) {
-                            echo "Notice: recordCoverage step was not executed: ${t.message}"
+                            echo "Notice: Unit coverage could not be recorded: ${t.message}"
+                        }
+                        try {
+                            recordCoverage(id: 'integration-coverage', name: 'Cobertura: testes de integração', tools: [[parser: 'JACOCO', pattern: 'target/site/jacoco-it/jacoco.xml']])
+                            recorded = true
+                        } catch (Throwable t) {
+                            echo "Notice: Integration coverage could not be recorded: ${t.message}"
+                        }
+                        if (!recorded) {
                             try {
-                                jacoco()
-                            } catch (Throwable t2) {
-                                echo "Notice: jacoco step was not executed: ${t2.message}"
+                                recordCoverage(tools: [[parser: 'JACOCO', pattern: '**/jacoco.xml']])
+                            } catch (Throwable t) {
+                                try { jacoco() } catch (Throwable t2) {}
                             }
                         }
                     }
