@@ -28,8 +28,7 @@ class OpenLibraryAdapterTest {
 
     @BeforeEach
     void setUp() {
-        WebClient mockWebClient = mock(WebClient.class);
-        adapter = new OpenLibraryAdapter(mockWebClient, 2000L);
+        adapter = new OpenLibraryAdapter();
     }
 
     @Test

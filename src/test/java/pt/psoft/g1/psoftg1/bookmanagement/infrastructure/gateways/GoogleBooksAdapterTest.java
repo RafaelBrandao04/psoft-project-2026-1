@@ -29,9 +29,7 @@ class GoogleBooksAdapterTest {
 
     @BeforeEach
     void setUp() {
-        // Default adapter constructed with mock WebClient for mapping tests
-        WebClient mockWebClient = mock(WebClient.class);
-        adapter = new GoogleBooksAdapter(mockWebClient, 2000L);
+        adapter = new GoogleBooksAdapter();
     }
 
     @Test

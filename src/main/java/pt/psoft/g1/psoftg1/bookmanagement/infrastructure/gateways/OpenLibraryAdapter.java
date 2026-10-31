@@ -41,6 +41,10 @@ public class OpenLibraryAdapter implements BookInfoProvider {
         this(WebClient.builder().baseUrl(baseUrl).build(), timeoutMs);
     }
 
+    public OpenLibraryAdapter() {
+        this("https://openlibrary.org", 3000L);
+    }
+
     public OpenLibraryAdapter(WebClient webClient) {
         this(webClient, 3000L);
     }

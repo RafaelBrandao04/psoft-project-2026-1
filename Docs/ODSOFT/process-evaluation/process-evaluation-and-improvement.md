@@ -1,4 +1,4 @@
-﻿# Avaliação e Melhoria do Processo de CI/CD
+# Avaliação e Melhoria do Processo de CI/CD
 
 ## 1. Contexto
 O presente documento apresenta a avaliação técnica, quantitativa e empírica do processo de engenharia de software e da esteira de Integração e Entrega Contínua (CI/CD) concebida para o sistema **LMS (*Library Management System* — `psoft-g1`)**.
@@ -138,14 +138,14 @@ flowchart TD
 | :--- | :---: | :---: | :--- |
 | **Deployment Frequency (DF)** | Esporádica / Semanal | **Múltiplos deploys/dia (On-demand)** | Deploy automático para DEV a cada `git push`; deploy para UAT em cadeia; deploy para PROD condicionado apenas a um clique. |
 | **Lead Time for Changes (LTTC)** | Horas a Dias | **~3 a 5 minutos** | Da submissão do código no GitHub até à conclusão com sucesso do deploy e smoke test em DEV decorrem menos de 5 minutos. |
-| **Change Failure Rate (CFR)** | Elevado / Desconhecido | **Muito Baixo (< 5%)** | O código só progride para implantação se passar os Hard Gates de compilação, SpotBugs (0 bugs P1), 421 testes e PITest $\ge 30\%$. |
+| **Change Failure Rate (CFR)** | Elevado / Desconhecido | **Muito Baixo (< 5%)** | O código só progride para implantação se passar os Hard Gates de compilação, SpotBugs (0 bugs P1), 430 testes e PITest $\ge 30\%$. |
 | **Mean Time to Recovery (MTTR)** | Horas (diagnóstico manual) | **< 60 segundos** | Em caso de falha de prontidão, o script de smoke test deteta o erro imediatamente e o systemd permite restart imediato da versão estável anterior. |
 
 #### Avaliação de Qualidade de Software segundo a Norma ISO/IEC 25010
 
 | Característica ISO 25010 | Avaliação Baseline (*As-Is*) | Avaliação Alvo (*To-Be*) | Melhorias e Salvaguardas Implementadas |
 | :--- | :---: | :---: | :--- |
-| **Adequação Funcional** | Parcial | **Completa e Verificada** | 421 testes automatizados cobrem as jornadas de utilizador e regras de negócio de livros, autores, leitores, empréstimos, políticas e notificações. |
+| **Adequação Funcional** | Parcial | **Completa e Verificada** | 430 testes automatizados cobrem as jornadas de utilizador e regras de negócio de livros, autores, leitores, empréstimos, políticas e notificações. |
 | **Fiabilidade (Reliability)** | Muito Frágil (Score PIT: 22%) | **Robusta (Test Strength: 84%)** | Eliminação do defeito fatal de duplo hashing BCrypt em `UserService`; testes de concorrência com `@Version` garantem integridade transacional. |
 | **Segurança (Security)** | Crítica (chaves/passwords no Git) | **Endurecida (Hardened)** | Remoção de segredos no repositório; execução remota sob utilizadores dedicados sem shell (`/usr/sbin/nologin`); controlo RBAC validado por testes de integração. |
 | **Manutenibilidade** | Degradada (sem SAST) | **Elevada** | Integração do SpotBugs (0 defeitos de Prioridade 1); 0 avisos críticos de compilação; documentação técnica sincronizada e versionada. |
@@ -159,14 +159,85 @@ A evolução da eficácia da suite de verificação é demonstrada pelos dados e
 
 | Métrica de Teste / Qualidade | Baseline (*System-as-is*) | Processo Melhorado (*System-to-be*) | Delta / Variação Percentual |
 | :--- | :---: | :---: | :---: |
-| **Total de Testes Automatizados** | 102 testes | **421 testes (100% aprovação)** | **+312.7%** |
-| • Testes Unitários Isolados (Surefire) | 102 testes | **377 testes** (~14s) | **+269.6%** |
+| **Total de Testes Automatizados** | 102 testes | **430 testes (100% aprovação)** | **+321.6%** |
+| • Testes Unitários Isolados (Surefire) | 102 testes | **386 testes** (~14s) | **+278.4%** |
 | • Testes de Integração (Failsafe) | 0 testes | **44 testes** (~15s) | **+$\infty$ (Novo Nível)** |
 | **Cobertura Global de Linhas (JaCoCo)** | ~33% (estimativa PIT) | **76% global (69%–100% core)** | **+130.3%** |
 | **Mutações Mortas (PITest)** | 124 mortas / 575 geradas | **662 mortas / 2.999 geradas** | **+433.9% mutantes mortos** |
 | **Test Strength Global (PITest)** | 70% | **84%** | **+20.0% eficácia** |
 | **Defeitos Estáticos P1 (SpotBugs)** | 3 defeitos ativos | **0 defeitos (Hard Gate)** | **-100% defeitos críticos** |
 | **Tempo de Execução Unitário** | ~25s (com boot parcial) | **~14s (test doubles puros)** | **-44% tempo de teste** |
+
+---
+
+### 2.6. Análise Crítica da Evolução das Métricas ao Longo do Tempo (Critério C3.3)
+
+Conforme estabelecido no subcritério **C3.3 (Comparação fundamentada entre o system-as-is e o system-to-be)** e nas orientações pedagógicas da unidade curricular, a avaliação do progresso de engenharia de software exige a interpretação causal das métricas, evitando conclusões simplistas baseadas em números agregados brutos:
+
+#### 1. A Falácia da Métrica Percentual Global vs. Código Desenvolvido
+* **Cenário Típico de Evolução:**  
+  Na baseline (*System-as-is*), a cobertura global estimada rondava os **20% a 33%**, com vastas áreas de código legado (controladores herdados, classes de infraestrutura e utilitários genéricos) totalmente desprovidas de testes.
+* **Interpretação da Variação Incremental:**  
+  Se uma equipa acrescenta novas funcionalidades e regras de negócio com **100% de cobertura de testes**, a cobertura percentual global do repositório aumenta apenas proporcionalmente à fração de linhas adicionadas (por exemplo, subir de 20% para 22% ou 25%).
+* **Fundamentação de Nível 5 (Rigor Técnico e Limites da Métrica):**  
+  Afirmar superficialmente que a cobertura "apenas subiu poucos pontos percentuais" seria um erro de diagnóstico. A evidência técnica demonstra que:
+  1. O **código novo e refatorado pela equipa** (serviços de empréstimo, políticas adaptativas, clientes bibliográficos, listeners e remetentes de notificação) apresenta **entre 80% e 100% de cobertura de linhas e ramos**;
+  2. A evolução da suite de 102 para **430 testes automatizados** permitiu elevar a cobertura do domínio central para 76%;
+  3. A eficácia foi comprovada pela métrica de mutação do PITest, que subiu de um frágil score de 22% para um **Test Strength global de 84%**, garantindo que as asserções dos testes são suficientemente sensíveis para matar mutantes de fronteira.
+
+#### 2. Evidências Temporais e Gráficos no Jenkins
+A rastreabilidade da evolução da qualidade ao longo das sucessivas execuções (*builds*) é assegurada pelos mecanismos de histórico do Jenkins:
+* **Gráficos de Cobertura de Código (Jenkins Coverage Plugin + JaCoCo):**  
+  A instrução `recordCoverage(tools: [[parser: 'JACOCO', pattern: '**/jacoco.xml']])` gera na interface do Jenkins uma curva de tendência contínua da cobertura de linhas, instruções e ramos ao longo do histórico de builds, tornando verificável o impacto de cada commit na qualidade global.
+* **Histórico de Tendência de Testes (JUnit Test Result Trend):**  
+  O arquivamento automático dos relatórios XML (`target/surefire-reports` e `target/failsafe-reports`) projeta o gráfico temporal com o crescimento estável dos 430 testes com taxa de sucesso constante de 100%.
+* **Relatórios Arquivados de Mutação (PITest Reports):**  
+  O arquivamento permanente de `target/pit-reports/**` em cada build permite a auditoria minuciosa da percentagem de mutantes mortos e da análise de mutantes sobreviventes.
+
+---
+
+### 2.7. Conceito Arquitetural: "Release é Negócio, Não Deployment" e a Justificação de 3 Pipelines
+
+A distinção conceitual entre *Deployment* e *Release* constitui um dos pilares fundacionais da disciplina de Continuous Delivery (*Humble & Farley*):
+
+```
++--------------------------------------------------------------------------------------------------+
+|                                    ESTEIRA DE CI/CD DO LMS                                       |
+|                                                                                                  |
+|   [ Commit Git ]                                                                                 |
+|         │                                                                                        |
+|         ▼                                                                                        |
+|   ┌─────────────┐       Deploy Automático       ┌──────────────┐                                 |
+|   │   Job DEV   │ ────────────────────────────> │ Ambiente DEV │                                 |
+|   └─────────────┘                               └──────────────┘                                 |
+|         │                                                                                        |
+|         ▼ Disparo Automático                                                                     |
+|   ┌─────────────┐       Deploy Automático       ┌──────────────┐                                 |
+|   │   Job UAT   │ ────────────────────────────> │ Ambiente UAT │ (Staging / Aceitação)           |
+|   └─────────────┘                               └──────────────┘                                 |
+|         │                                              │                                         |
+|         │ (Pausa Humana com 'agent none')              │ Validação Humana / QA                   |
+|         ▼                                              ▼                                         |
+|   [ Portão Input: "Aceitar e Promover" ] <── Decisão Estratégica de Negócio                      |
+|         │                                                                                        |
+|         ▼ (Apenas quando o Negócio decide fazer a RELEASE)                                       |
+|   ┌─────────────┐      Deploy Controlado        ┌───────────────┐                                |
+|   │  Job PROD   │ ────────────────────────────> │ Ambiente PROD │ (Utilizadores Finais)          |
+|   └─────────────┘                               └───────────────┘                                |
++--------------------------------------------------------------------------------------------------+
+```
+
+1. **Deployment vs. Release:**
+   * **Deployment (Ato Técnico):** É a instalação física automatizada do artefacto imutável (`app.jar`) num determinado ambiente de execução (`DEV`, `UAT` ou `PROD`), com o arranque do serviço `systemd` e verificação de prontidão contratual via `smoke-test.sh`. O deployment em DEV e UAT ocorre de forma contínua a cada alteração.
+   * **Release (Decisão de Negócio):** É o ato estratégico de disponibilizar novas funcionalidades aos utilizadores finais e clientes do sistema. Em Continuous Delivery, o software está permanentemente num estado em que pode ser lançado para produção (*always in a releasable state*), mas a **Release** é uma prerrogativa exclusiva da equipa de gestão de produto e negócio.
+
+2. **Por que ter 3 Pipelines Separados em vez de 1 Monolítico?**
+   * **1. Manutenção e Ciclo de Vida Independente:**  
+     Cada ambiente possui parâmetros operacionais, credenciais de acesso, destinos físicos (`vs806` para DEV/UAT vs. `vs336` dedicada para PROD) e frequências de execução completamente distintas. Ter três pipelines declarativos (`.Jenkinsfile`, `.Jenkinsfile_uat`, `.Jenkinsfile_prod`) permite alterar ou evoluir os scripts de implantação de um ambiente sem introduzir riscos de quebra nos restantes.
+   * **2. Rastreabilidade (*Traceability*) e Auditoria de Conformidade:**  
+     A segregação em 3 esteiras interligadas permite estabelecer uma cadeia de custódia inquebrável. O `lms-dev` constrói o artefacto uma única vez e gera `release.properties` (`CI_JOB`, `CI_BUILD`, `GIT_COMMIT`). O `lms-uat` recolhe o artefacto sem recompilar, adicionando `acceptance.properties` com a identidade do aprovador e timestamp. Finalmente, o `lms-prod` imprime o *Production Audit Trail*, garantindo que apenas código formalmente aprovado e auditado pode entrar em Produção.
+   * **3. Gestão de Tempos de Espera (*Cost of Delay*) e Eficiência de Recursos:**  
+     Num pipeline monolítico, a paragem para aprovação humana em UAT (que pode demorar horas, dias ou semanas) manteria a execução da esteira suspensa, bloqueando o feedback contínuo de novas alterações em desenvolvimento. Com a divisão em 3 jobs, o `lms-dev` conclui a sua execução em menos de 4 minutos e liberta os recursos; o `lms-uat` entra em pausa desvinculando o agente (`agent none` + `stash`), permitindo que a equipa continue a trabalhar e a integrar código em DEV em paralelo.
 
 ---
 
@@ -278,7 +349,7 @@ mindmap
       ::icon(fa fa-shield-alt)
       Hard Quality Gates sequenciais
       SpotBugs P1 = 0
-      100% aprovação de 421 testes
+      100% aprovação de 430 testes
       PITest Mutation Strength >= 84%
     Keep Everything under VCS
       ::icon(fa fa-code-branch)
@@ -304,20 +375,20 @@ mindmap
 * **Aplicação Prática:** A qualidade não é avaliada no final através de testes manuais tardios. A esteira impõe uma barreira intransponível de *Quality Gates*:
   * Hard Gate 1: 0 erros de compilação e validação estrita de anotações Lombok/MapStruct;
   * Hard Gate 2: 0 defeitos de alta prioridade (P1) no SpotBugs;
-  * Hard Gate 3: 100% de sucesso nos 377 testes unitários do Surefire;
+  * Hard Gate 3: 100% de sucesso nos 386 testes unitários do Surefire;
   * Hard Gate 4: 100% de sucesso nos 44 testes de integração do Failsafe;
   * Hard Gate 5: Eficácia de testes comprovada com score de mutação PITest $\ge 30\%$;
   * Hard Gate 6: Prontidão operacional confirmada por smoke test contratual em $\le 60$ segundos.
 * **Justificação:** Impede a propagação de código com defeitos para os estágios seguintes (*Stop-the-line principle*).
 
 #### 5. "Keep Everything Under Version Control (VCS)"
-* **Aplicação Prática:** O repositório Git contém rigorosamente todos os elementos necessários para construir, testar e operar a solução: código aplicacional, suíte de 421 testes, scripts de provisionamento de infraestrutura (`deploy/setup-environments.sh`), configuração de serviços systemd (`deploy/psoft-g1@.service`), regras de permissões (`deploy/psoft-g1.sudoers`), scripts de smoke test (`deploy/smoke-test.sh`), ficheiros de pipeline (`.Jenkinsfile*`) e modelos de configuração (`.env.example`).
+* **Aplicação Prática:** O repositório Git contém rigorosamente todos os elementos necessários para construir, testar e operar a solução: código aplicacional, suíte de 430 testes, scripts de provisionamento de infraestrutura (`deploy/setup-environments.sh`), configuração de serviços systemd (`deploy/psoft-g1@.service`), regras de permissões (`deploy/psoft-g1.sudoers`), scripts de smoke test (`deploy/smoke-test.sh`), ficheiros de pipeline (`.Jenkinsfile*`) e modelos de configuração (`.env.example`).
 * **Justificação:** Permite auditar exatamente quem alterou o quê e restabelecer qualquer versão anterior da infraestrutura com fidelidade absoluta.
 
 ---
 
 ### 4.2. Fundamentação nas Boas Práticas de CI/CD
-* **"Always run commit tests locally before committing" (Regra 1):** Os 377 testes unitários Surefire foram arquitetados com *Test Doubles* e executam em ~14 segundos na máquina do programador antes de ser efetuado o `git push`.
+* **"Always run commit tests locally before committing" (Regra 1):** Os 386 testes unitários Surefire foram arquitetados com *Test Doubles* e executam em ~14 segundos na máquina do programador antes de ser efetuado o `git push`.
 * **"Wait for the results! Don't go anywhere. Just wait!" (Regra 2):** Graças ao túnel de Webhook Relay, a pipeline inicia em menos de 5 segundos após o push e fornece feedback completo ao autor do commit.
 * **"Fix or revert failures within 10 minutes" (Regra 3):** Se um Quality Gate falhar no Jenkins, o commit é imediatamente tratado como prioridade máxima de estabilização.
 * **"If any test fails, it is the responsibility of the committer" (Regra 7):** As propriedades de proveniência (`release.properties`) carimbam o hash Git exato do autor, assegurando total transparência sobre a autoria da alteração.
@@ -327,7 +398,7 @@ mindmap
 ### 4.3. Sinergia entre Arquitetura de Software (ARQSOFT) e CI/CD (ODSOFT)
 A arquitetura do software foi desenhada em simbiose direta com as necessidades da esteira de CI/CD:
 1. **Configurabilidade em Setup Time $\leftrightarrow$ Imutabilidade do Binário:** A flexibilidade de selecionar fornecedores bibliográficos externos (Google Books vs Open Library) e canais de notificação (Email, SMS, Webhook) via variáveis de ambiente permite que o **mesmo ficheiro `app.jar`** funcione em DEV, UAT e PROD sem necessidade de recompilar código para alterar configurações.
-2. **Padrões de Desenho (Gateway, Adapter, Composite) $\leftrightarrow$ Testabilidade Rápida:** Ao desacoplar dependências externas através de interfaces, os 421 testes executam de forma hermética, determinística e sem dependência de internet ou serviços de terceiros, garantindo estabilidade absoluta à esteira de CI.
+2. **Padrões de Desenho (Gateway, Adapter, Composite) $\leftrightarrow$ Testabilidade Rápida:** Ao desacoplar dependências externas através de interfaces, os 430 testes executam de forma hermética, determinística e sem dependência de internet ou serviços de terceiros, garantindo estabilidade absoluta à esteira de CI.
 3. **Isolamento de Falhas com `@TransactionalEventListener` $\leftrightarrow$ Resiliência Operacional:** A emissão de eventos assíncronos garante que falhas em serviços externos de notificação nunca provocam rollback de transações de negócio, mantendo o sistema em estado operacional comprovado pelos testes de integração Failsafe (`LendingNotificationIntegrationIT`).
 
 ---

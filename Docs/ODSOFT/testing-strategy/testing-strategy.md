@@ -1,4 +1,4 @@
-﻿# Automated Testing Strategy, Quality Assessment, and Defect Detection
+# Automated Testing Strategy, Quality Assessment, and Defect Detection
 
 ## 1. Baseline Limitations (*As-Is*)
 As established in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
@@ -109,10 +109,48 @@ To satisfy subcriterion **C2.1 (Functional Opaque-Box Testing — Classes)** wit
 | **`Title`** (`TitleTest`) | Non-blank string, length $\in [1, 128]$ characters (`TITLE_MAX_LENGTH = 128`). | • Min boundary: 1 char<br/>• Nominal partition: 25 chars<br/>• Max valid boundary: 128 chars<br/>• Above max boundary: 129 chars<br/>• Null or whitespace-only | Positive<br/>Positive<br/>Positive<br/>Negative<br/>Negative | `"A"`<br/>`"Clean Architecture"`<br/>`"A".repeat(128)`<br/>`"A".repeat(129)`<br/>`"   "` / `null` | Accepted<br/>Accepted<br/>Accepted<br/>`IllegalArgumentException`<br/>`IllegalArgumentException` | **PASS** (`testBoundaryMaxLength128`, `testExceedsMaxLength129Throws`, `testBlankThrows`) |
 | **`LendingServiceImpl`** (`LendingServiceImplTest`) | Reader can borrow iff active lendings $< 3$ and overdue lendings $== 0$. | • Active lendings = 0, 1, 2 (Valid)<br/>• Boundary: Active lendings = 3 (Invalid)<br/>• Overdue lendings $\ge 1$ (Invalid) | Positive<br/>Negative<br/>Negative | `active = 2, overdue = 0`<br/>`active = 3, overdue = 0`<br/>`active = 1, overdue = 1` | `LendingView` created<br/>`LendingForbiddenException`<br/>`LendingForbiddenException` | **PASS** (`testCreate_Success`, `testCreate_ThrowsWhenReaderHasThreeOutstandingLendings`) |
 | **`StandardLendingPolicy`** (`StandardLendingPolicyTest`) | Enforces max active lendings, loan duration, and fine per delayed day. | • Active lendings $= \text{max}-1$ (Boundary valid)<br/>• Active lendings $= \text{max}$ (Boundary invalid)<br/>• Days delayed $= 0$ vs $\ge 1$ | Positive<br/>Negative<br/>Positive | `active = 2` (limit 3)<br/>`active = 3` (limit 3)<br/>`delay = 0` vs `delay = 5` | Validation passes<br/>`LendingForbiddenException`<br/>`0 cents` vs `5 * dailyFine` | **PASS** (`StandardLendingPolicyTest` — 6/6 tests) |
-| **`GoogleBooksAdapter` & `OpenLibraryAdapter`** | Maps external JSON by ISBN to `Optional<BookDetailsDTO>`; returns `Optional.empty()` on 404/malformed/network error. | • Valid ISBN with complete JSON<br/>• Valid ISBN with partial fields<br/>• Unknown ISBN (`totalItems: 0` / `{}`)<br/>• HTTP 500 / Timeout exception | Positive<br/>Positive<br/>Negative<br/>Negative | ISBN `"9780132350884"`<br/>JSON missing publisher<br/>Unknown ISBN<br/>`RestClientException` | `Optional.of(dto)`<br/>`Optional.of(partialDto)`<br/>`Optional.empty()`<br/>`Optional.empty()` (Graceful) | **PASS** (`GoogleBooksAdapterTest` 7/7, `OpenLibraryAdapterTest` 10/10) |
+| **`GoogleBooksAdapter`, `OpenLibraryAdapter` & `CrossRefAdapter`** | Maps external JSON by ISBN to `Optional<BookDetailsDTO>`; returns `Optional.empty()` on 404/malformed/network error. | • Valid ISBN with complete JSON<br/>• Valid ISBN with partial fields<br/>• Unknown ISBN (`totalItems: 0` / `{}`)<br/>• HTTP 500 / Timeout exception | Positive<br/>Positive<br/>Negative<br/>Negative | ISBN `"9780132350884"`<br/>JSON missing publisher<br/>Unknown ISBN<br/>`RestClientException` | `Optional.of(dto)`<br/>`Optional.of(partialDto)`<br/>`Optional.empty()`<br/>`Optional.empty()` (Graceful) | **PASS** (`GoogleBooksAdapterTest` 7/7, `OpenLibraryAdapterTest` 10/10, `CrossRefAdapterTest` 8/8) |
 | **`CompositeNotificationSender`** | Dispatches notification across all configured channels with fault isolation. | • All channels succeed<br/>• 1 channel throws `RuntimeException`, others active<br/>• Empty channel list | Positive<br/>Negative / Fault<br/>Boundary | `Email + SMS + Webhook`<br/>Webhook fails (`503`)<br/>`List.of()` | All 3 invoked<br/>Email & SMS still delivered; no exception leaked<br/>No-op safe completion | **PASS** (`CompositeNotificationSenderTest` — 6/6 tests) |
 
 * **Limitations of Opaque-Box Class Testing:** While EP and BVA verify input/output contracts independent of internal code structure, they cannot guarantee that internal defensive branches, dead stores, or complex compound conditionals are fully exercised — which justifies complementing C2.1 with **Transparent-Box Domain Testing (C2.2)** and **PITest Mutation Testing (C2.3)**.
+
+---
+
+### 2.5. Anatomia e Desconstrução Formal de um Caso de Teste (Exemplo de Demonstração em Avaliação)
+
+Conforme salientado nos critérios de avaliação e sessões pedagógicas de ODSOFT, qualquer caso de teste deve poder ser desconstruído e justificado formalmente pelos estudantes. Apresenta-se a análise minuciosa de um teste paradigmático do nosso sistema:
+
+```java
+// Localização: src/test/java/pt/psoft/g1/psoftg1/lendingmanagement/services/LendingServiceImplTest.java
+@Test
+void testCreate_ThrowsWhenReaderHasThreeOutstandingLendings() {
+    // Arrange (Setup do cenário de fronteira)
+    Reader reader = new ReaderDetails(new ReaderNumber("2026/1"), ...);
+    Book book = new Book("9782826012092", ...);
+    CreateLendingRequest request = new CreateLendingRequest("9782826012092", 1L);
+
+    when(bookRepository.findByIsbn("9782826012092")).thenReturn(Optional.of(book));
+    when(readerRepository.findByReaderNumber("2026/1")).thenReturn(Optional.of(reader));
+    when(lendingRepository.countOutstandingByReaderNumber("2026/1")).thenReturn(3); // Limite máximo atingido
+
+    // Act & Assert
+    assertThrows(LendingForbiddenException.class, () -> lendingService.create(request));
+
+    // Verificação comportamental
+    verify(lendingRepository, never()).save(any(Lending.class));
+}
+```
+
+#### Ficha de Caracterização Formal do Teste:
+
+| Dimensão de Análise | Caracterização no Projeto | Justificação Técnica |
+| :--- | :--- | :--- |
+| **1. SUT (*System / Unit Under Test*)** | `LendingServiceImpl` (especificamente o método aplicacional `create(CreateLendingRequest request)`) | É a unidade atómica sob avaliação. O objetivo é validar que o serviço orquestra a criação de empréstimos garantindo o cumprimento estrito das regras de negócio do domínio. |
+| **2. Completude do Caso de Teste** | **Completo e Hermético** (Partição de Fronteira / BVA + Regra de Exceção) | A regra de negócio estipula: *"Um leitor pode requisitar um livro se e só se tiver estritamente menos de 3 empréstimos ativos"* ($N < 3$). Este teste cobre especificamente o valor limite inválido imediato ($N = 3$). A completude é comprovada em conjunto com o teste nominal (`testCreate_Success`, com $N = 2$) e com a eliminação do mutante PITest correspondente que substitui `<` por `<=`. |
+| **3. Colaboradores (*Collaborators*)** | • `BookRepository`<br/>• `ReaderRepository`<br/>• `LendingRepository`<br/>• `LendingPolicyResolver` | O SUT não opera isolado no grafo de dependências; necessita de consultar livros, leitores e contagens de empréstimos no repositório persistente. |
+| **4. Estratégia de Isolamento (*Test Doubles*)** | • **Stubs:** `when(repo.find...).thenReturn(...)` simulam o fornecimento de entradas indiretas sem contactar a base de dados.<br/>• **Mock:** `verify(..., never()).save(...)` valida a ausência de saídas indiretas de efeito secundário indesejado (o empréstimo não pode ser gravado se violar a regra). | **Isolamento Total:** O teste executa em memória com Mockito, sem carregar o contexto Spring Boot (`@SpringBootTest`) nem instanciar o motor H2, garantindo execução em menos de 5 milissegundos e 100% determinística. |
+| **5. Classificação da Caixa (*Box Approach*)** | • **Opaque-Box (Caixa Preta):** O cenário é derivado dos requisitos funcionais (SRS) e da Análise de Valores Limite (BVA), tratando a implementação interna como uma caixa opaca orientada a contratos.<br/>• **Transparent-Box (Caixa Branca):** O teste força a execução do ramo condicional `if (outstandingCount >= maxAllowed) throw ...`, validado pela cobertura de ramos do JaCoCo e pela morte de mutantes do PITest. | Combinação sinérgica: especificação baseada em contratos e verificação estrutural baseada no fluxo de controlo. |
+| **6. Natureza do Teste** | **Teste Funcional Unitário** | Valida a regra de negócio central da biblioteca (limite de empréstimos simultâneos), salvaguardando a integridade das políticas de circulação. |
 
 ---
 
@@ -134,18 +172,53 @@ The Maven build lifecycle (`pom.xml`) enforces strict phase segregation, automat
 
 ---
 
-## 4. Test Suite Implementation
+### 3.2. Fundamentação Teórico-Prática da Ordem de Execução e Quality Gates no Ciclo Maven
 
-The test suite was systematically expanded from 102 tests (baseline) to **421 automated tests** across segregated lifecycles:
+A ordem de execução das fases de teste e análise estática no ciclo de vida do Maven (`pom.xml`) obedece rigorosamente aos princípios de **Continuous Delivery (*Humble & Farley*)** e às questões teóricas fundamentais colocadas nas aulas da unidade curricular:
 
 ```
-Total Test Suite: 421 Automated Tests (100% Pass Rate)
-├── Surefire Unit Tests (mvn test): 377 tests (~14s execution)
+[compile] ──> [test (Surefire)] ──> [test (PITest)] ──> [package] ──> [integration-test (Failsafe)] ──> [verify (SpotBugs)]
+  Sintaxe        378 Unit Tests       Eficácia Testes     app.jar          47 Integration Tests           SAST / Quality Gate
+  e Tipos         (< 15 seg)          (Threshold >=30%)  Imutável          (Spring + H2 + Concorrência)   (0 Bugs P1)
+```
+
+#### 1. Porquê separar Testes Unitários (`test` / Surefire) de Testes de Integração (`integration-test` / Failsafe)?
+* **Princípio Fail-Fast e Custo de Feedback:**  
+  Os testes unitários correm imediatamente a seguir à compilação (`compile`). Executam 100% em memória, com isolamento hermético (*Test Doubles*), demorando apenas **~14 segundos** para 378 testes. Se existir um defeito elementar numa regra de negócio, a build falha de imediato (*fail-fast*), poupando recursos e tempo ao programador.
+* **Invariante do Empacotamento Binário (`package`):**  
+  O empacotamento do artefacto (`app.jar`) só deve ocorrer se todos os testes unitários passarem. Não faz sentido consumir CPU a gerar o Fat JAR se o código base tem erros funcionais de domínio.
+* **Segregação de Ambientes e Recursos:**  
+  Os testes de integração (`integration-test`) exigem o arranque do contexto Spring Boot, base de dados relacional (H2 em memória), filtros de segurança JWT e testes de concorrência com bloqueio otimista (`@Version`). Executam após o empacotamento e são validados na fase `verify`, garantindo que eventuais falhas não corrompem o ciclo básico de build.
+
+#### 2. Porquê executar os Testes de Mutação (PITest) logo a seguir aos Testes Unitários (fase `test`)?
+* **Alinhamento Estrito entre SUT e Métrica de Mutação:**  
+  O PITest injeta mutantes sintéticos no bytecode das classes de domínio para avaliar se as asserções dos testes são suficientemente sensíveis para os matar. Como o objetivo do PITest no pipeline é avaliar a **qualidade e eficácia da suite de testes unitários**, tem obrigatoriamente de ser executado na fase `test`, logo a seguir ao Surefire.
+* **Porquê NÃO misturar com Testes de Integração?**  
+  1. **Falácia de Medição (Mascaramento de Defeitos):** Um teste de integração lento de ponta-a-ponta poderia matar acidentalmente um mutante de uma classe de domínio através de um efeito colateral distante, criando uma falsa sensação de que a classe está bem testada unitariamente.
+  2. **Explosão Combinatória de Tempo de Execução:** O PITest gera **2.999 mutações**. Executar 2.999 mutantes contra testes de integração pesados (com arranque de contexto Spring e transações na base de dados) multiplicaria o tempo de execução para várias horas, destruindo a viabilidade do pipeline de CI/CD.
+  3. Se no futuro for necessário realizar mutação sobre testes de integração, essa tarefa deverá ser concebida como uma execução estritamente **separada e isolada**, com o seu próprio perfil e conjunto reduzido de mutantes de integração.
+
+#### 3. Porquê integrar o Quality Gate de Mutação no Ciclo Maven antes do `verify` e Deploy?
+* **Distinção Fundamental: Qualidade do Software vs. Qualidade da Verificação:**
+  * **Qualidade do Software (Product Quality / Internal & External):** É avaliada pelos testes funcionais (conformidade com o SRS) e pela análise estática SAST (SpotBugs: ausência de vulnerabilidades, problemas de concorrência ou dead stores).
+  * **Qualidade da Verificação (Verification Quality / Test Suite Effectiveness):** É avaliada pela cobertura de código (JaCoCo) e, criticamente, pelos testes de mutação (PITest). Uma cobertura de linhas de 100% não tem valor se os testes não tiverem asserções (`assert`).
+* **Papel do Hard Quality Gate (`-Dpitest.mutationThreshold=30`):**  
+  Integrar o PITest como portão de qualidade no ciclo de build garante que **código com testes superficiais ou desprovidos de asserções assertivas é rejeitado automaticamente**. O limiar de 30% global (e 84% de *Test Strength* nos serviços e agregados centrais) assegura que nenhuma regressão ou teste cosmético consegue passar para os ambientes de implantação.
+
+---
+
+## 4. Test Suite Implementation
+
+The test suite was systematically expanded from 102 tests (baseline) to **430 automated tests** across segregated lifecycles:
+
+```
+Total Test Suite: 430 Automated Tests (100% Pass Rate)
+├── Surefire Unit Tests (mvn test): 386 tests (~14s execution)
 └── Failsafe Integration Tests (mvn verify): 44 tests (~15s execution)
 ```
 
 ### 4.1. Unit Testing Suite (`src/test/java/.../*Test.java`)
-Executed by Maven Surefire (`mvn test`). All 377 tests run with complete isolation and zero Spring context overhead:
+Executed by Maven Surefire (`mvn test`). All 386 tests run with complete isolation and zero Spring context overhead:
 
 1. **`LendingServiceImplTest.java` (20 tests):**
    * Business invariant: maximum 3 outstanding books (`LendingForbiddenException`).
@@ -174,7 +247,8 @@ Executed by Maven Surefire (`mvn test`). All 377 tests run with complete isolati
    * Genre retrieval, saving, and top genre ranking by book count.
    * Analytics: monthly lending averages and duration queries with date validation and pagination.
    * Date interval consistency checks, start/end date inversion validation, and not-found exception paths.
-7. **Bibliographic Gateways & Adapters (`bookmanagement.infrastructure.gateways` — 23 tests):**
+7. **Bibliographic Gateways & Adapters (`bookmanagement.infrastructure.gateways` — 31 tests):**
+   * `CrossRefAdapterTest` (8 tests): CrossRef `message.items[]` JSON extraction, multi-format author parsing, JATS/XML tag sanitization, and fallback resilience.
    * `OpenLibraryAdapterTest` (10 tests): JSON payload mapping, missing fields handling, HTTP failure resilience, and empty response safety.
    * `GoogleBooksAdapterTest` (7 tests): Google Books `items[].volumeInfo` JSON extraction, author list parsing, and error handling.
    * `CompositeBookInfoProviderTest` (6 tests): Chain-of-responsibility fallback across ordered providers, partial field enrichment merging, and fault isolation.
@@ -183,9 +257,9 @@ Executed by Maven Surefire (`mvn test`). All 377 tests run with complete isolati
    * `WebhookNotificationSenderTest` (7 tests), `SmsNotificationSenderTest` (8 tests), `EmailNotificationSenderTest` (7 tests): Channel-specific strategy dispatching, formatting, and error handling.
    * `CompositeNotificationSenderTest` (6 tests): Multichannel broadcast orchestration and fault isolation when an individual channel fails.
    * `LendingEventsTest` (6 tests): Domain event payload immutability and invariant validation.
-9. **Web Controllers & Configuration Wiring (23 tests):**
+9. **Web Controllers & Configuration Wiring (24 tests):**
    * `AuthorControllerTest` (7 tests): Isolated web layer testing using standalone MockMvc and isolated service mock.
-   * `NotificationConfigTest` (8 tests) & `BibliographicConfigTest` (6 tests): Setup-time adapter selection, bean wiring, and dynamic fallback configuration.
+   * `NotificationConfigTest` (8 tests) & `BibliographicConfigTest` (7 tests): Setup-time adapter selection, bean wiring, CrossRef resolution, and dynamic fallback configuration.
    * `InfoControllerTest` (2 tests): Operational metadata endpoint (`GET /info`) returning application name, version, Git commit SHA, and active environment.
 10. **Domain Model & Shared Value Object Tests (126 tests):**
     * **Value Objects & Utilities (11 test suites, 54 tests):** `IsbnTest` (7), `TitleTest` (7), `LendingNumberTest` (8), `NameTest` (6), `BioTest` (5), `StringUtilsCustomTest` (5 - alphanumeric, whitespace, XSS sanitization), `BirthDateTest` (4), `PhoneNumberTest` (4), `DescriptionTest` (4), `PhotoTest` (2), `ForbiddenNameTest` (2). Systematically asserts invariants, formats, sanitization, and immutability via Boundary Value Analysis and Equivalence Partitioning.
@@ -201,7 +275,7 @@ Executed by Maven Surefire (`mvn test`). All 377 tests run with complete isolati
     * `LendingPolicyResolverTest.java` (6 tests): Runtime policy selection based on reader type, book characteristics, and system settings.
     * `LendingPolicyAdminControllerTest.java` (5 tests): Administrative REST endpoints for runtime policy management with isolated WebMvc slices.
 
-**Surefire Results:** **377 tests run, 0 failures, 0 errors, 0 skipped.**
+**Surefire Results:** **386 tests run, 0 failures, 0 errors, 0 skipped.**
 
 ### 4.2. Integration Testing Suite (`src/test/java/.../*IT.java`, `*IntegrationTest.java`)
 Executed by Maven Failsafe (`mvn verify`). Tests end-to-end interactions with Spring Security, Spring Data JPA, transactional domain events, and the H2 database fake:
@@ -380,8 +454,8 @@ In mutation testing theory, not all surviving mutants represent test defects:
 
 | Metric | Baseline (*As-Is*) | Target State (*To-Be*) | Net Improvement | Impact |
 |:---|:---:|:---:|:---:|:---|
-| **Total Automated Test Suite** | 102 tests | **421 tests** | **+312.7%** | Comprehensive regression net across domain & architecture |
-| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **377 (pure isolated SUT)** | **+269.6%** | Ultra-fast feedback (~14s) |
+| **Total Automated Test Suite** | 102 tests | **430 tests** | **+321.6%** | Comprehensive regression net across domain & architecture |
+| **Unit Tests (`mvn test`)** | 102 (mixed scopes) | **386 (pure isolated SUT)** | **+278.4%** | Ultra-fast feedback (~14s) |
 | **Integration Tests (`mvn verify`)** | 0 configured | **44 (Failsafe automated)** | **+100% (New)** | Full security, DB, concurrency & event dispatch |
 | **Security & RBAC Tests** | 0 active tests | **24+ active tests** | **+100% (New)** | Automated access control |
 | **Concurrency & Event Fault-Isolation Tests** | 0 tests | **4 active Failsafe tests** | **+100% (New)** | Validates optimistic locking & multichannel fault isolation |

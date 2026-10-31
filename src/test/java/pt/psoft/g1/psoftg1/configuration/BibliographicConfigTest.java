@@ -38,14 +38,29 @@ class BibliographicConfigTest {
         }
     }
 
+    static class NamedDummyProvider implements BookInfoProvider {
+        private final String name;
+
+        NamedDummyProvider(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public Optional<BookDetailsDTO> findBookByIsbn(String isbn) {
+            return Optional.empty();
+        }
+
+        @Override
+        public String getProviderName() {
+            return name;
+        }
+    }
+
     @Test
     @DisplayName("Should resolve providers in the exact priority order configured at setup time")
     void testResolveProviders_ConfiguredOrderPreserved() {
-        BookInfoProvider googleMock = mock(BookInfoProvider.class);
-        when(googleMock.getProviderName()).thenReturn("googlebooks");
-
-        BookInfoProvider openLibMock = mock(BookInfoProvider.class);
-        when(openLibMock.getProviderName()).thenReturn("openlibrary");
+        BookInfoProvider googleMock = new NamedDummyProvider("googlebooks");
+        BookInfoProvider openLibMock = new NamedDummyProvider("openlibrary");
 
         List<BookInfoProvider> available = List.of(googleMock, openLibMock);
 
@@ -129,5 +144,23 @@ class BibliographicConfigTest {
         assertNotNull(primaryBean);
         assertTrue(primaryBean instanceof CompositeBookInfoProvider);
         assertEquals("composite(testdummy)", primaryBean.getProviderName());
+    }
+
+    @Test
+    @DisplayName("Should resolve crossref provider token alongside googlebooks and openlibrary")
+    void testResolveProviders_WithCrossRef() {
+        BookInfoProvider googleMock = new NamedDummyProvider("googlebooks");
+        BookInfoProvider openLibMock = new NamedDummyProvider("openlibrary");
+        BookInfoProvider crossRefMock = new NamedDummyProvider("crossref");
+
+        List<BookInfoProvider> available = List.of(googleMock, openLibMock, crossRefMock);
+
+        List<BookInfoProvider> result = config.resolveProviders(
+                List.of("googlebooks", "openlibrary", "crossref"), available);
+
+        assertEquals(3, result.size());
+        assertSame(googleMock, result.get(0));
+        assertSame(openLibMock, result.get(1));
+        assertSame(crossRefMock, result.get(2));
     }
 }

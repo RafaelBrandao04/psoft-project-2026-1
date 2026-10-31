@@ -30,21 +30,32 @@ public class GoogleBooksAdapter implements BookInfoProvider {
     public static final String PROVIDER_NAME = "googlebooks";
 
     private final WebClient webClient;
+    private final String apiKey;
     private final long timeoutMs;
 
     @Autowired
     public GoogleBooksAdapter(
             @Value("${bibliographic.googlebooks.base-url:https://www.googleapis.com/books/v1}") String baseUrl,
+            @Value("${bibliographic.googlebooks.api-key:}") String apiKey,
             @Value("${bibliographic.timeout-ms:3000}") long timeoutMs) {
-        this(WebClient.builder().baseUrl(baseUrl).build(), timeoutMs);
+        this(WebClient.builder().baseUrl(baseUrl).build(), apiKey, timeoutMs);
+    }
+
+    public GoogleBooksAdapter() {
+        this("https://www.googleapis.com/books/v1", null, 3000L);
     }
 
     public GoogleBooksAdapter(WebClient webClient) {
-        this(webClient, 3000L);
+        this(webClient, null, 3000L);
     }
 
     public GoogleBooksAdapter(WebClient webClient, long timeoutMs) {
+        this(webClient, null, timeoutMs);
+    }
+
+    public GoogleBooksAdapter(WebClient webClient, String apiKey, long timeoutMs) {
         this.webClient = Objects.requireNonNull(webClient, "WebClient must not be null");
+        this.apiKey = (apiKey != null && !apiKey.trim().isEmpty()) ? apiKey.trim() : null;
         this.timeoutMs = timeoutMs > 0 ? timeoutMs : 3000L;
     }
 
@@ -57,10 +68,15 @@ public class GoogleBooksAdapter implements BookInfoProvider {
 
         try {
             JsonNode response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/volumes")
-                            .queryParam("q", "isbn:" + cleanIsbn)
-                            .build())
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder
+                                .path("/volumes")
+                                .queryParam("q", "isbn:" + cleanIsbn);
+                        if (apiKey != null) {
+                            builder.queryParam("key", apiKey);
+                        }
+                        return builder.build();
+                    })
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .timeout(Duration.ofMillis(timeoutMs))
