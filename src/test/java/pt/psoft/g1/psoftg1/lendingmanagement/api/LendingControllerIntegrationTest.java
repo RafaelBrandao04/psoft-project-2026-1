@@ -13,10 +13,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import pt.psoft.g1.psoftg1.lendingmanagement.model.Lending;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.CreateLendingRequest;
 import pt.psoft.g1.psoftg1.lendingmanagement.services.LendingService;
+import pt.psoft.g1.psoftg1.lendingmanagement.services.SetLendingReturnedRequest;
+import pt.psoft.g1.psoftg1.readermanagement.model.ReaderDetails;
 import pt.psoft.g1.psoftg1.readermanagement.services.ReaderService;
+import pt.psoft.g1.psoftg1.usermanagement.model.User;
 import pt.psoft.g1.psoftg1.usermanagement.services.UserService;
 
+import java.util.Optional;
+
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -98,12 +105,29 @@ public class LendingControllerIntegrationTest {
 
     @Test
     @WithMockUser(username = "reader@example.com", roles = "READER")
-    @DisplayName("PATCH /api/lendings/{year}/{seq} without If-Match header returns 400 Bad Request")
-    void testSetLendingReturned_WithoutIfMatch_ReturnsBadRequest() throws Exception {
+    @DisplayName("PATCH /api/lendings/{year}/{seq} without If-Match header succeeds with version fallback")
+    void testSetLendingReturned_WithoutIfMatch_SucceedsWithVersionFallback() throws Exception {
+        Lending mockLending = mock(Lending.class);
+        when(mockLending.getVersion()).thenReturn(1L);
+
+        ReaderDetails mockReaderDetails = mock(ReaderDetails.class);
+        when(mockReaderDetails.getReaderNumber()).thenReturn("2026/1");
+        when(mockLending.getReaderDetails()).thenReturn(mockReaderDetails);
+
+        User mockUser = mock(User.class);
+        when(mockUser.getUsername()).thenReturn("reader@example.com");
+
+        given(lendingService.findByLendingNumber("2026/1")).willReturn(Optional.of(mockLending));
+        given(userService.getAuthenticatedUser(any())).willReturn(mockUser);
+        given(readerService.findByUsername("reader@example.com")).willReturn(Optional.of(mockReaderDetails));
+        given(lendingService.setReturned(eq("2026/1"), any(SetLendingReturnedRequest.class), eq(1L))).willReturn(mockLending);
+        given(lendingViewMapper.toLendingView(any(Lending.class))).willReturn(new LendingView());
+
         mockMvc.perform(patch("/api/lendings/2026/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"commentary\":\"Returned intact\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"1\""));
     }
 
     @Test
