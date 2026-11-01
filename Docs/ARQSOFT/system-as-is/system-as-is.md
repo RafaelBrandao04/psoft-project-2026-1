@@ -2,13 +2,13 @@
 
 ## 1. Enquadramento e Visão Geral
 
-Este documento consolida a descrição e análise arquitetural completa do **System-as-is** da aplicação LMS, obtida por engenharia reversa do código-fonte do projeto base. 
+Este documento consolida a descrição e análise arquitetural do **System-as-is** da aplicação LMS, obtida por engenharia reversa do código-fonte do projeto base.
 
-A documentação segue a abordagem combinada do modelo **4+1 Vistas de Kruchten** com os níveis de granularidade do **Modelo C4** (Nível 1 — Sistema/Contexto a Nível 4 — Código/Classes):
-* **Vista Lógica de Negócio (VL):** Decomposição concetual pura dos subdomínios de negócio e interfaces de domínio funcionais.
-* **Vista Arquitetural (VA):** Organização funcional, subsistemas, padrões arquiteturais (Modular Monolith, Clean Architecture) e portas de interface pública.
+A documentação articula o modelo **4+1 Vistas de Kruchten** com os níveis de granularidade do **Modelo C4** (Nível 1 — Sistema/Contexto a Nível 4 — Código/Classes):
+* **Vista Lógica de Negócio (VL):** Decomposição concetual dos subdomínios de negócio e interfaces de domínio funcionais.
+* **Vista Arquitetural (VA):** Organização funcional, subsistemas, padrões arquiteturais (*Modular Monolith*, *Clean Architecture*) e portas de interface pública.
 * **Vista de Implementação (VI):** Estrutura física do código-fonte, módulos de subdomínio, infraestrutura de persistência e pacotes Java.
-* **Mapeamento entre Vistas (*Manifestation*):** Rastreabilidade formal (`<<manifest>>`) entre conceitos lógicos abstratos e artefactos de implementação.
+* **Mapeamento entre Vistas (*Manifestation*):** Rastreabilidade (`<<manifest>>`) entre conceitos lógicos abstratos e artefactos de implementação.
 * **Vista Física / Implantação (VF):** Topologia de nós computacionais e processos em execução.
 * **Vista de Processos (VP):** Realização dinâmica dos principais cenários de negócio através de diagramas de sequência.
 
@@ -18,7 +18,7 @@ A documentação segue a abordagem combinada do modelo **4+1 Vistas de Kruchten*
 
 ### 2.1 Paradigma Arquitetural
 * **Monólito Modular (*Modular Monolith*):** Todos os módulos fazem parte da mesma aplicação e do mesmo processo de execução (`JVM 17`), encontrando-se organizados por domínios funcionais.
-* **Organização em Camadas:** No interior dos módulos é utilizada uma organização em camadas, combinada com princípios associados a **Domain-Driven Design (DDD)**, nomeadamente através da separação entre API, serviços, domínio, repositórios e infraestrutura, promovendo o isolamento da lógica de negócio relativamente aos detalhes tecnológicos.
+* **Organização em Camadas:** No interior dos módulos é utilizada uma organização em camadas combinada com princípios de **Domain-Driven Design (DDD)**, separando API, serviços, domínio, repositórios e infraestrutura.
 * **Domain-Driven Design (DDD):** Representação explícita de conceitos do domínio através de entidades e *value objects* específicos, com limites de agregados bem definidos.
 * **Comunicação REST:** A interação externa é realizada através de endpoints HTTP disponibilizados pela aplicação.
 
@@ -54,7 +54,7 @@ Cada módulo funcional implementa a seguinte estrutura interna de pacotes:
 
 ### 2.4 Modelo de Domínio Concetual (DDD)
 
-O domínio da aplicação é centrado na gestão operacional de uma biblioteca. O modelo distingue claramente **Entidades** (com ciclo de vida e identidade persistente própria) e **Value Objects** imutáveis que encapsulam regras de validação de dados, evitando a proliferação de tipos primitivos genéricos (*Primitive Obsession*).
+O domínio da aplicação é centrado na gestão operacional de uma biblioteca, distinguindo **Entidades** (com ciclo de vida e identidade persistente própria) e **Value Objects** imutáveis que encapsulam regras de validação de dados.
 
 #### Principais Entidades e Agregados
 * **`Book`:** Representa uma obra literária no catálogo, identificada unicamente pelo seu ISBN, agregando título, descrição, associação obrigatória a autores e a um género literário.
@@ -77,7 +77,7 @@ Reader ─────────── Lending ──────────�
 
 ## 3. Vista Lógica de Negócio (VL)
 
-A Vista Lógica de Negócio (VL) foca-se na decomposição concetual pura dos subdomínios de negócio e nas respetivas interfaces de domínio internas e externas, independentemente de detalhes tecnológicos e de protocolos de comunicação.
+A Vista Lógica de Negócio (VL) foca-se na decomposição concetual dos subdomínios de negócio e nas respetivas interfaces de domínio internas e externas, independentemente de detalhes tecnológicos e de protocolos de comunicação.
 
 ### 3.1 Nível 1 — Sistema Global (VL-N1)
 
@@ -347,14 +347,14 @@ Fluxo de consulta analítica (`GET /api/books/top5`), demonstrando a definição
 
 ## 10. Limitações Identificadas e Motivação para a Evolução (System-to-Be)
 
-A análise crítica de engenharia reversa do *System-as-is* evidenciou as três fragilidades centrais identificadas na **Secção 1.2 do Enunciado**:
+A análise de engenharia reversa do *System-as-is* evidenciou as três fragilidades centrais identificadas na **Secção 1.2 do Enunciado**:
 
 1. **Extensibilidade (*Extensibility / Modifiability*):**
-   * A integração de novas fontes de dados bibliográficos externos (ex.: Google Books, Open Library) ou novos canais de notificação (Email, SMS, Webhook) não é suportada de forma modular, exigindo alterações profundas no código de domínio existente (violação do princípio *Open-Closed Principle* — OCP).
+   * A integração de novas fontes de dados bibliográficos externos (ex.: Google Books, Open Library, CrossRef) ou novos canais de notificação (Email, SMS, Webhook) não é suportada de forma modular, exigindo alterações diretas no código de domínio existente (violação do *Open-Closed Principle* — OCP).
 2. **Configurabilidade (*Configurability*):**
-   * Não existe suporte para seleção condicional de componentes ou fornecedores no arranque (*setup time*) sem recompilação de binários, nem para parametrização dinâmica de regras de empréstimo em tempo de execução (*runtime*).
+   * Não existe suporte para seleção declarativa de componentes ou fornecedores no arranque (*setup time*) sem recompilação de binários, nem para parametrização estruturada e resolução dinâmica de políticas de empréstimo (*Standard* vs. *Adaptive*).
 3. **Testabilidade (*Testability*):**
-   * A ausência de interfaces de abstração em torno de serviços externos e a dependência direta de implementações concretas dificulta o isolamento do **SUT (*System Under Test*)** através de *Test Doubles* (*Mocks/Stubs*) para testes unitários herméticos, testes de mutação (PITest) e simulação de cenários de contingência (*fallback*).
-   * **Indefinição de Fronteiras do SUT na Bateria de Testes Base:** No código herdado, testes de integração de fatia de persistência como `AuthorRepositoryIntegrationTest` (anotado com `@DataJpaTest` e recorrendo a `TestEntityManager.persist()`, `flush()` e `clear()` para forçar a reconstrução da entidade a partir do motor H2, onde $\text{SUT} = \text{AuthorRepository} + \text{JPA/Hibernate} + \text{H2} + \text{Entidade Author}$) e testes de contexto completo como `LendingRepositoryIntegrationTest` (anotado com `@SpringBootTest`, onde o $\text{SUT}$ engloba toda a *stack* aplicacional Spring Boot) executavam misturados na fase de testes unitários (`mvn test`), sem separação clara entre testes unitários isolados ($\text{SUT} = \text{classes}$ / $\text{domain classes}$) e testes de integração de subsistemas/sistema.
+   * A ausência de interfaces de abstração em torno de serviços externos dificulta o isolamento do **SUT (*System Under Test*)** através de *Test Doubles* (*Mocks/Stubs*) para testes unitários herméticos, testes de mutação (PITest) e simulação de cenários de *fallback*.
+   * Na linha de base, testes de persistência (`AuthorRepositoryIntegrationTest` com `@DataJpaTest`) e de contexto completo (`LendingRepositoryIntegrationTest` com `@SpringBootTest`) executavam misturados na fase `mvn test`, enquanto a validação funcional de sistema dependia da execução manual da coleção original do Postman ([`Docs/ARQSOFT/Postman/Psoft-G1.postman_collection.json`](../Postman/Psoft-G1.postman_collection.json), com 183 pedidos compostos em fluxos `UserStories`).
 
-Estas limitações motivam a execução do método formal **ADD 3.0** e as decisões de desenho arquitetural especificadas na pasta `system-to-be`.
+Estas limitações motivam a execução do método **ADD 3.0** e as decisões de desenho arquitetural documentadas em `System-to-be/`.
