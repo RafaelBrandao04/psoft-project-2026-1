@@ -215,7 +215,7 @@ class ReaderController {
     }
 
     @Operation(summary = "Creates a reader")
-    @PostMapping
+    @PostMapping(consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ReaderView> createReader(@Valid CreateReaderRequest readerRequest) throws ValidationException {
         MultipartFile file = readerRequest.getPhoto();
