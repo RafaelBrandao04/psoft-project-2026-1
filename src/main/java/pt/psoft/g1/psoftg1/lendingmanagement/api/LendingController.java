@@ -103,6 +103,9 @@ public class LendingController {
     public ResponseEntity<LendingView> setLendingReturned(
             final WebRequest request,
             final Authentication authentication,
+            @RequestHeader(value = "If-Match", required = false)
+                @Parameter(description = "Version for optimistic concurrency (e.g. \"0\"). If omitted, current version is used automatically.", example = "\"0\"")
+                final String ifMatchHeader,
             @PathVariable("year")
                 @Parameter(description = "The year component of the Lending to find")
                 final Integer year,
@@ -110,14 +113,18 @@ public class LendingController {
                 @Parameter(description = "The sequential component of the Lending to find")
                 final Integer seq,
             @Valid @RequestBody final SetLendingReturnedRequest resource) {
-        final String ifMatchValue = request.getHeader(ConcurrencyService.IF_MATCH);
-        if (ifMatchValue == null || ifMatchValue.isEmpty() || ifMatchValue.equals("null")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "You must issue a conditional PATCH using 'if-match'");
-        }
         String ln = year + "/" + seq;
         final var maybeLending = lendingService.findByLendingNumber(ln)
                 .orElseThrow(() -> new NotFoundException(Lending.class, ln));
+
+        final String reqHeader = request.getHeader(ConcurrencyService.IF_MATCH);
+        final String ifMatchValue = (ifMatchHeader != null && !ifMatchHeader.isEmpty() && !ifMatchHeader.equals("null"))
+                ? ifMatchHeader
+                : reqHeader;
+
+        long desiredVersion = (ifMatchValue != null && !ifMatchValue.isEmpty() && !ifMatchValue.equals("null"))
+                ? concurrencyService.getVersionFromIfMatchHeader(ifMatchValue)
+                : maybeLending.getVersion();
 
         User loggedUser = userService.getAuthenticatedUser(authentication);
 
@@ -129,7 +136,7 @@ public class LendingController {
             throw new AccessDeniedException("Reader does not have permission to edit this lending");
         }
 
-        final var lending = lendingService.setReturned(ln, resource, concurrencyService.getVersionFromIfMatchHeader(ifMatchValue));
+        final var lending = lendingService.setReturned(ln, resource, desiredVersion);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/hal+json"))
