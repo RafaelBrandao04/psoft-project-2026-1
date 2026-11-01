@@ -1,52 +1,52 @@
-# Multi-Environment Configuration and Systemd Service Isolation
+# Configuração Multi-Ambiente e Isolamento de Serviços com Systemd
 
-## 1. Overview and Scope (Goal 1.3.5)
+## 1. Visão Geral e Âmbito (Goal 1.3.5)
 
-In accordance with Project 1 Goal 1.3.5 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*), this document details the engineering decisions, implementation architecture, and operational procedures for:
+Em conformidade com o Goal 1.3.5 do Projeto 1 (*Support configurable and repeatable deployment of the application across development, staging, and production environments*), este documento detalha as decisões de engenharia, a arquitetura de implementação e os procedimentos operacionais para:
 
-1. **Single-Build Immutable Artifact (`app.jar`):** Compiling and packaging a single executable Spring Boot fat JAR once in CI (`lms-dev`) and promoting the exact same binary across **Development (`dev`)**, **User Acceptance Testing (`uat` / `staging`)**, and **Production (`prod`)** without recompilation.
-2. **Externalized Environment Configuration (Twelve-Factor App Factor III):** Eliminating hardcoded parameters in [`src/main/resources/application.properties`](../../../src/main/resources/application.properties) by using `${VARIABLE:default}` placeholders, documented in [`.env.example`](../../../.env.example) and injected per environment via `/etc/psoft-g1/<env>.env` on the target Linux servers (or optional local `.env` files during development).
-3. **Repeatable Multi-Environment Provisioning (`deploy/setup-environments.sh`):** One-command idempotent provisioning of isolated directories (`/opt/psoft-g1/<env>`), environment files (`/etc/psoft-g1/<env>.env`), least-privilege Linux service users (`psoft-g1-<env>`), and restricted `sudoers` policies.
-4. **Hardened Process Supervision (`deploy/psoft-g1@.service`):** Managing the lifecycle of each environment instance via parameterized `systemd` template units with strict OS-level sandboxing (`ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `NoNewPrivileges=true`).
+1. **Single-Build Immutable Artifact (`app.jar`):** Compilação e empacotamento de um fat JAR executável Spring Boot uma única vez em CI (`lms-dev`), promovendo o mesmo binário por **Desenvolvimento (`dev`)**, **Testes de Aceitação (`uat` / `staging`)** e **Produção (`prod`)** sem qualquer recompilação.
+2. **Externalização de Configurações de Ambiente (Twelve-Factor App - Fator III):** Eliminação de parâmetros hardcoded em [`src/main/resources/application.properties`](../../../src/main/resources/application.properties) através de marcadores `${VARIAVEL:padrao}`, documentados em [`.env.example`](../../../.env.example) e injetados por ambiente através de `/etc/psoft-g1/<env>.env` nos servidores Linux de destino (ou ficheiros `.env` locais em desenvolvimento).
+3. **Aprovisionamento Repetível Multi-Ambiente (`deploy/setup-environments.sh`):** Provisionamento idempotente de diretórios isolados (`/opt/psoft-g1/<env>`), ficheiros de ambiente (`/etc/psoft-g1/<env>.env`), utilizadores de sistema de privilégio mínimo (`psoft-g1-<env>`) e políticas restritas de `sudoers`.
+4. **Supervisão Endurecida de Processos (`deploy/psoft-g1@.service`):** Gestão do ciclo de vida de cada instância através de modelos parametrizados do `systemd` com isolamento estrito ao nível do sistema operativo (`ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `NoNewPrivileges=true`).
 
 ---
 
-## 2. Systemd Multi-Environment Isolation Architecture
+## 2. Arquitetura de Isolamento Multi-Ambiente com Systemd
 
-### 2.1. Limitations of the Baseline Process (*As-Is*)
-As established in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
-* The application relied on ad-hoc manual execution on developer machines, with hardcoded properties and no environment separation between `dev`, `uat`, and `prod`.
-* Uploaded files were written to unmanaged relative directories without OS-level user isolation.
-* Running Java processes manually or as `root` without a service supervisor lacked automatic crash recovery (`Restart=on-failure`) and exposed the host operating system to privilege escalation risks.
+### 2.1. Limitações do Processo Inicial (*As-Is*)
+Conforme estabelecido em [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
+* A aplicação dependia de execução manual ad-hoc nas estações de trabalho, com propriedades hardcoded e sem qualquer separação entre `dev`, `uat` e `prod`.
+* Os ficheiros de upload eram gravados em diretórios relativos sem isolamento de utilizadores no sistema operativo.
+* Executar processos Java manualmente ou como `root` sem supervisor de processos não garantia recuperação automática em falhas (`Restart=on-failure`) e expunha o sistema a riscos de escalamento de privilégios.
 
-### 2.2. Parameterized Systemd Template & Multi-VM Topology (*To-Be*)
+### 2.2. Modelo Parametrizado do Systemd e Topologia Multi-VM (*To-Be*)
 
-Following the reference architecture established for the course, environment isolation is achieved without heavy container daemon overhead on the resource-constrained DEI Virtual Servers by combining **Multi-VM physical separation** with **parameterized `systemd` service templates**:
+Seguindo a arquitetura de referência do curso, o isolamento de ambientes é alcançado sem a sobrecarga computacional de um daemon de contentores nos Servidores Virtuais do DEI, combinando **separação física Multi-VM** com **modelos parametrizados do `systemd`**:
 
 ```mermaid
 %%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
-    subgraph CI["CI Build (Single Immutable Artifact)"]
-        SRC["Source Code + pom.xml"] --> MVN["mvnw clean verify -Drelease.commit=<SHA>"]
-        MVN --> JAR["Immutable Fat JAR (app.jar)<br/>Single application.properties with ${VAR:default}"]
+    subgraph CI["Compilação em CI (Artefacto Imutável Único)"]
+        SRC["Código-Fonte + pom.xml"] --> MVN["mvnw clean verify -Drelease.commit=<SHA>"]
+        MVN --> JAR["Fat JAR Imutável (app.jar)<br/>application.properties único com ${VAR:padrao}"]
     end
 
-    subgraph VM1["DEI VM 1: vs806 (SSH 10806)"]
-        ENV_DEV["/etc/psoft-g1/dev.env<br/>DEMO_ENVIRONMENT=dev<br/>PORT=8081"] --> SVC_DEV["psoft-g1@dev.service<br/>User: psoft-g1-dev<br/>WorkDir: /opt/psoft-g1/dev"]
-        ENV_UAT["/etc/psoft-g1/uat.env<br/>DEMO_ENVIRONMENT=uat<br/>PORT=8082"] --> SVC_UAT["psoft-g1@uat.service<br/>User: psoft-g1-uat<br/>WorkDir: /opt/psoft-g1/uat"]
+    subgraph VM1["VM 1 do DEI: vs806 (SSH 10806)"]
+        ENV_DEV["/etc/psoft-g1/dev.env<br/>DEMO_ENVIRONMENT=dev<br/>PORT=8081"] --> SVC_DEV["psoft-g1@dev.service<br/>Utilizador: psoft-g1-dev<br/>Dir: /opt/psoft-g1/dev"]
+        ENV_UAT["/etc/psoft-g1/uat.env<br/>DEMO_ENVIRONMENT=uat<br/>PORT=8082"] --> SVC_UAT["psoft-g1@uat.service<br/>Utilizador: psoft-g1-uat<br/>Dir: /opt/psoft-g1/uat"]
     end
 
-    subgraph VM2["DEI VM 2: vs336 (SSH 10336 - Isolated PROD)"]
-        ENV_PROD["/etc/psoft-g1/prod.env<br/>DEMO_ENVIRONMENT=prod<br/>PORT=8080"] --> SVC_PROD["psoft-g1@prod.service<br/>User: psoft-g1-prod<br/>WorkDir: /opt/psoft-g1/prod"]
+    subgraph VM2["VM 2 do DEI: vs336 (SSH 10336 - PROD Isolada)"]
+        ENV_PROD["/etc/psoft-g1/prod.env<br/>DEMO_ENVIRONMENT=prod<br/>PORT=8080"] --> SVC_PROD["psoft-g1@prod.service<br/>Utilizador: psoft-g1-prod<br/>Dir: /opt/psoft-g1/prod"]
     end
 
-    JAR -->|Promoted to DEV| SVC_DEV
-    JAR -->|Promoted to UAT| SVC_UAT
-    JAR -->|Promoted to PROD| SVC_PROD
+    JAR -->|Promovido para DEV| SVC_DEV
+    JAR -->|Promovido para UAT| SVC_UAT
+    JAR -->|Promovido para PROD| SVC_PROD
 ```
 
-#### 2.2.1. Least-Privilege Security Hardening (`deploy/psoft-g1@.service`)
-Each environment runs under a dedicated, unprivileged Linux system user (`psoft-g1-dev`, `psoft-g1-uat`, `psoft-g1-prod`) created with `/usr/sbin/nologin`. The unit file [`deploy/psoft-g1@.service`](../../../deploy/psoft-g1@.service) enforces strict kernel and filesystem sandboxing:
+#### 2.2.1. Hardening e Princípio de Privilégio Mínimo (`deploy/psoft-g1@.service`)
+Cada ambiente corre sob um utilizador de sistema dedicado e sem privilégios (`psoft-g1-dev`, `psoft-g1-uat`, `psoft-g1-prod`) criado com `/usr/sbin/nologin`. O ficheiro [`deploy/psoft-g1@.service`](../../../deploy/psoft-g1@.service) impõe restrições estritas de kernel e sistema de ficheiros:
 
 ```ini
 [Unit]
@@ -74,24 +74,24 @@ WantedBy=multi-user.target
 
 ---
 
-#### 2.2.2. Conceptual and Operational Distinction: Logical Environments vs. Deployment Targets (C1.4 & C1.5)
+#### 2.2.2. Distinção Conceptual e Operacional: Ambientes Lógicos vs. Destinos de Deployment (C1.4 & C1.5)
 
-In continuous delivery engineering, it is essential to distinguish between a **Logical Environment** (a lifecycle stage with specific configuration, governance rules, data boundaries, and quality gates) and a **Deployment Target** (the physical or virtual host node where binaries execute):
+Na engenharia de entrega contínua, é essencial distinguir entre um **Ambiente Lógico** (etapa de ciclo de vida com configurações, regras de governação, dados e portões de qualidade específicos) e um **Destino de Deployment** (o nó anfitrião físico ou virtual onde o binário é executado):
 
-| Dimension | Logical Environment (*Ambiente Lógico*) | Deployment Target (*Destino de Deployment*) |
+| Dimensão | Ambiente Lógico (*Logical Environment*) | Destino de Deployment (*Deployment Target*) |
 | :--- | :--- | :--- |
-| **Definition** | Functional stage in the software promotion lifecycle (`local`, `dev`, `uat`/`staging`, `prod`). | Infrastructure host/node receiving the binary via SSH/SCP or local process execution (`localhost`, DEI VM `vs806`, DEI VM `vs336`). |
-| **Identification Contract** | Injected via `DEMO_ENVIRONMENT` (`dev`, `uat`, `prod`) and verified on `GET /info` (`"environment"` field). | Addressed via network endpoint and SSH port (`vsgate-ssh.dei.isep.ipp.pt:10806` for `vs806`; `:10336` for `vs336`). |
-| **Cardinality & Mapping ($N:M$)** | **3 remote logical environments** (`dev`, `uat`, `prod`) + **1 local workstation environment** (`local`). | **2 remote DEI Virtual Servers** (`vs806` and `vs336`) + **1 local developer machine** (`localhost`). |
-| **Colocation & Isolation Rationale** | `dev` and `uat` are distinct logical environments with independent databases, ports (`8081` vs `8082`), OS users (`psoft-g1-dev` vs `psoft-g1-uat`), working directories (`/opt/psoft-g1/dev` vs `/opt/psoft-g1/uat`), and systemd service instances (`psoft-g1@dev` vs `psoft-g1@uat`), even though they share the same physical deployment target (`vs806`). | `prod` is deployed to a **dedicated physical deployment target (`vs336`)** so that CPU/memory spikes or disk I/O in `dev`/`uat` on `vs806` can never impact live production availability. |
-| **Alternatives & Trade-offs** | *Alternative 1:* 3 separate VMs (1:1 mapping) — higher infrastructure cost. *Alternative 2:* Single VM for all 3 — risks production starvation. *Selected Hybrid (3 logical envs across 2 VMs):* Optimal balance between resource efficiency and strict production hardware isolation. | *Alternative:* Docker containers on LXD VMs — rejected due to nested virtualization/daemon memory overhead on constrained DEI LXD quotas; parameterized `systemd` provides native kernel namespace isolation (`ProtectSystem=strict`, `PrivateTmp=true`) with zero memory overhead. |
+| **Definição** | Fase funcional no ciclo de promoção de software (`local`, `dev`, `uat`/`staging`, `prod`). | Nó/anfitrião de infraestrutura que recebe o binário via SSH/SCP ou execução local (`localhost`, VM `vs806` do DEI, VM `vs336` do DEI). |
+| **Identificação em Contrato** | Injetado via `DEMO_ENVIRONMENT` (`dev`, `uat`, `prod`) e verificado no `GET /info` (campo `"environment"`). | Endereçado pelo ponto de acesso de rede e porta SSH (`vsgate-ssh.dei.isep.ipp.pt:10806` para `vs806`; `:10336` para `vs336`). |
+| **Cardinalidade e Mapeamento ($N:M$)** | **3 ambientes lógicos remotos** (`dev`, `uat`, `prod`) + **1 ambiente local** (`local`). | **2 Servidores Virtuais remotos do DEI** (`vs806` e `vs336`) + **1 máquina de desenvolvimento local** (`localhost`). |
+| **Justificação de Colocação e Isolamento** | `dev` e `uat` são ambientes lógicos distintos com bases de dados independentes, portas próprias (`8081` vs `8082`), utilizadores de SO distintos (`psoft-g1-dev` vs `psoft-g1-uat`), diretórios separados (`/opt/psoft-g1/dev` vs `/opt/psoft-g1/uat`) e instâncias independentes de serviço systemd (`psoft-g1@dev` vs `psoft-g1@uat`), embora partilhem o mesmo destino físico (`vs806`). | `prod` é implantado num **destino de deployment dedicado (`vs336`)**, garantindo que picos de CPU, memória ou I/O em `dev`/`uat` em `vs806` nunca afetam a disponibilidade de produção. |
+| **Alternativas e Compromissos** | *Alternativa 1:* 3 VMs separadas (mapeamento 1:1) — maior consumo de quotas de infraestrutura. *Alternativa 2:* 1 única VM para os três — risco de degradação de produção. *Solução Híbrida Adotada (3 ambientes lógicos em 2 VMs):* Equilíbrio ótimo entre eficiência de recursos e isolamento físico de produção. | *Alternativa:* Contentores Docker sobre as VMs LXD — rejeitado devido à sobrecarga de virtualização aninhada nas quotas restritas do DEI; o `systemd` parametrizado fornece isolamento nativo de namespaces do kernel (`ProtectSystem=strict`, `PrivateTmp=true`) com zero sobrecarga de memória. |
 
 ---
 
-## 3. Multi-Environment Configuration Architecture
+## 3. Arquitetura de Configuração Multi-Ambiente
 
-### 3.1. Externalization and Fallback Strategy (`application.properties`)
-In adherence to **Twelve-Factor App (Factor III: Store config in the environment)**, all environment-dependent settings in [`src/main/resources/application.properties`](../../../src/main/resources/application.properties) use Spring Boot's property placeholder syntax `${VARIABLE:default}` with safe fallback defaults for out-of-the-box local execution:
+### 3.1. Externalização e Estratégia de Fallback (`application.properties`)
+Respeitando o princípio **Twelve-Factor App (Fator III: Armazenar configurações no ambiente)**, todos os parâmetros dependentes de ambiente em [`src/main/resources/application.properties`](../../../src/main/resources/application.properties) recorrem a marcadores `${VARIAVEL:padrao}` com valores seguros de fallback para execução out-of-the-box:
 
 ```properties
 spring.application.name=psoft-g1
@@ -111,44 +111,44 @@ file.upload-dir=${FILE_UPLOAD_DIR:uploads-psoft-g1}
 file.photo_max_size=${FILE_PHOTO_MAX_SIZE:20000}
 ```
 
-### 3.2. Environment Topology Matrix
+### 3.2. Matriz de Topologia dos Ambientes
 
-| Dimension / Setting | Local Workstation (`local`) | Development (`dev`) | UAT / Staging (`uat`) | Production (`prod`) |
+| Dimensão / Parâmetro | Estação de Trabalho (`local`) | Desenvolvimento (`dev`) | Testes de Aceitação (`uat`) | Produção (`prod`) |
 | :--- | :--- | :--- | :--- | :--- |
-| **Target Host** | `localhost` | DEI VM `vs806` (`10806`) | DEI VM `vs806` (`10806`) | Dedicated DEI VM `vs336` (`10336`) |
-| **Configuration Source** | Optional `.env` or defaults | `/etc/psoft-g1/dev.env` | `/etc/psoft-g1/uat.env` | `/etc/psoft-g1/prod.env` |
+| **Anfitrião de Destino** | `localhost` | VM `vs806` do DEI (`10806`) | VM `vs806` do DEI (`10806`) | VM Dedicada `vs336` do DEI (`10336`) |
+| **Origem da Configuração** | `.env` opcional ou valores padrão | `/etc/psoft-g1/dev.env` | `/etc/psoft-g1/uat.env` | `/etc/psoft-g1/prod.env` |
 | **`DEMO_ENVIRONMENT`** | `local` | `dev` | `uat` | `prod` |
-| **Listening Port (`PORT`)** | `8080` (or `8085` via `.env`) | `8081` | `8082` | `8080` |
-| **Systemd Service** | N/A (`mvnw spring-boot:run`) | `psoft-g1@dev.service` | `psoft-g1@uat.service` | `psoft-g1@prod.service` |
-| **OS Service User** | Developer account | `psoft-g1-dev` | `psoft-g1-uat` | `psoft-g1-prod` |
-| **Working Directory** | Project root | `/opt/psoft-g1/dev` | `/opt/psoft-g1/uat` | `/opt/psoft-g1/prod` |
+| **Porta de Escuta (`PORT`)** | `8080` (ou `8085` via `.env`) | `8081` | `8082` | `8080` |
+| **Serviço Systemd** | N/A (`mvnw spring-boot:run`) | `psoft-g1@dev.service` | `psoft-g1@uat.service` | `psoft-g1@prod.service` |
+| **Utilizador de SO** | Conta do programador | `psoft-g1-dev` | `psoft-g1-uat` | `psoft-g1-prod` |
+| **Diretório de Trabalho** | Raiz do projeto | `/opt/psoft-g1/dev` | `/opt/psoft-g1/uat` | `/opt/psoft-g1/prod` |
 
-### 3.3. Standardized Environment Template (`.env.example`)
-The template file [`.env.example`](../../../.env.example) at the repository root documents all externalized variables supported by `application.properties`, including `PORT`, `DEMO_ENVIRONMENT`, `SPRING_PROFILES_ACTIVE`, database connection strings, JWT key paths, external bibliographic providers (`BIBLIOGRAPHIC_PROVIDERS`), notification channels (`NOTIFICATION_CHANNELS`), and lending policy parameters.
+### 3.3. Modelo Padronizado de Ambiente (`.env.example`)
+O ficheiro modelo [`.env.example`](../../../.env.example) na raiz do repositório documenta todas as variáveis suportadas por `application.properties`, incluindo `PORT`, `DEMO_ENVIRONMENT`, `SPRING_PROFILES_ACTIVE`, cadeias de ligação à base de dados, caminhos de chaves JWT, fornecedores bibliográficos externos (`BIBLIOGRAPHIC_PROVIDERS`), canais de notificação (`NOTIFICATION_CHANNELS`) e parâmetros de políticas de empréstimo.
 
-Because `application.properties` includes `spring.config.import=optional:file:.env[.properties]`:
-* **Without a local `.env`:** The application and all 430 automated tests run out-of-the-box using the fallback defaults.
-* **With a local `.env`:** Developers can override `PORT=8085` (for example, when port `8080` is occupied by a local Jenkins controller) without modifying tracked files.
-* **On the DEI Linux VMs:** `systemd` injects `/etc/psoft-g1/<env>.env` directly into the process environment via `EnvironmentFile=`.
+Como `application.properties` inclui `spring.config.import=optional:file:.env[.properties]`:
+* **Sem `.env` local:** A aplicação e todos os 433 testes automatizados executam out-of-the-box com os valores de fallback.
+* **Com `.env` local:** Os programadores podem substituir `PORT=8085` (por exemplo, quando a porta `8080` está ocupada pelo Jenkins local) sem modificar ficheiros versionados.
+* **Nas VMs Linux do DEI:** O `systemd` injeta `/etc/psoft-g1/<env>.env` diretamente no ambiente do processo através de `EnvironmentFile=`.
 
 ---
 
-## 4. Repeatable Provisioning and Verification Runbook
+## 4. Guia de Aprovisionamento Repetível e Verificação
 
-### 4.1. Server Provisioning (`deploy/setup-environments.sh`)
+### 4.1. Aprovisionamento do Servidor (`deploy/setup-environments.sh`)
 ```bash
-# Provision DEV (8081), UAT (8082), and PROD (8080) on an Ubuntu host
+# Aprovisionar DEV (8081), UAT (8082) e PROD (8080) num anfitrião Ubuntu
 sudo sh deploy/setup-environments.sh 8081 8082 8080
 ```
 
-### 4.2. Local Execution and Verification
+### 4.2. Execução Local e Verificação
 ```powershell
-# 1. Run application locally (automatically loads .env if present)
+# 1. Executar a aplicação localmente (carrega .env se existir)
 .\mvnw.cmd spring-boot:run
 
-# 2. Verify identity & environment contract
+# 2. Verificar o contrato de identidade e ambiente
 curl http://localhost:8080/info
 
-# 3. Verify readiness probe
+# 3. Verificar o probe de prontidão
 curl http://localhost:8080/actuator/health/readiness
 ```

@@ -1,74 +1,74 @@
-# Automated CI/CD Pipeline: Build, Packaging, and Static Code Analysis
+# Pipeline de CI/CD: Compilação, Empacotamento e Análise Estática de Código
 
-## 1. Overview and Scope (Goal 1.3.3)
+## 1. Visão Geral e Âmbito (Goal 1.3.3)
 
-In accordance with Project 1 Goal 1.3.3 (*Implement an automated CI/CD pipeline*), this document specifies the architectural design and operational implementation of:
-1. **Building and Packaging the Software:** Deterministic compilation, bytecode generation, and Spring Boot executable JAR packaging adhering to the **Single-Build Immutable Artifact Pattern** (*One Build, Many Deploys*).
-2. **Static Code Analysis (SAST):** Automated inspection of bytecode and source code using **SpotBugs** to identify security vulnerabilities, concurrency anomalies, and code quality defects.
-3. **Jenkins Declarative Pipeline Orchestration:** Declarative Pipeline-as-Code ([`.Jenkinsfile`](../../../.Jenkinsfile)) driving the **`lms-dev`** pipeline on a local Jenkins Controller (`localhost:8080`), integrated with GitHub via **Webhook Relay** (outbound WebSocket `WSS` tunnel) and targeting the **DEI Virtual Servers Private Cloud (`vsgate-ssh.dei.isep.ipp.pt`)** for automated remote deployment.
+Em conformidade com o Goal 1.3.3 do Projeto 1 (*Implement an automated CI/CD pipeline*), este documento especifica o desenho arquitetural e a implementação operacional de:
+1. **Compilação e Empacotamento do Software:** Compilação determinística, geração de bytecode e empacotamento de JAR executável Spring Boot respeitando o **Single-Build Immutable Artifact Pattern** (*One Build, Many Deploys*).
+2. **Análise Estática de Código (SAST):** Inspeção automatizada de código-fonte e bytecode com o **SpotBugs** (vinculado à fase de ciclo de vida `verify`) para identificar vulnerabilidades de segurança, anomalias de concorrência e falhas de qualidade.
+3. **Orquestração de Pipeline Declarativo Jenkins:** Pipeline-as-Code declarativo ([`.Jenkinsfile`](../../../.Jenkinsfile)) que comanda a esteira **`lms-dev`** num Controlador Jenkins local (`localhost:8080`), integrado com o GitHub via **Webhook Relay** (túnel WebSocket de saída `WSS`) e direcionado para a **Cloud Privada de Servidores Virtuais do DEI (`vsgate-ssh.dei.isep.ipp.pt`)** para deployment remoto automatizado.
 
 ---
 
-## 2. Automated Build and Packaging Strategy
+## 2. Estratégia Automatizada de Compilação e Empacotamento
 
-### 2.1. Limitations of the Baseline Process (*As-Is*)
-As analyzed in [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
-* Software compilation was performed manually on developers' workstations (`mvn clean compile`), suffering from environmental discrepancies and JDK incompatibility (e.g. annotation processing failures on non-LTS releases).
-* Packaging relied on ad-hoc executions of `mvn clean package`, transferring unverified JARs manually to target servers via SSH/FTP without cryptographic hashing, audit logs, or pipeline traceability.
-* Binaries were repeatedly recompiled for each environment, directly violating the **Continuous Delivery core principle: Build binaries only once** (Jez Humble & David Farley).
+### 2.1. Limitações do Processo Inicial (*As-Is*)
+Conforme analisado em [`Docs/ODSOFT/system-as-is/system-as-is.md`](../system-as-is/system-as-is.md):
+* A compilação de software era executada manualmente nas estações de trabalho dos programadores (`mvn clean compile`), sujeita a discrepâncias ambientais e incompatibilidades de JDK (ex.: falhas no processamento de anotações em versões não-LTS).
+* O empacotamento dependia de execuções ad-hoc de `mvn clean package`, transferindo JARs não verificados para servidores de destino via SSH/FTP sem cálculo de hash criptográfico, registos de auditoria ou rastreabilidade.
+* Os binários eram repetidamente recompilados para cada ambiente, violando diretamente o **princípio fundamental de Continuous Delivery: Compilar binários apenas uma vez** (Jez Humble & David Farley).
 
-### 2.2. Target Build & Packaging Lifecycle (*To-Be*)
+### 2.2. Ciclo de Vida Alvo de Compilação e Empacotamento (*To-Be*)
 
-The automated build process uses the Maven Wrapper (`./mvnw` / `mvnw.cmd`) with OpenJDK 17 in a standardized, headless lifecycle:
+O processo automatizado recorre ao Maven Wrapper (`./mvnw` / `mvnw.cmd`) com OpenJDK 17/21 num ciclo de vida padronizado:
 
 ```mermaid
 %%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart LR
-    SRC["Source Code<br/>(GitHub Push)"] --> WR["Webhook Relay<br/>(WSS Event)"]
-    WR --> STAGE1["Stage 1: Build & Verify<br/>(compile + spotbugs + test + package + IT + PIT)"]
-    STAGE1 --> STAGE2["Stage 2: Package & Deploy DEV<br/>(copy /B /Y artifact/app.jar + release.properties)"]
-    STAGE2 --> SSH["Deploy to DEI VM vs806:8081<br/>(deploy/jenkins-deploy.groovy + systemd + Smoke Test)"]
-    SSH --> ARCHIVE["Archive validated/**<br/>(Fingerprinting)"]
-    ARCHIVE --> UAT["Trigger Downstream<br/>Job: lms-uat"]
+    SRC["Código-Fonte<br/>(Git Push)"] --> WR["Webhook Relay<br/>(Evento WSS)"]
+    WR --> STAGE1["Etapa 1: Build & Verify<br/>(compile -> test + PIT -> package -> IT + SpotBugs)"]
+    STAGE1 --> STAGE2["Etapa 2: Package & Deploy DEV<br/>(copy /B /Y artifact/app.jar + release.properties)"]
+    STAGE2 --> SSH["Deploy para VM vs806:8081 do DEI<br/>(deploy/jenkins-deploy.groovy + systemd + Smoke Test)"]
+    SSH --> ARCHIVE["Arquivo de validated/**<br/>(Fingerprinting)"]
+    ARCHIVE --> UAT["Disparo do Job a Jusante:<br/>lms-uat"]
 ```
 
-#### 2.2.1. Compilation & Annotation Processing (`compile`)
-* **Execution:** Executed deterministically as part of `mvnw -B -Pmutation clean verify -Drelease.commit="${env.GIT_COMMIT}"`.
-* **Annotation Processors:** Standardized in [`pom.xml`](../../../pom.xml) under `maven-compiler-plugin`:
-  * Lombok (`1.18.30`) for boilerplate code reduction.
-  * MapStruct Processor (`1.5.5.Final`) for compile-time type-safe DTO/Domain mappers.
-  * Lombok-MapStruct binding (`0.2.0`) to avoid annotation ordering issues.
-* **Output:** Compiled bytecode placed under `target/classes`.
-* **Quality Gate (Hard Gate):** Zero compilation errors. Any syntax or annotation processor failure immediately aborts the pipeline, providing fast feedback to the committer in under 15 seconds.
+#### 2.2.1. Compilação e Processamento de Anotações (`compile`)
+* **Execução:** Executado de forma determinística como parte de `mvnw -B -Pmutation clean verify -Djacoco.dataFile=target/jacoco.exec -Djacoco-it.dataFile=target/jacoco-it.exec -Dpitest.mutationThreshold=30 -Drelease.commit="${env.GIT_COMMIT}"`.
+* **Processadores de Anotações:** Padronizados no [`pom.xml`](../../../pom.xml) sob o plugin `maven-compiler-plugin`:
+  * Lombok (`1.18.30`) para redução de código boilerplate.
+  * Processador MapStruct (`1.5.5.Final`) para mapeamento DTO/Domínio seguro em tempo de compilação.
+  * Conetor Lombok-MapStruct (`0.2.0`) para prevenir problemas na ordem de execução de anotações.
+* **Saída:** Bytecode compilado gerado sob `target/classes`.
+* **Quality Gate (Hard Gate):** Zero erros de compilação. Qualquer falha sintática ou de processador de anotações aborta imediatamente o pipeline, fornecendo feedback em menos de 15 segundos.
 
-#### 2.2.2. Packaging Stage (`package` & `spring-boot-maven-plugin:repackage`)
-* **Execution:** Executed automatically during the Maven `package` lifecycle phase before `verify`.
-* **Spring Boot Repackaging & Build Info:** The `spring-boot-maven-plugin` repackages the compiled classes and resolved runtime dependencies into a self-contained executable archive, adding a `META-INF/build-info.properties` stamped with the Git commit hash:
-  * Primary Executable Artifact: `target/psoft-g1-0.0.1-SNAPSHOT.jar` (~72 MB, includes nested `BOOT-INF/lib` dependencies and Spring Boot Loader).
-  * Original Artifact: `target/psoft-g1-0.0.1-SNAPSHOT.jar.original` (thin JAR without embedded runtime dependencies).
-* **Binary Mode Copy (`copy /B /Y`):**
-  On Windows runners, the standard command line `copy` utility defaults to ASCII text mode, truncating binary ZIP/JAR streams at the first `0x1A` (ASCII 26 / Ctrl+Z EOF character). The pipeline explicitly enforces binary mode copy (`copy /B /Y target\psoft-g1-*.jar artifact\app.jar`), preserving all bytes intact.
-* **Release Metadata (`release.properties`):**
-  Alongside `app.jar`, the pipeline generates a standardized properties file recording provenance:
+#### 2.2.2. Etapa de Empacotamento (`package` & `spring-boot-maven-plugin:repackage`)
+* **Execução:** Executado automaticamente durante a fase `package` do Maven, após a fase `test` (testes unitários Surefire + mutação PITest) e antes da fase `verify` (testes de integração Failsafe + análise estática SpotBugs).
+* **Repackaging Spring Boot e Build Info:** O `spring-boot-maven-plugin` re-empacota as classes compiladas e dependências resolvidas num arquivo executável autónomo, gerando `META-INF/build-info.properties` carimbado com o hash de commit do Git:
+  * Artefacto Executável Principal: `target/psoft-g1-0.0.1-SNAPSHOT.jar` (~72 MB, com dependências em `BOOT-INF/lib` e Spring Boot Loader).
+  * Artefacto Original: `target/psoft-g1-0.0.1-SNAPSHOT.jar.original` (JAR simples sem dependências embutidas).
+* **Cópia em Modo Binário (`copy /B /Y`):**
+  Em agentes Windows, o comando padrão `copy` opera em modo de texto ASCII, truncando ficheiros binários ZIP/JAR ao encontrar o primeiro byte `0x1A` (caractere EOF ASCII 26 / Ctrl+Z). O pipeline impõe explicitamente o modo binário (`copy /B /Y target\psoft-g1-*.jar artifact\app.jar`), preservando a integridade integral do binário.
+* **Metadados de Release (`release.properties`):**
+  Juntamente com o `app.jar`, o pipeline gera um ficheiro de propriedades padronizado registando a proveniência:
   ```properties
   job=lms-dev
   CI_JOB=lms-dev
-  build=17
-  CI_BUILD=17
-  commit=08acb15e0febd30f7e5e451686997e1a1d90e979
-  GIT_COMMIT=08acb15e0febd30f7e5e451686997e1a1d90e979
+  build=38
+  CI_BUILD=38
+  commit=4e10baf1db04f1a904f87833a1b7a98c19e0f5a1
+  GIT_COMMIT=4e10baf1db04f1a904f87833a1b7a98c19e0f5a1
   ```
-* **Immutability Guarantee (*Single-Build Artifact Pattern*):** The generated JAR is archived in Jenkins (`archiveArtifacts`) with cryptographic fingerprinting and reused across downstream UAT and PROD stages without any recompilation.
+* **Garantia de Imutabilidade (*Single-Build Artifact Pattern*):** O JAR gerado é arquivado no Jenkins (`archiveArtifacts`) com fingerprinting criptográfico e reutilizado nas etapas subsequentes de UAT e PROD sem qualquer recompilação.
 
 ---
 
-## 3. Static Code Analysis (SAST) Architecture
+## 3. Arquitetura de Análise Estática de Código (SAST)
 
-### 3.1. Tool Selection and Integration
-To detect software flaws, security vulnerabilities, and code smells without executing the program, **SpotBugs** (the official successor to FindBugs) is configured in [`pom.xml`](../../../pom.xml) via `spotbugs-maven-plugin` version `4.8.3.1`:
+### 3.1. Seleção da Ferramenta e Integração no Ciclo de Vida
+Para detetar falhas de software, vulnerabilidades de segurança e code smells sem executar a aplicação, o **SpotBugs** está configurado no [`pom.xml`](../../../pom.xml) via `spotbugs-maven-plugin` versão `4.8.3.1` e vinculado à fase `verify`:
 
 ```xml
-<!-- SpotBugs Plugin for Static Code Analysis (SAST) and Quality Gate Enforcement -->
+<!-- Plugin SpotBugs para Análise Estática de Código (SAST) e Quality Gate -->
 <plugin>
     <groupId>com.github.spotbugs</groupId>
     <artifactId>spotbugs-maven-plugin</artifactId>
@@ -81,166 +81,95 @@ To detect software flaws, security vulnerabilities, and code smells without exec
         <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
         <failOnError>false</failOnError>
     </configuration>
+    <executions>
+        <execution>
+            <phase>verify</phase>
+            <goals>
+                <goal>check</goal>
+            </goals>
+        </execution>
+    </executions>
 </plugin>
 ```
 
-### 3.2. Filter Configuration (`spotbugs-exclude.xml`)
-In modern Spring Boot and Lombok/MapStruct applications, bytecode analyzers generate noise on synthetic classes and framework conventions. To prevent false positives while rigorously checking application logic, [`spotbugs-exclude.xml`](../../../spotbugs-exclude.xml) filters:
-1. **MapStruct Generated Mappers (`~.*MapperImpl.*`):** Auto-generated bytecode implementing DTO mapping.
-2. **Lombok Generated Builders (`~.*Builder.*`):** Auto-generated builder patterns.
-3. **Representation Exposure (`EI_EXPOSE_REP`, `EI_EXPOSE_REP2`):** Standard in Spring Dependency Injection constructors and DTOs where mutable collection references are intentionally manipulated.
-4. **Constructor Throw (`CT_CONSTRUCTOR_THROW`):** Standard in Domain-Driven Design (DDD) Value Objects where constructors enforce domain invariants by throwing `IllegalArgumentException`.
+### 3.2. Configuração de Filtros (`spotbugs-exclude.xml`)
+Em aplicações Spring Boot com Lombok e MapStruct, analisadores de bytecode podem produzir falsos positivos em classes sintéticas e convenções de frameworks. Para focar a análise na lógica aplicacional, o ficheiro [`spotbugs-exclude.xml`](../../../spotbugs-exclude.xml) filtra:
+1. **Mappers Gerados pelo MapStruct (`~.*MapperImpl.*`):** Bytecode gerado automaticamente para conversão DTO.
+2. **Builders Gerados pelo Lombok (`~.*Builder.*`):** Padrões de builder gerados automaticamente.
+3. **Exposição de Representação Interna (`EI_EXPOSE_REP`, `EI_EXPOSE_REP2`):** Prática comum em construtores de injeção de dependências e DTOs onde coleções mutáveis são manipuladas intencionalmente.
+4. **Exceções em Construtores (`CT_CONSTRUCTOR_THROW`):** Prática padrão em Value Objects de Domain-Driven Design (DDD) onde os construtores garantem invariantes de domínio lançando `IllegalArgumentException`.
 
-### 3.3. Empirical Baseline Findings and Defect Remediation
+### 3.3. Diagnóstico Inicial e Correção de Defeitos
 
-Running SpotBugs on the baseline codebase identified **125 bug instances**, including **3 High-Priority (Priority 1) defects**. All three were analyzed, root-caused, and resolved:
+A execução inicial do SpotBugs na base de código original detetou **125 ocorrências de bugs**, incluindo **3 defeitos de Alta Prioridade (Prioridade 1)**. Todos os três foram diagnosticados, corrigidos e validados:
 
-| # | Bug Type | Priority | Class / Location | Root Cause | Implemented Resolution |
+| # | Tipo de Bug | Prioridade | Classe / Localização | Causa Raiz | Resolução Implementada |
 | :---: | :--- | :---: | :--- | :--- | :--- |
-| **1** | `DM_DEFAULT_ENCODING` | **P1 (High)** | `ForbiddenNameServiceImpl.java:21` | Reliance on host OS default character encoding when instantiating `InputStreamReader(resource.getInputStream())`. On Windows runners (`Cp1252`), non-ASCII forbidden names were corrupted, diverging from Linux (`UTF-8`). | Specified `StandardCharsets.UTF_8` explicitly: `new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8)`. |
-| **2** | `DLS_DEAD_LOCAL_STORE` | **P1 (High)** | `User.java:166` | Dead local store in `setPassword(String)`: `Password passwordCheck = new Password(password);` allocated an object solely for validation, storing it in an unread local variable. | Replaced with direct validation invocation `new Password(password);` without allocating an unused local reference. |
-| **3** | `SE_BAD_FIELD` | **P1 (High)** | `User.java` / `Name.java` | `User` implements Spring Security `UserDetails` (which extends `Serializable`). The embedded field `Name name` did not implement `Serializable`, causing runtime `NotSerializableException` if the security principal is serialized in HTTP sessions or distributed caches. | Made `Name` implement `java.io.Serializable` with explicit `private static final long serialVersionUID = 1L;`. Removed extraneous `Serializable` tag from `FineView`. |
+| **1** | `DM_DEFAULT_ENCODING` | **P1 (Alta)** | `ForbiddenNameServiceImpl.java:21` | Dependência da codificação padrão do sistema operativo anfitrião ao instanciar `InputStreamReader(resource.getInputStream())`. Em Windows (`Cp1252`), nomes proibidos com acentos eram corrompidos, divergindo de ambientes Linux (`UTF-8`). | Especificou-se explicitamente `StandardCharsets.UTF_8`: `new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8)`. |
+| **2** | `DLS_DEAD_LOCAL_STORE` | **P1 (Alta)** | `User.java:166` | Atribuição morta em `setPassword(String)`: instanciava `Password passwordCheck = new Password(password);` apenas para validação, armazenando numa variável local não utilizada. | Substituído por validação direta `new Password(password);` sem alocação desnecessária de variável local. |
+| **3** | `SE_BAD_FIELD` | **P1 (Alta)** | `User.java` / `Name.java` | `User` implementa `UserDetails` do Spring Security (que estende `Serializable`). O campo embutido `Name name` não implementava `Serializable`, provocando `NotSerializableException` caso o contexto de segurança fosse serializado. | `Name` passou a implementar `java.io.Serializable` com `private static final long serialVersionUID = 1L;`. Removeu-se o marcador redundante em `FineView`. |
 
-#### Verification Post-Remediation:
-* **Remaining High-Priority (P1) Bugs:** **0**
-* **SpotBugs Build Status:** `BUILD SUCCESS`.
-* **Current Test Suite:** 386/386 Unit Tests and 44/44 Integration Tests pass with 0 regressions.
+#### Verificação Pós-Correção (Build #38):
+* **Bugs de Alta Prioridade (P1) Remanescentes:** **0** (11 avisos de Prioridade Média P2 reportados em `target/spotbugsXml.xml`).
+* **Estado do SpotBugs no Maven:** `BUILD SUCCESS`.
+* **Suíte Atual de Testes:** 386/386 Testes Unitários e 47/47 Testes de Integração com aprovação total (433 testes no total) e 0 regressões.
 
 ---
 
-## 4. Jenkins Declarative Pipeline Implementation ([`.Jenkinsfile`](../../../.Jenkinsfile))
+## 4. Implementação do Pipeline Declarativo Jenkins ([`.Jenkinsfile`](../../../.Jenkinsfile))
 
-The DEV pipeline is orchestrated via [`.Jenkinsfile`](../../../.Jenkinsfile) at the repository root:
+O pipeline de DEV é orquestrado através do ficheiro [`.Jenkinsfile`](../../../.Jenkinsfile) na raiz do repositório. O estágio principal `Build` invoca o Maven wrapper com caminhos explícitos de ficheiros de cobertura JaCoCo (evitando problemas de encoding de caminhos em Windows) e recolhe evidências no bloco `post`:
 
 ```groovy
-pipeline {
-    agent any
-
-    options {
-        copyArtifactPermission('lms-uat,lms-private-uat,LMS-private-uat,LMS-uat,*')
-        disableConcurrentBuilds()
-    }
-
-    environment {
-        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Djava.awt.headless=true'
-        UAT_JOB_NAME = 'lms-uat'
-    }
-
-    stages {
-        stage('Build') {
-            steps {
-                echo '>>> Stage 1: Build, Unit Tests, PIT Mutation Testing, Package & Integration Tests'
-                timeout(time: 15, unit: 'MINUTES') {
-                    script {
-                        def commitArg = env.GIT_COMMIT ? "-Drelease.commit=${env.GIT_COMMIT}" : ""
-                        if (isUnix()) {
-                            sh "./mvnw -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
-                        } else {
-                            bat "mvnw.cmd -B -Pmutation clean verify -Dpitest.mutationThreshold=30 ${commitArg}"
-                        }
-                    }
-                }
-            }
-            post {
-                always {
-                    echo '>>> Archiving Test, Mutation & Quality Reports as Evidence...'
-                    archiveArtifacts artifacts: 'target/pit-reports/**', allowEmptyArchive: true
-                    junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml', allowEmptyResults: true
-                }
-            }
-        }
-
-        stage('Deploy DEV') {
-            when {
-                expression { env.GIT_BRANCH in ['origin/main', 'main'] || env.BRANCH_NAME == 'main' }
-            }
-            steps {
-                echo '>>> Stage 2: Packaging and Deploying to DEV Environment'
-                script {
-                    dir('artifact') {
-                        deleteDir()
-                    }
-
-                    if (isUnix()) {
-                        sh '''
-                            mkdir -p artifact
-                            cp target/psoft-g1-*.jar artifact/app.jar
-                        '''
-                    } else {
-                        bat '''
-                            if not exist artifact mkdir artifact
-                            copy /B /Y target\\psoft-g1-*.jar artifact\\app.jar
-                        '''
-                    }
-
-                    def commitSha = env.GIT_COMMIT ?: 'UNKNOWN_COMMIT'
-                    def propertiesContent = "job=${env.JOB_NAME}\nCI_JOB=${env.JOB_NAME}\nbuild=${env.BUILD_NUMBER}\nCI_BUILD=${env.BUILD_NUMBER}\ncommit=${commitSha}\nGIT_COMMIT=${commitSha}\n"
-                    writeFile file: 'artifact/release.properties', text: propertiesContent, encoding: 'UTF-8'
-
-                    // Load deploy module and deploy to DEV on DEI VM vs806
-                    def deploy = load 'deploy/jenkins-deploy.groovy'
-                    deploy.call('dev')
-
-                    dir('validated') {
-                        deleteDir()
-                    }
-                    if (isUnix()) {
-                        sh '''
-                            mkdir -p validated
-                            cp artifact/app.jar validated/app.jar
-                            cp artifact/release.properties validated/release.properties
-                        '''
-                    } else {
-                        bat '''
-                            if not exist validated mkdir validated
-                            copy /B /Y artifact\\app.jar validated\\app.jar
-                            copy /Y artifact\\release.properties validated\\release.properties
-                        '''
-                    }
-
-                    archiveArtifacts artifacts: 'validated/**', fingerprint: true, allowEmptyArchive: false
-
-                    try {
-                        build job: "${UAT_JOB_NAME}",
-                              parameters: [
-                                  string(name: 'CI_BUILD', value: "${env.BUILD_NUMBER}"),
-                                  string(name: 'CI_JOB', value: "${env.JOB_NAME}")
-                              ],
-                              wait: false
-                    } catch (Exception e) {
-                        echo "WARNING: Could not trigger downstream job '${UAT_JOB_NAME}': ${e.message}."
-                    }
+stage('Build') {
+    steps {
+        echo '>>> Stage 1: Build, Unit Tests, PIT Mutation Testing, Package & Integration Tests'
+        timeout(time: 15, unit: 'MINUTES') {
+            script {
+                def commitArg = env.GIT_COMMIT ? "-Drelease.commit=${env.GIT_COMMIT}" : ""
+                def jacocoArgs = "-Djacoco.dataFile=target/jacoco.exec -Djacoco-it.dataFile=target/jacoco-it.exec"
+                if (isUnix()) {
+                    sh "./mvnw -B -Pmutation clean verify ${jacocoArgs} -Dpitest.mutationThreshold=30 ${commitArg}"
+                } else {
+                    bat "mvnw.cmd -B -Pmutation clean verify ${jacocoArgs} -Dpitest.mutationThreshold=30 ${commitArg}"
                 }
             }
         }
     }
-
     post {
         always {
-            echo "CI Pipeline finished with status: ${currentBuild.currentResult}"
-        }
-        success {
-            echo "Pipeline SUCCESS: Build passed quality gates and deployed to DEV."
-        }
-        failure {
-            echo "Pipeline FAILURE: Build or deployment failed."
+            echo '>>> Archiving Test, Coverage, Mutation & Quality Reports as Evidence...'
+            archiveArtifacts artifacts: 'target/pit-reports/**, target/site/jacoco/**, target/site/jacoco-it/**',
+                             allowEmptyArchive: true
+            junit testResults: 'target/surefire-reports/TEST-*.xml, target/failsafe-reports/TEST-*.xml',
+                  allowEmptyResults: true
+            recordCoverage tools: [[parser: 'JACOCO', pattern: 'target/site/jacoco/jacoco.xml']],
+                           id: 'unit-coverage',
+                           name: 'Cobertura: testes unitários',
+                           sourceCodeRetention: 'EVERY_BUILD'
+            recordCoverage tools: [[parser: 'JACOCO', pattern: 'target/site/jacoco-it/jacoco.xml']],
+                           id: 'integration-coverage',
+                           name: 'Cobertura: testes de integração',
+                           sourceCodeRetention: 'EVERY_BUILD'
         }
     }
 }
 ```
 
+Para a especificação completa do Estágio 2 (`Deploy DEV`)—incluindo a cópia binária segura (`copy /B /Y`), geração de `release.properties`, deployment remoto via [`deploy/jenkins-deploy.groovy`](../../../deploy/jenkins-deploy.groovy), fingerprinting SHA-256 de `validated/**` e disparo a jusante de `lms-uat`—consulte diretamente o ficheiro versionado [`.Jenkinsfile`](../../../.Jenkinsfile).
+
 ---
 
-## 5. Quality Gates and Enforcement Rules
+## 5. Quality Gates e Regras de Bloqueio
 
-The pipeline establishes **Hard Gates** and **Soft Gates** as taught in the theoretical curriculum (*Something about Apache Jenkins*):
+O pipeline estabelece **Hard Gates** (bloqueantes) ao longo de todo o ciclo de verificação:
 
-| Stage / Component | Gate Type | Threshold / Condition | Action on Failure |
+| Etapa / Componente | Tipo de Gate | Limiar / Condição Exigida | Ação em Caso de Falha |
 | :--- | :---: | :--- | :--- |
-| **Compilation** | **Hard Gate** | 0 compilation errors, 0 annotation processor errors | Aborts build immediately (`FAILURE`). Stops line. |
-| **Static Code Analysis (SpotBugs)** | **Hard Gate** | 0 High-Priority (P1) defects | Halts pipeline before packaging or deployment. |
-| **Unit Tests (Surefire)** | **Hard Gate** | 100% pass rate (386/386 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
-| **Integration Tests (Failsafe)** | **Hard Gate** | 100% pass rate (44/44 tests pass) | Aborts build (`FAILURE`). Test report published via `junit`. |
-| **Mutation Testing (PITest)** | **Hard Gate** | Mutation threshold $\ge 30\%$ | Aborts build if mutation score degrades below threshold. |
-| **Artifact Packaging** | **Hard Gate** | Binary JAR preserved (~72 MB) via `copy /B /Y` | Aborts build if artifact missing or truncated. |
-| **Readiness Smoke Test** | **Hard Gate** | HTTP 200 and contract validation on `/info` (app, env, commit) and `/actuator/health/readiness` (status UP) within 60s (30 attempts $\times$ 2s) | Aborts deployment pipeline (`FAILURE`). |
+| **Compilação** | **Hard Gate** | 0 erros de compilação, 0 erros em processadores de anotações | Aborta a build imediatamente (`FAILURE`). Interrompe a esteira. |
+| **Testes Unitários (Surefire)** | **Hard Gate** | 100% de aprovação (386/386 testes passam na fase `test`) | Aborta a build (`FAILURE`). Publica relatório JUnit. |
+| **Testes de Mutação (PITest)** | **Hard Gate** | Limiar de mutação $\ge 30\%$ (82% Test Strength na fase `test`) | Aborta a build se o score descer abaixo do limiar. |
+| **Empacotamento de Artefacto** | **Hard Gate** | Preservação integral do JAR binário (~72 MB) via `copy /B /Y` | Aborta a esteira se o artefacto faltar ou estiver corrompido. |
+| **Testes de Integração (Failsafe)** | **Hard Gate** | 100% de aprovação (47/47 testes passam na fase `verify`) | Aborta a build (`FAILURE`). Publica relatório JUnit. |
+| **Análise Estática (SpotBugs)** | **Hard Gate** | 0 defeitos de Alta Prioridade (P1) na fase `verify` | Interrompe o pipeline antes do deployment. |
+| **Smoke Test de Prontidão** | **Hard Gate** | HTTP 200 e validação de contratos em `/info` (app, env, commit) e `/actuator/health/readiness` (status UP) em $\le 60\text{s}$ (30 tentativas $\times$ 2s) | Aborta o pipeline de deployment (`FAILURE`). |

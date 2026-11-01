@@ -1,21 +1,20 @@
-# Avaliação e Melhoria do Processo de CI/CD
+# Avaliação e Melhoria do Processo de CI/CD (Goal 1.3.6)
 
-## 1. Contexto
-O presente documento apresenta a avaliação técnica, quantitativa e empírica do processo de engenharia de software e da esteira de Integração e Entrega Contínua (CI/CD) concebida para o sistema **LMS (*Library Management System* — `psoft-g1`)**.
+## 1. Contexto e Objetivo
+O presente documento apresenta a avaliação técnica, quantitativa e crítica do processo de engenharia de software e da esteira de Integração e Entrega Contínua (CI/CD) implementada para o sistema **LMS (*Library Management System* — `psoft-g1`)**, comparando o estado inicial (*System-as-is*) com a solução implementada (*System-to-be*, Build #38), analisando a evolução temporal das métricas (critério **C3.3**), identificando estrangulamentos operacionais (*bottlenecks*) e justificando as decisões tomadas.
 
 ---
 
-## 2. Comparação Sistemática dos Processos de Desenvolvimento (*As-Is* vs. *To-Be*)
+## 2. Comparação Sistemática e Quantitativa (*As-Is* vs. *To-Be*)
 
-### 2.1. Matriz Comparativa nos 11 Estágios de CI/CD
-O ciclo de vida de desenvolvimento e entrega foi transformado em cada uma das suas 11 etapas fundamentais:
+### 2.1. Transformação nos 11 Estágios de CI/CD
 
 ```mermaid
 %%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart LR
     subgraph AsIs["Processo Inicial (As-Is)"]
         A1["1. Checkout Manual"] --> A2["2. Build Local Ad-hoc"]
-        A2 --> A3["3. Testes Parciais (102 tests)"]
+        A2 --> A3["3. Testes Misturados (102)"]
         A3 --> A4["4. JAR Disperso em target/"]
         A4 --> A5["5. Cópia Manual SCP/FTP"]
         A5 --> A6["6. Testes Manuais Postman"]
@@ -23,15 +22,15 @@ flowchart LR
         A7 --> A8["8. java -jar no Terminal"]
         A8 --> A9["9. Verificação Visual"]
         A9 --> A10["10. Sem Monitorização"]
-        A10 --> A11["11. Rollback Caótico"]
+        A10 --> A11["11. Rollback Manual"]
     end
 
     subgraph ToBe["Processo Alvo Implementado (To-Be)"]
         B1["1. Webhook Relay (WSS)"] --> B2["2. mvnw Limpo & Determinístico"]
-        B2 --> B3["3. SpotBugs + 358 Surefire Tests"]
+        B2 --> B3["3. 386 Unit Tests + PIT (82% Strength)"]
         B3 --> B4["4. Single-Build Immutable app.jar"]
-        B4 --> B5["5. Deploy DEV/UAT Automatizado"]
-        B5 --> B6["6. 44 Failsafe Tests + PIT (84%)"]
+        B4 --> B5["5. 47 Failsafe ITs + SpotBugs (verify)"]
+        B5 --> B6["6. Deploy DEV/UAT Automatizado"]
         B6 --> B7["7. Jenkins Input Gate (agent none)"]
         B7 --> B8["8. Deploy PROD Isolado (vs336)"]
         B8 --> B9["9. Contract Smoke Test (/info + Actuator)"]
@@ -40,228 +39,87 @@ flowchart LR
     end
 ```
 
-A tabela abaixo compara detalhadamente as duas realidades:
-
-| Estágio do Pipeline | Processo Inicial (*System-as-is*) | Processo Alvo (*System-to-be*) | Impacto e Ganhos Técnicos |
+| Estágio do Pipeline | Processo Inicial (*System-as-is*) | Processo Alvo (*System-to-be* — Build #38) | Impacto e Ganhos Técnicos |
 | :--- | :--- | :--- | :--- |
-| **1. Source/Code checkout** | Manual via terminal (`git pull`). Risco de desenvolvimento sobre código desatualizado. | **Automático via Webhook Relay** em túnel seguro `WSS`, disparando o job `lms-dev` imediatamente após o `git push`. | Eliminação de latência humana; início da verificação em < 5 segundos. |
-| **2. Build** | Compilação local dependente da máquina do programador; falhas em JDK 25 e ausência de `.mvn/wrapper/`. | Compilação padronizada via **Maven Wrapper (`mvnw`) em Java 17**, independente do ambiente anfitrião. | Repetibilidade determinística em qualquer máquina ou agente. |
-| **3. Verification (Right Software?)** | Inexistente. Sem SAST. Apenas 102 testes unitários misturados executados esporadicamente. | **SpotBugs SAST (0 bugs P1)** + **358 Testes Unitários Surefire** em memória em ~14 segundos. | *Fail-fast*: Deteção de violações de código e regressões em menos de 1 minuto. |
-| **4. Build Artifact Storage** | Binário gerado localmente em `target/`, recompilado em cada máquina sem rastreabilidade. | **Single-Build Immutable Artifact Pattern**: `app.jar` arquivado no Jenkins com *fingerprint* SHA-256 e `release.properties`. | Certeza de que o binário testado é exatamente o binário implantado. |
-| **5. Deployment to Staging/UAT** | Ficheiros copiados manualmente via SFTP/SSH para diretórios arbitrários. | Job `lms-uat` recupera o artefacto via `copyArtifacts` e implanta via SSH/systemd em porta isolada (`8082`). | Zero intervenção manual e consistência de infraestrutura. |
-| **6. Validation / Acceptance Testing** | Validação manual informal com coleções locais do Postman sem critérios objetivos. | **44 Testes de Integração Failsafe** (H2 in-memory, concorrência, RBAC) + **PITest** com Test Strength de 84%. | Validação contratual automatizada e comprovação empírica de eficácia. |
-| **7. Approval / Gate Stage** | Inexistente. Passagem para produção decidida verbalmente sem registo. | **Portão declarativo `input`** com libertação de recursos (`agent none`, `stash`), auditoria e re-verificação de saúde pós-espera. | Governação corporativa com registo do aprovador e timestamp, sem gastar CPU. |
-| **8. Deployment to Production** | "Perito" copiava o JAR para a máquina final e executava-o em background com `nohup`. | Job `lms-prod` auditado transfere o artefacto aceite para a VM dedicada `vs336:10336` e ativa o serviço `psoft-g1@prod`. | Segregação estrita de ambientes e eliminação do "fator humano". |
-| **9. Post-Deployment Testing** | Abertura manual do browser ou execução ad-hoc de 1 ou 2 pedidos HTTP. | **Smoke Test Contratual (`smoke-test.sh`)** validando `/info` (JSON com commit SHA e env) e `/actuator/health/readiness`. | Confirmação automatizada de prontidão antes de declarar o deploy concluído. |
-| **10. Monitoring & Observability** | Inexistente. Acompanhamento apenas se a aplicação caísse e um utilizador reclamasse. | **Spring Boot Actuator** ativo, com endpoints de métricas e registo centralizado no systemd (`journalctl`). | Diagnóstico imediato de saúde operacional e rastreabilidade de incidentes. |
-| **11. Rollback** | Processo manual caótico (tentativa de encontrar o JAR antigo e reiniciar o processo). | Paragem do serviço `psoft-g1@<env>` e reposição da versão anterior através do histórico de builds arquivados. | Redução drástica do MTTR para valores inferiores a 1 minuto. |
+| **1. Source/Code checkout** | Manual via terminal (`git pull`). Risco de desenvolvimento sobre código desatualizado. | **Automático via Webhook Relay** em túnel `WSS`, disparando o job `lms-dev` após `git push`. | Eliminação de latência humana; início da verificação em < 5 segundos. |
+| **2. Build** | Compilação local dependente da máquina do programador; ausência de `.mvn/wrapper/`. | Compilação padronizada via **Maven Wrapper (`mvnw`) em Java 17/21**, independente do ambiente anfitrião. | Repetibilidade determinística em Linux (`sh`) e Windows (`bat`). |
+| **3. Unit & Mutation Verification (`test`)** | Apenas 102 testes misturados executados esporadicamente; 78% dos mutantes sobreviviam. | **386 Testes Unitários Surefire** (~14s) seguidos de **PITest na fase `test`** (1.078/3.798 mutantes mortos, 82% *Test Strength*). | *Fail-fast*: Avalia a eficácia dos testes unitários antes de empacotar o JAR ou iniciar bases de dados. |
+| **4. Build Artifact Storage (`package`)** | Binário gerado localmente em `target/`, recompilado em cada máquina sem rastreabilidade. | **Single-Build Immutable Artifact Pattern**: `app.jar` (~72 MB) carimbado com commit SHA e arquivado com *fingerprint* SHA-256 e `release.properties`. | Garantia de que o binário testado é exatamente o binário implantado em todos os ambientes. |
+| **5. Integration & Static Verification (`verify`)** | Sem fase Failsafe e sem análise estática (3 bugs P1 ativos no código base). | **47 Testes de Integração Failsafe** (H2, RBAC, concorrência `@Version`, CrossRef) + **SpotBugs `check` (0 bugs P1)** + **JaCoCo `recordCoverage`**. | Validação de contratos entre componentes, segurança e qualidade estática de bytecode. |
+| **6. Deployment to DEV & UAT** | Ficheiros copiados manualmente via SFTP/SSH para diretórios arbitrários. | `lms-dev` implanta em DEV (`vs806:8081`); `lms-uat` recupera o binário via `copyArtifacts` e implanta em UAT (`vs806:8082`). | Zero recompilação e ensaio contínuo de implantação em cada push. |
+| **7. Approval / Gate Stage** | Inexistente. Passagem para produção decidida verbalmente sem registo. | **Portão declarativo `input`** em `lms-uat` com libertação de executor (`agent none`, `stash`) e re-verificação `deploy.recheck('uat')`. | Governação de negócio com registo de aprovador e timestamp (`acceptance.properties`), sem bloquear workers. |
+| **8. Deployment to Production** | Cópia manual do JAR e execução em background com `nohup`. | Job `lms-prod` valida a trilha de auditoria e transfere o binário aceite para a VM isolada `vs336:10336` (`psoft-g1@prod`, porta `8080`). | Segregação física de Produção e eliminação de intervenção manual na máquina crítica. |
+| **9. Post-Deployment Testing** | Abertura manual do browser ou pedidos ad-hoc no Postman. | **Smoke Test Contratual (`smoke-test.sh`)** validando `/info` (`psoft-g1`, `env`, `commit`) e `/actuator/health/readiness` (`UP`). | Confirmação automática de prontidão e alinhamento de versão em $\le 60\text{s}$. |
+| **10. Monitoring & Observability** | Inexistente. | **Spring Boot Actuator** ativo e logs centralizados no `systemd` (`journalctl -u psoft-g1@<env>`). | Diagnóstico imediato de saúde operacional e captura automática de logs em caso de falha. |
+| **11. Rollback** | Processo manual sem histórico de binários validados. | Reposição imediata do artefacto imutável da build anterior via `copyArtifacts` e `systemctl restart`. | Redução do MTTR para menos de 1 minuto. |
 
 ---
 
-### 2.2. Avaliação pelas 7 Fases de Adoção Histórica de CI/CD
-A maturidade de entrega de uma organização divide-se em 7 fases:
+### 2.2. Métricas DORA e Qualidade ISO/IEC 25010
 
-```
-[Fase 1] No Build Server (As-Is)
-   │
-   ▼
-[Fase 2] Nightly Builds
-   │
-   ▼
-[Fase 3] Nightly Builds and Basic Automated Tests
-   │
-   ▼
-[Fase 4] Adding Metrics (Code Quality & Coverage)
-   │
-   ▼
-[Fase 5] Getting More Serious About Testing (TDD / Multi-level Tests)
-   │
-   ▼
-[Fase 6] Automated Acceptance Tests & Automated Deployment (To-Be Alcançado)
-   │
-   ▼
-[Fase 7] Continuous Deployment (Deploy a produção 100% automático sem gate humano)
-```
-
-* **Estado da Baseline (*As-Is*):** O projeto encontrava-se na **Fase 1 (*No Build Server*)**, sem qualquer automação de integração, dependente de ações manuais locais e sem histórico de métricas.
-* **Estado Alvo Conquistado (*To-Be*):** A solução implementada saltou diretamente para a **Fase 6 (*Automated Acceptance Tests and More Automated Deployment*)**:
-  * Implementa compilação em cada push e publicação de relatórios JUnit (Fases 2 e 3);
-  * Integra métricas estáticas e dinâmicas contínuas com SpotBugs, JaCoCo e PITest (Fase 4);
-  * Segrega testes unitários isolados com Mockito de testes de integração Failsafe com concorrência e RBAC (Fase 5);
-  * Executa implantação automática multi-ambiente (DEV e UAT) com testes de prontidão contratuais e portão formal de aceitação (Fase 6).
-* **Posicionamento face à Fase 7 (*Continuous Deployment*):** O projeto optou conscientemente pelo modelo de **Continuous Delivery** em detrimento do Continuous Deployment integral. O Continuous Delivery garante que **cada alteração está num estado comprovadamente implantável (*always in a releasable state*)**, mas a decisão de colocar em Produção permanece sob controlo humano por razões de negócio, auditoria e aceitação de utilizador final.
-
----
-
-### 2.3. Resolução dos 3 Antipadrões de Release de Humble & Farley
-A literatura clássica de Continuous Delivery (*Humble & Farley, 2011*) identifica três antipadrões críticos na entrega de software. O processo melhorado eliminou os três:
-
-```mermaid
-%%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
-flowchart TD
-    subgraph Antipatterns["Antipadrões de Release (Humble & Farley)"]
-        AP1["Antipadrão #1:<br/>Manually Deploying Software"]
-        AP2["Antipadrão #2:<br/>Deploying to Prod-like Env only after Dev is complete"]
-        AP3["Antipadrão #3:<br/>Manual Configuration Management of Environments"]
-    end
-
-    subgraph Solutions["Soluções Implementadas no To-Be"]
-        SOL1["Automação Total via Jenkins + SSH/SCP<br/>Para implantar: Apenas 1 clique no botão 'Deploy'"]
-        SOL2["Deploy Contínuo em DEV e UAT a cada push<br/>Rehearsal contínuo em VMs reais do DEI (vs806/vs336)"]
-        SOL3["Tudo em Controlo de Versões (VCS)<br/>setup-environments.sh + systemd + .env.example"]
-    end
-
-    AP1 ==>|Resolvido por| SOL1
-    AP2 ==>|Resolvido por| SOL2
-    AP3 ==>|Resolvido por| SOL3
-```
-
-#### 1. Resolução do Antipadrão #1: *Manually Deploying Software*
-* **Sintomas da Baseline:** Processo de instalação baseado em passos manuais não documentados, propício a falhas humanas, suscetível a variações de ordem e totalmente dependente do conhecimento do "perito em deploy".
-* **Solução Introduzida:** Automação completa do deploy através do módulo Groovy [`deploy/jenkins-deploy.groovy`](../../../deploy/jenkins-deploy.groovy). O operador humano tem apenas uma tarefa simples: aceder ao Jenkins UI e carregar no botão *"Aceitar e promover"*. A paragem do serviço, cópia do JAR, reinício do systemd e validação de saúde correm de forma 100% autónoma.
-
-#### 2. Resolução do Antipadrão #2: *Deploying to a production-like environment only after Development is complete*
-* **Sintomas da Baseline:** O software era desenvolvido e testado unicamente nos computadores dos programadores (Windows com H2 TCP). A implantação num servidor Linux real só ocorreria no fim do projeto, gerando o clássico problema: *"na minha máquina funciona, mas no servidor falha"*.
-* **Solução Introduzida:** Integração do ensaio de implantação no dia-a-dia do desenvolvimento. A cada commit na branch `main`, o código é imediatamente compilado, empacotado e implantado na máquina virtual Ubuntu do DEI (`vs806`), garantindo que o processo de release é ensaiado dezenas de vezes antes de qualquer lançamento para Produção.
-
-#### 3. Resolução do Antipadrão #3: *Manual configuration management of production environments*
-* **Sintomas da Baseline:** Configurações modificadas manualmente no servidor, impossibilidade de recriar um ambiente a partir do zero de forma idêntica, portas e credenciais hardcoded.
-* **Solução Introduzida:** Cumprimento do princípio de que **"Tudo deve estar em Controlo de Versões"**. O provisionamento do sistema operativo e estrutura de pastas é efetuado pelo script idempotente [`deploy/setup-environments.sh`](../../../deploy/setup-environments.sh), a gestão de serviços é gerida pelo template versionado [`deploy/psoft-g1@.service`](../../../deploy/psoft-g1@.service) e as propriedades específicas de cada ambiente são alimentadas por variáveis de ambiente padronizadas ([`.env.example`](../../../.env.example)) e ficheiros `/etc/psoft-g1/<env>.env` injetados pelo systemd sob a metodologia Twelve-Factor App (Factor III). Qualquer ambiente pode ser recriado fielmente em minutos.
-
----
-
-### 2.4. Comparação Quantitativa: Métricas DORA e ISO/IEC 25010
-
-#### Métricas DORA (DevOps Research and Assessment)
-
-| Métrica DORA | Estado Inicial (*As-Is*) | Estado Alvo (*To-Be*) | Evidência / Fator de Melhoria |
+| Métrica DORA | Estado Inicial (*As-Is*) | Estado Alvo (*To-Be*) | Evidência Empírica (Build #38) |
 | :--- | :---: | :---: | :--- |
-| **Deployment Frequency (DF)** | Esporádica / Semanal | **Múltiplos deploys/dia (On-demand)** | Deploy automático para DEV a cada `git push`; deploy para UAT em cadeia; deploy para PROD condicionado apenas a um clique. |
-| **Lead Time for Changes (LTTC)** | Horas a Dias | **~3 a 5 minutos** | Da submissão do código no GitHub até à conclusão com sucesso do deploy e smoke test em DEV decorrem menos de 5 minutos. |
-| **Change Failure Rate (CFR)** | Elevado / Desconhecido | **Muito Baixo (< 5%)** | O código só progride para implantação se passar os Hard Gates de compilação, SpotBugs (0 bugs P1), 430 testes e PITest $\ge 30\%$. |
-| **Mean Time to Recovery (MTTR)** | Horas (diagnóstico manual) | **< 60 segundos** | Em caso de falha de prontidão, o script de smoke test deteta o erro imediatamente e o systemd permite restart imediato da versão estável anterior. |
-
-#### Avaliação de Qualidade de Software segundo a Norma ISO/IEC 25010
+| **Deployment Frequency (DF)** | Esporádica / Manual | **Múltiplos deploys/dia (On-demand)** | Deploy automático para DEV e UAT a cada commit na branch `main`. |
+| **Lead Time for Changes (LTTC)** | Horas a Dias | **~5 minutos (Build #38: 05m 01s)** | Da submissão do código no GitHub até à conclusão da verificação completa (433 testes + PITest + SpotBugs) e deploy. |
+| **Change Failure Rate (CFR)** | Elevado (defeitos silenciosos) | **Controlado por Hard Gates (< 5%)** | Bloqueio automático em caso de falha de compilação, SpotBugs P1, 433 testes, PITest $< 30\%$ ou Smoke Test. |
+| **Mean Time to Recovery (MTTR)** | Horas (diagnóstico manual) | **< 60 segundos** | O `smoke-test.sh` deteta falhas de arranque em até 60s, imprime o `journalctl` na consola do Jenkins e permite redeploy imediato. |
 
 | Característica ISO 25010 | Avaliação Baseline (*As-Is*) | Avaliação Alvo (*To-Be*) | Melhorias e Salvaguardas Implementadas |
 | :--- | :---: | :---: | :--- |
-| **Adequação Funcional** | Parcial | **Completa e Verificada** | 430 testes automatizados cobrem as jornadas de utilizador e regras de negócio de livros, autores, leitores, empréstimos, políticas e notificações. |
-| **Fiabilidade (Reliability)** | Muito Frágil (Score PIT: 22%) | **Robusta (Test Strength: 84%)** | Eliminação do defeito fatal de duplo hashing BCrypt em `UserService`; testes de concorrência com `@Version` garantem integridade transacional. |
-| **Segurança (Security)** | Crítica (chaves/passwords no Git) | **Endurecida (Hardened)** | Remoção de segredos no repositório; execução remota sob utilizadores dedicados sem shell (`/usr/sbin/nologin`); controlo RBAC validado por testes de integração. |
-| **Manutenibilidade** | Degradada (sem SAST) | **Elevada** | Integração do SpotBugs (0 defeitos de Prioridade 1); 0 avisos críticos de compilação; documentação técnica sincronizada e versionada. |
-| **Portabilidade & Paridade** | Inexistente (dependente do host) | **Assegurada** | Configuração externalizada com placeholders `${VAR:default}` e ficheiros `.env`; isolamento por serviços `systemd` parametrizados (`psoft-g1@.service`); execução idempotente em qualquer Linux Ubuntu. |
+| **Adequação Funcional** | Parcial | **Verificada** | 433 testes automatizados cobrem livros, autores, leitores, empréstimos, políticas dinâmicas, enriquecimento externo (Google Books, Open Library, CrossRef) e notificações. |
+| **Fiabilidade (Reliability)** | Frágil (22% mutações mortas) | **Robusta (Test Strength: 82%)** | Correção do duplo hashing BCrypt em `UserService`; testes de concorrência com `@Version` e isolamento de falhas em notificações (`@TransactionalEventListener`). |
+| **Segurança (Security)** | Crítica (testes Auth desativados) | **Endurecida (Hardened)** | Execução remota sob utilizadores sem login (`/usr/sbin/nologin`), `ProtectSystem=strict` no systemd e validação RBAC (`READER` vs `LIBRARIAN`) nos testes de integração. |
+| **Manutenibilidade** | Degradada (sem SAST) | **Elevada** | SpotBugs integrado na fase `verify` (0 defeitos P1, 3 corrigidos na baseline); cobertura JaCoCo monitorizada por tipo de teste. |
+| **Portabilidade & Paridade** | Dependente de H2 TCP local | **Assegurada** | Placeholders `${VAR:default}` em `application.properties`, `.env.example`, unidades `psoft-g1@.service` e pipeline compatível com Linux (`sh`) e Windows (`bat`). |
 
 ---
 
-### 2.5. Métricas de Testes, Cobertura e Análise de Mutação
+### 2.3. Evolução Empírica de Testes, Cobertura e Mutação (C3.3)
 
-A evolução da eficácia da suite de verificação é demonstrada pelos dados empíricos recolhidos:
+| Métrica de Verificação | Baseline (*System-as-is*) | Build Intermédia (#17) | Estado Atual (Build #38) | Variação (Baseline $\rightarrow$ #38) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Total de Testes Automatizados** | 102 testes | 430 testes | **433 testes (100% aprovação)** | **+324.5%** |
+| • Testes Unitários Isolados (`test` / Surefire) | 102 (misturados) | 386 testes | **386 testes** (55 classes, ~14s) | **+278.4%** |
+| • Testes de Integração (`verify` / Failsafe) | 0 testes | 44 testes | **47 testes** (12 classes, ~45s) | **Novo Nível (+47 ITs)** |
+| **Cobertura de Linhas — Unitários (JaCoCo)** | Não configurada (~33% est.) | N/A (bloqueada por `.exe`) | **49.05% global (`2.295 / 4.679`)**<br/>*(75%–100% nos módulos core)* | **Separada e publicada no Jenkins** |
+| **Cobertura de Ramos — Unitários (JaCoCo)** | Não configurada | N/A | **24.64% global (`965 / 3.917`)**<br/>*(60%–100% nos módulos core)* | **Monitorizada por Treemap** |
+| **Cobertura de Linhas — Integração (JaCoCo)** | 0% | N/A | **33.15% global (`1.551 / 4.679`)**<br/>**9.62% ramos (`377 / 3.917`)** | **Cobertura dedicada de IT (`jacoco-it.exec`)** |
+| **Cobertura de Linhas em Classes Mutadas (PIT)** | 33% | 56% (`1.404 / 2.510`) | **61% (`2.168 / 3.552`)** | **+28.0 pts percentuais** |
+| **Mutações Mortas / Geradas (PITest)** | 124 / 575 (22%) | 662 / 2.999 (22%) | **1.078 / 3.798 (28%)** | **+769.4% mutantes mortos** |
+| **Test Strength Global (PITest)** | 70% | 84% | **82% (78%–100% nos pacotes core)** | **+12.0 pts percentuais** |
+| **Defeitos Estáticos P1 (SpotBugs)** | 3 defeitos P1 ativos | 0 defeitos P1 | **0 defeitos P1** (11 avisos P2) | **-100% defeitos críticos** |
 
-| Métrica de Teste / Qualidade | Baseline (*System-as-is*) | Processo Melhorado (*System-to-be*) | Delta / Variação Percentual |
-| :--- | :---: | :---: | :---: |
-| **Total de Testes Automatizados** | 102 testes | **430 testes (100% aprovação)** | **+321.6%** |
-| • Testes Unitários Isolados (Surefire) | 102 testes | **386 testes** (~14s) | **+278.4%** |
-| • Testes de Integração (Failsafe) | 0 testes | **44 testes** (~15s) | **+$\infty$ (Novo Nível)** |
-| **Cobertura Global de Linhas (JaCoCo)** | ~33% (estimativa PIT) | **76% global (69%–100% core)** | **+130.3%** |
-| **Mutações Mortas (PITest)** | 124 mortas / 575 geradas | **662 mortas / 2.999 geradas** | **+433.9% mutantes mortos** |
-| **Test Strength Global (PITest)** | 70% | **84%** | **+20.0% eficácia** |
-| **Defeitos Estáticos P1 (SpotBugs)** | 3 defeitos ativos | **0 defeitos (Hard Gate)** | **-100% defeitos críticos** |
-| **Tempo de Execução Unitário** | ~25s (com boot parcial) | **~14s (test doubles puros)** | **-44% tempo de teste** |
-
----
-
-### 2.6. Análise Crítica da Evolução das Métricas ao Longo do Tempo (Critério C3.3)
-
-Conforme estabelecido no subcritério **C3.3 (Comparação fundamentada entre o system-as-is e o system-to-be)** e nas orientações pedagógicas da unidade curricular, a avaliação do progresso de engenharia de software exige a interpretação causal das métricas, evitando conclusões simplistas baseadas em números agregados brutos:
-
-#### 1. A Falácia da Métrica Percentual Global vs. Código Desenvolvido
-* **Cenário Típico de Evolução:**  
-  Na baseline (*System-as-is*), a cobertura global estimada rondava os **20% a 33%**, com vastas áreas de código legado (controladores herdados, classes de infraestrutura e utilitários genéricos) totalmente desprovidas de testes.
-* **Interpretação da Variação Incremental:**  
-  Se uma equipa acrescenta novas funcionalidades e regras de negócio com **100% de cobertura de testes**, a cobertura percentual global do repositório aumenta apenas proporcionalmente à fração de linhas adicionadas (por exemplo, subir de 20% para 22% ou 25%).
-* **Fundamentação de Nível 5 (Rigor Técnico e Limites da Métrica):**  
-  Afirmar superficialmente que a cobertura "apenas subiu poucos pontos percentuais" seria um erro de diagnóstico. A evidência técnica demonstra que:
-  1. O **código novo e refatorado pela equipa** (serviços de empréstimo, políticas adaptativas, clientes bibliográficos, listeners e remetentes de notificação) apresenta **entre 80% e 100% de cobertura de linhas e ramos**;
-  2. A evolução da suite de 102 para **430 testes automatizados** permitiu elevar a cobertura do domínio central para 76%;
-  3. A eficácia foi comprovada pela métrica de mutação do PITest, que subiu de um frágil score de 22% para um **Test Strength global de 84%**, garantindo que as asserções dos testes são suficientemente sensíveis para matar mutantes de fronteira.
-
-#### 2. Evidências Temporais e Gráficos no Jenkins
-A rastreabilidade da evolução da qualidade ao longo das sucessivas execuções (*builds*) é assegurada pelos mecanismos de histórico do Jenkins:
-* **Gráficos de Cobertura de Código (Jenkins Coverage Plugin + JaCoCo):**  
-  A instrução `recordCoverage(tools: [[parser: 'JACOCO', pattern: '**/jacoco.xml']])` gera na interface do Jenkins uma curva de tendência contínua da cobertura de linhas, instruções e ramos ao longo do histórico de builds, tornando verificável o impacto de cada commit na qualidade global.
-* **Histórico de Tendência de Testes (JUnit Test Result Trend):**  
-  O arquivamento automático dos relatórios XML (`target/surefire-reports` e `target/failsafe-reports`) projeta o gráfico temporal com o crescimento estável dos 430 testes com taxa de sucesso constante de 100%.
-* **Relatórios Arquivados de Mutação (PITest Reports):**  
-  O arquivamento permanente de `target/pit-reports/**` em cada build permite a auditoria minuciosa da percentagem de mutantes mortos e da análise de mutantes sobreviventes.
-
----
-
-### 2.7. Conceito Arquitetural: "Release é Negócio, Não Deployment" e a Justificação de 3 Pipelines
-
-A distinção conceitual entre *Deployment* e *Release* constitui um dos pilares fundacionais da disciplina de Continuous Delivery (*Humble & Farley*):
-
-```
-+--------------------------------------------------------------------------------------------------+
-|                                    ESTEIRA DE CI/CD DO LMS                                       |
-|                                                                                                  |
-|   [ Commit Git ]                                                                                 |
-|         │                                                                                        |
-|         ▼                                                                                        |
-|   ┌─────────────┐       Deploy Automático       ┌──────────────┐                                 |
-|   │   Job DEV   │ ────────────────────────────> │ Ambiente DEV │                                 |
-|   └─────────────┘                               └──────────────┘                                 |
-|         │                                                                                        |
-|         ▼ Disparo Automático                                                                     |
-|   ┌─────────────┐       Deploy Automático       ┌──────────────┐                                 |
-|   │   Job UAT   │ ────────────────────────────> │ Ambiente UAT │ (Staging / Aceitação)           |
-|   └─────────────┘                               └──────────────┘                                 |
-|         │                                              │                                         |
-|         │ (Pausa Humana com 'agent none')              │ Validação Humana / QA                   |
-|         ▼                                              ▼                                         |
-|   [ Portão Input: "Aceitar e Promover" ] <── Decisão Estratégica de Negócio                      |
-|         │                                                                                        |
-|         ▼ (Apenas quando o Negócio decide fazer a RELEASE)                                       |
-|   ┌─────────────┐      Deploy Controlado        ┌───────────────┐                                |
-|   │  Job PROD   │ ────────────────────────────> │ Ambiente PROD │ (Utilizadores Finais)          |
-|   └─────────────┘                               └───────────────┘                                |
-+--------------------------------------------------------------------------------------------------+
-```
-
-1. **Deployment vs. Release:**
-   * **Deployment (Ato Técnico):** É a instalação física automatizada do artefacto imutável (`app.jar`) num determinado ambiente de execução (`DEV`, `UAT` ou `PROD`), com o arranque do serviço `systemd` e verificação de prontidão contratual via `smoke-test.sh`. O deployment em DEV e UAT ocorre de forma contínua a cada alteração.
-   * **Release (Decisão de Negócio):** É o ato estratégico de disponibilizar novas funcionalidades aos utilizadores finais e clientes do sistema. Em Continuous Delivery, o software está permanentemente num estado em que pode ser lançado para produção (*always in a releasable state*), mas a **Release** é uma prerrogativa exclusiva da equipa de gestão de produto e negócio.
-
-2. **Por que ter 3 Pipelines Separados em vez de 1 Monolítico?**
-   * **1. Manutenção e Ciclo de Vida Independente:**  
-     Cada ambiente possui parâmetros operacionais, credenciais de acesso, destinos físicos (`vs806` para DEV/UAT vs. `vs336` dedicada para PROD) e frequências de execução completamente distintas. Ter três pipelines declarativos (`.Jenkinsfile`, `.Jenkinsfile_uat`, `.Jenkinsfile_prod`) permite alterar ou evoluir os scripts de implantação de um ambiente sem introduzir riscos de quebra nos restantes.
-   * **2. Rastreabilidade (*Traceability*) e Auditoria de Conformidade:**  
-     A segregação em 3 esteiras interligadas permite estabelecer uma cadeia de custódia inquebrável. O `lms-dev` constrói o artefacto uma única vez e gera `release.properties` (`CI_JOB`, `CI_BUILD`, `GIT_COMMIT`). O `lms-uat` recolhe o artefacto sem recompilar, adicionando `acceptance.properties` com a identidade do aprovador e timestamp. Finalmente, o `lms-prod` imprime o *Production Audit Trail*, garantindo que apenas código formalmente aprovado e auditado pode entrar em Produção.
-   * **3. Gestão de Tempos de Espera (*Cost of Delay*) e Eficiência de Recursos:**  
-     Num pipeline monolítico, a paragem para aprovação humana em UAT (que pode demorar horas, dias ou semanas) manteria a execução da esteira suspensa, bloqueando o feedback contínuo de novas alterações em desenvolvimento. Com a divisão em 3 jobs, o `lms-dev` conclui a sua execução em menos de 4 minutos e liberta os recursos; o `lms-uat` entra em pausa desvinculando o agente (`agent none` + `stash`), permitindo que a equipa continue a trabalhar e a integrar código em DEV em paralelo.
+#### Análise Crítica da Evolução das Métricas (Critério C3.3):
+1. **Relação entre Cobertura de Código Novo (100%) e Cobertura Global do Repositório (`49.05%` Unit / `33.15%` IT):**
+   * Todos os componentes novos e refatorados pela equipa (políticas de empréstimo, adaptadores `GoogleBooks`, `OpenLibrary` e `CrossRef`, notificações multicanal e serviços de domínio) possuem entre **75% e 100% de cobertura de linhas**.
+   * Contudo, o denominador global do JaCoCo (`4.679` linhas de código no projeto) inclui dezenas de classes legadas não intervencionadas (controladores REST antigos, *views* DTO e classes de *bootstrapping*). Como a cobertura global é uma média ponderada entre a base legada (~20%–30%) e o código novo/intervencionado (~90%–100%), a adição de novos módulos com 100% de cobertura elevou progressivamente a cobertura global das classes analisadas de **33%** (baseline) para **49.05%** no JaCoCo unitário e **61%** nas classes alvo do PITest.
+2. **Diagnóstico e Correção de Regressão de Configuração no Plugin de Cobertura (Build #36–#38):**
+   * Nas builds anteriores à #36, um perfil no `pom.xml` (`windows-path-encoding-fix`) redirecionava o ficheiro do agente JaCoCo para `C:\Temp\psoft-jacoco\jacoco.exe` (extensão `.exe` em vez de `.exec`), fazendo com que o objetivo `jacoco:report` ignorasse a execução e não gerasse `jacoco.xml`.
+   * A remoção desse perfil e a passagem explícita de `-Djacoco.dataFile=target/jacoco.exec -Djacoco-it.dataFile=target/jacoco-it.exec` no [`.Jenkinsfile`](../../../.Jenkinsfile), aliada a duas invocações distintas de `recordCoverage` (`unit-coverage` e `integration-coverage`), restabeleceu os gráficos de tendência, *treemaps* de cobertura de linhas/ramos e complexidade ciclomática no Jenkins.
+3. **Subida do Número de Mutantes Mortos (`662` $\rightarrow$ `1.078`) e Posicionamento do PITest na Fase `test`:**
+   * Ao vincular o PITest à fase `test` (logo após os testes unitários Surefire) e ajustar o filtro de classes, o universo de mutações analisadas sobre o código aplicacional subiu de `2.999` para `3.798`, e o número de mutantes eliminados pelos testes unitários subiu de **`662` para `1.078` (+62.8% face à Build #17 e +769.4% face à baseline)**, mantendo uma eficácia (*Test Strength*) de **82%** sobre o código coberto sem penalizar o tempo de execução com testes de integração pesados.
 
 ---
 
 ## 3. Identificação e Diagnóstico Crítico de Limitações e Gargalos (*Bottlenecks*)
 
-Uma avaliação de engenharia rigorosa exige a identificação honesta das limitações do sistema, tanto das fraquezas da baseline como dos estrangulamentos operacionais e *trade-offs* da solução atual.
-
 ```mermaid
 %%{init: {'themeVariables': { 'fontSize': '14px' }, 'flowchart': { 'subGraphTitleMargin': { 'top': 15, 'bottom': 20 } } } }%%
 flowchart TD
     subgraph Bottlenecks["Gargalos e Limitações Identificados"]
-        B1["Gargalo 1: Custo Computacional do PITest<br/>(2.999 mutantes = Tempo elevado de build)"]
-        B2["Gargalo 2: Quotas de CPU/RAM nas VMs do DEI<br/>(Congelamento do Jenkins se executado no DEI)"]
-        B3["Gargalo 3: Latência de Rede no SCP (~72MB)<br/>(Transferência de Fat JAR integral por SSH)"]
-        B4["Gargalo 4: Custo de Atraso no Gate UAT<br/>(Espera por validação humana até 7 dias)"]
-        B5["Gargalo 5: Persistência H2 vs BD Real<br/>(Perda de dados em reinício vs schema migrations)"]
+        B1["Gargalo 1: Custo Computacional do PITest<br/>(3.798 mutantes)"]
+        B2["Gargalo 2: Quotas de CPU/RAM nas VMs LXD do DEI<br/>(Throttling e OOM se Jenkins correr na VM)"]
+        B3["Gargalo 3: Latência de Rede no SCP (~72MB)<br/>(Transferência de Fat JAR por SSH)"]
+        B4["Gargalo 4: Custo de Atraso no Gate Humano UAT<br/>(Espera até 7 dias por aprovação)"]
+        B5["Gargalo 5: Persistência H2 vs BD Relacional Externa<br/>(Perda de estado em restart)"]
     end
 
-    subgraph Mitigations["Soluções de Engenharia e Mitigações Aplicadas"]
-        M1["Perfil -Pmutation + 4 threads + Exclusões de código gerado<br/>Hard Gate realista em >= 30%"]
+    subgraph Mitigations["Soluções de Engenharia Aplicadas"]
+        M1["PITest na fase 'test' (só corre unitários *Test)<br/>Perfil -Pmutation + 4 threads + Exclusão de código gerado"]
         M2["ADR-01: Jenkins local multi-core + Webhook Relay WSS<br/>Deploy remoto apenas do binário validado"]
-        M3["Single-Build Immutable Artifact Pattern<br/>Compilação única em DEV; reuso estrito em UAT/PROD"]
+        M3["Single-Build Immutable Artifact Pattern<br/>Compilação única em DEV; copyArtifacts para UAT/PROD"]
         M4["ADR-02: agent none + stash/unstash<br/>Libertação de workers + deploy.recheck('uat')"]
-        M5["Configuração externalizada pronta para PostgreSQL<br/>Roadmap com Liquibase/Flyway"]
+        M5["Configuração externalizada (${VAR:default}) pronta para PostgreSQL<br/>Evolução planeada com Flyway/Liquibase"]
     end
 
     B1 --> M1
@@ -271,158 +129,51 @@ flowchart TD
     B5 --> M5
 ```
 
----
-
 ### 3.1. Gargalos do Processo Inicial (*As-Is*)
+1. **Dependência de Conhecimento Tácito ("Deployment Expert"):** A compilação e colocação em funcionamento dependiam de passos manuais não documentados.
+2. **Falso Sentido de Segurança na Baseline:** Os 102 testes iniciais deixavam 78% dos mutantes vivos e não detetavam o duplo hashing BCrypt em `UserService`, que impedia qualquer login.
+3. **Acoplamento Ambiental:** A exigência de um servidor H2 TCP externo na porta 9092 e datas fixas (`"2024/*"`) no `Bootstrapper` quebravam o arranque em máquinas limpas.
 
-1. **Ponto Único de Falha no "Deployment Expert":**  
-   O processo de empacotamento e colocação em funcionamento dependia do conhecimento tácito de um elemento. Se esse elemento estivesse ausente, a equipa ficava impossibilitada de efetuar releases fiáveis.
-2. **Ciclo de Feedback Demorado e Falso Sentido de Segurança:**  
-   Os 102 testes iniciais deixavam 78% dos mutantes vivos. Defeitos estruturais graves (como a codificação dupla BCrypt em `UserService`, que impedia a autenticação de qualquer utilizador no sistema) passaram completamente despercebidos aos testes unitários da baseline e só foram revelados quando se tentou fazer um login manual.
-3. **Fragilidade de Configuração e Arranque:**  
-   A obrigatoriedade de ter um servidor de base de dados H2 TCP a correr previamente na porta 9092 provocava falha imediata na primeira execução em qualquer máquina virgem.
-
----
-
-### 3.2. Gargalos e Limitações do Processo Atual (*To-Be*) e Respetivas Mitigações
-
-#### Gargalo 1: Custo Computacional e Tempo de Execução do PITest (*Mutation Testing*)
-* **Diagnóstico:**  
-  O PITest altera o bytecode em memória para injetar falhas e executa a suite de testes para cada mutante. No nosso sistema são geradas **2.999 mutações**. A execução sequencial (1 thread) sem restrições elevaria o tempo do estágio de verificação para **mais de 15 minutos**, violando frontalmente a diretriz de Continuous Delivery que exige feedback em poucos minutos.
-* **Mitigação de Engenharia Adotada:**  
-  1. Criação do perfil Maven dedicado `<profile><id>mutation</id>`, separando a compilação de rotina dos testes de mutação.
-  2. Configuração de 4 threads de execução paralela (`<threads>4</threads>`).
-  3. Exclusão de classes geradas automaticamente ou sem lógica de negócio suscetível a mutação (`*MapperImpl`, `bootstrapping.*`, `configuration.*`).
-  4. Fixação de um limiar mínimo de Hard Gate pragmático e sustentável de $\ge 30\%$ no pipeline (`-Dpitest.mutationThreshold=30`), garantindo proteção contra regressões sem bloquear a fluidez da esteira.
-
-#### Gargalo 2: Constrangimentos de Recursos nas VMs do DEI
-* **Diagnóstico:**  
-  As máquinas virtuais disponibilizadas na infraestrutura privada do DEI (`vs806` e `vs336`) são contentores LXD com quotas estritas de CPU e RAM. A tentativa de instalar e executar o controlador Jenkins e correr compilações Maven concorrentes com PITest dentro da própria VM resultou em bloqueio do kernel (*CPU starvation*) e término abrupto de processos pelo sistema operativo (*OOM Killer*).
-* **Mitigação de Engenharia Adotada (ADR-01):**  
-  Adoção de uma topologia híbrida de alto rendimento: o Jenkins Controller executa no ambiente do programador (beneficiando de processadores multi-core modernos e memória abundante), recebe eventos do GitHub através de um túnel WebSocket de saída (`WSS` via Webhook Relay) e transfere unicamente os artefactos binários prontos para as máquinas remotas do DEI através de SSH/SCP.
-
-#### Gargalo 3: Latência de Transferência de Rede do Fat JAR (~72MB)
-* **Diagnóstico:**  
-  O artefacto executável do Spring Boot contém todas as dependências embutidas, resultando num ficheiro de cerca de 72MB. A cópia integral via SCP através da rede institucional introduz uma latência de 10 a 25 segundos por cada implantação.
-* **Mitigação de Engenharia Adotada:**  
-  Aplicação estrita do princípio **Single-Build Immutable Artifact**: o binário só é construído e copiado uma vez para DEV; as transições para UAT e PROD reutilizam o binário arquivado sem re-empacotamento, enquanto o isolamento nas VMs LXD do DEI é assegurado por unidades `systemd` leves sem o overhead de um daemon Docker.
-
-#### Gargalo 4: Custo de Atraso (*Cost of Delay*) no Portão de Aprovação Humana em UAT
-* **Diagnóstico:**  
-  O enunciado e os princípios de Continuous Delivery estabelecem um portão de aprovação humana antes de Produção. Contudo, o material pedagógico alerta expressamente: *"Be sceptical about pauses & gates: Does this time spent add value? Does it justify the cost of delay?"*. Uma pausa manual pode durar dias até que os stakeholders validem o sistema em UAT. Se um pipeline mantiver uma thread de execução do Jenkins alocada durante esse tempo, esgota os executores e impede outras builds.
-* **Mitigação de Engenharia Adotada (ADR-02):**  
-  O Job `lms-uat` recorre a `stash name: 'uat-artifacts'` e desvincula totalmente o executor do Jenkins com a diretiva `agent none` durante a espera pela ação humana (`input`). Os executores ficam a 100% disponíveis para outras tarefas. Além disso, para prevenir que a aplicação sofra degradação durante a espera humana, implementámos o método de re-verificação contratual `deploy.recheck('uat')`, que revalida o estado operacional da instância imediatamente antes de autorizar o disparo para Produção.
-
-#### Gargalo 5: Persistência de Estado e Migrações de Base de Dados
-* **Diagnóstico:**  
-  Atualmente, para garantir isolamento e rapidez nos testes e demonstrações, o sistema recorre à base de dados H2 em memória com recriação de dados em cada arranque via `Bootstrapper`. Num ambiente de produção empresarial contínuo, a base de dados tem de ser persistente (ex: PostgreSQL/MySQL) e as alterações estruturais de dados têm de ser aplicadas sem perda de dados históricos.
-* **Mitigação de Engenharia Adotada:**  
-  Toda a camada de configuração foi externalizada via variáveis de ambiente (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`), preparando o sistema para bases de dados relacionais externas sem alterar o binário. O controlo formal de migrações de esquema através de ferramentas como Liquibase ou Flyway fica mapeado no roadmap de evolução contínua.
+### 3.2. Gargalos do Processo Atual (*To-Be*) e Mitigações Implementadas
+1. **Custo Computacional do PITest (3.798 mutantes):**
+   * *Diagnóstico:* Executar mutações sobre testes de integração (`@SpringBootTest`) demoraria mais de 25 minutos.
+   * *Mitigação:* Vinculação do PITest à fase `test` (executando apenas testes unitários rápidos `*Test`), paralelização em 4 threads (`<threads>4</threads>`), exclusão de classes geradas (`*MapperImpl*`, `bootstrapping.*`, `configuration.*`) e isolamento no perfil `-Pmutation`, concluindo as 3.798 mutações em `2 min 08 s`.
+2. **Quotas Restritas de CPU/RAM nas VMs LXD do DEI (`vs806` / `vs336`):**
+   * *Diagnóstico:* Executar o controlador Jenkins e o PITest dentro do contentor LXD institucional causava *CPU throttling* e *OOM-Killer*.
+   * *Mitigação (ADR-01):* Execução do Jenkins Controller na workstation local (`localhost:8080`) com túnel WebSocket de saída (`WSS` via Webhook Relay), transferindo apenas o binário validado via SSH/SCP para as VMs do DEI.
+3. **Latência de Transferência de Rede do Fat JAR (~72 MB):**
+   * *Diagnóstico:* O JAR executável embute todas as dependências (`BOOT-INF/lib`), levando 10–25s por transferência SCP.
+   * *Mitigação:* Aplicação do *Single-Build Immutable Artifact Pattern* (construído uma única vez em `lms-dev` e promovido via `copyArtifacts` para `lms-uat` e `lms-prod`) e utilização de unidades nativas `systemd` nas VMs em vez de imagens Docker completas.
+4. **Custo de Atraso (*Cost of Delay*) no Portão de Aprovação Humana em UAT:**
+   * *Diagnóstico:* Manter um executor do Jenkins alocado durante dias enquanto se aguarda validação humana bloquearia a fila de builds.
+   * *Mitigação (ADR-02):* Uso de `stash name: 'uat-artifacts'` e `agent none` durante a etapa `input` (libertando 100% dos executores), seguido de `unstash` e `deploy.recheck('uat')` após a aprovação para confirmar que o ambiente UAT permaneceu saudável durante o período de espera.
+5. **Persistência de Dados e Migrações de Esquema:**
+   * *Diagnóstico:* O H2 em memória recria dados no arranque via `Bootstrapper`, sendo adequado para testes e demonstração, mas não para retenção histórica em produção.
+   * *Mitigação:* Externalização completa das variáveis `SPRING_DATASOURCE_*` em `application.properties` e `/etc/psoft-g1/<env>.env`, permitindo apontar para PostgreSQL/MySQL sem recompilar o binário.
 
 ---
 
-## 4. Justificação Teórico-Prática das Melhorias Introduzidas
+## 4. Justificação Teórico-Prática das Decisões Arquiteturais
 
-### 4.1. Fundamentação nos Princípios de Software Delivery (Humble & Farley)
+### 4.1. Distinção entre Deployment Técnico e Release de Negócio (Por que 3 Pipelines Separados)
+Na engenharia de entrega contínua (Humble & Farley), **Deployment não é Release**:
+* **Deployment (Ato Técnico):** É a instalação e verificação automatizada de uma versão num ambiente (`DEV`, `UAT` ou `PROD`). Deve ser 100% automatizado, repetível e frequente para reduzir o risco técnico (*"If it hurts, do it more frequently"*).
+* **Release (Decisão de Negócio):** É a decisão de disponibilizar uma versão validada aos utilizadores finais em Produção, exigindo governação, aceitação funcional e rastreabilidade.
+* **Por que 3 Pipelines (`lms-dev`, `lms-uat`, `lms-prod`) em vez de 1 Pipeline Monolítico:**
+  1. **Cadências Desacopladas:** `lms-dev` corre dezenas de vezes por dia a cada `git push`; `lms-uat` gere o ciclo de aceitação humana (que pode durar horas ou dias sem bloquear `lms-dev`); `lms-prod` executa apenas para candidatos formalmente aprovados.
+  2. **Rastreabilidade (*Traceability*) e Imutabilidade (*Build Once*):** A promoção do mesmo `app.jar` via `copyArtifacts` com *fingerprinting* SHA-256 gera uma cadeia auditável (`release.properties` $\rightarrow$ `acceptance.properties` $\rightarrow$ `production.properties`), provando quem aprovou cada versão e qual o commit exato em execução.
+  3. **Eliminação dos 3 Antipadrões Clássicos de Release:** Elimina o deploy manual (Antipadrão 1), o deploy tardio em ambientes tipo-produção apenas no fim do desenvolvimento (Antipadrão 2, pois cada commit é implantado em `vs806`) e a configuração manual de servidores (Antipadrão 3, substituída por `setup-environments.sh`, `psoft-g1@.service` e `/etc/psoft-g1/*.env` sob controlo de versões).
 
-```mermaid
-mindmap
-  root((Princípios de Software Delivery<br/>Humble & Farley))
-    Automate Almost Everything
-      ::icon(fa fa-robot)
-      Compilação mvnw determinística
-      Pipelines declarativos lms-dev/uat/prod
-      Systemd management
-      Smoke testing contratual
-    Execute Each Step Once and Only Once
-      ::icon(fa fa-box)
-      Single-Build Immutable Artifact Pattern
-      app.jar carimbado com commit SHA
-      copyArtifacts entre jobs
-      Zero recompilações downstream
-    If It Hurts, Do It More Frequently
-      ::icon(fa fa-heartbeat)
-      Deploys contínuos a cada git push
-      Ensaio antecipado em VMs do DEI
-      Detetação imediata de quebras de configuração
-    Build Quality In
-      ::icon(fa fa-shield-alt)
-      Hard Quality Gates sequenciais
-      SpotBugs P1 = 0
-      100% aprovação de 430 testes
-      PITest Mutation Strength >= 84%
-    Keep Everything under VCS
-      ::icon(fa fa-code-branch)
-      Código Java e testes
-      Scripts de infraestrutura (deploy/)
-      Templates systemd (.service)
-      Jenkinsfiles de automação
-```
-
-#### 1. "Automate Almost Everything"
-* **Aplicação Prática:** Foram eliminadas todas as operações manuais propícias ao erro. O pipeline automatiza compilação, análise estática, testes unitários, testes de integração, testes de mutação, empacotamento, envio por SCP, reinício de serviços systemd e verificação de saúde HTTP.
-* **Justificação:** Transformou-se o ato de lançar software de "uma arte manual arriscada" numa "disciplina de engenharia repetível e mensurável".
-
-#### 2. "Make Definitive Progress: Execute Each Step Once and Only Once"
-* **Aplicação Prática:** Adoção do **Single-Build Immutable Artifact Pattern**. O código-fonte é compilado e empacotado uma única vez no Job `lms-dev`. Os ambientes subsequentes (`lms-uat` e `lms-prod`) reutilizam estritamente o ficheiro `app.jar` através do plugin `copyArtifacts`, acompanhado pela assinatura criptográfica e ficheiro `release.properties`.
-* **Justificação:** Recompilar o código para cada ambiente introduz o risco de gerar binários com pequenas divergências de compilação ou dependências dinâmicas. Garantir a imutabilidade do binário assegura que o software testado e aprovado em UAT é matematicamente idêntico ao que corre em Produção.
-
-#### 3. "If It Hurts, Do It More Frequently, and Bring the Pain Forward"
-* **Aplicação Prática:** A implantação nos servidores remotos do DEI foi antecipada para o primeiro estágio do ciclo de desenvolvimento. Cada commit na branch `main` provoca imediatamente a implantação na VM `vs806`.
-* **Justificação:** Se a implantação em servidores remotos for dolorosa ou apresentar problemas de permissões, portas ou rede, esse problema deve ser enfrentado no início e repetido centenas de vezes, e não adiado para a véspera de entrega do projeto.
-
-#### 4. "Build Quality In"
-* **Aplicação Prática:** A qualidade não é avaliada no final através de testes manuais tardios. A esteira impõe uma barreira intransponível de *Quality Gates*:
-  * Hard Gate 1: 0 erros de compilação e validação estrita de anotações Lombok/MapStruct;
-  * Hard Gate 2: 0 defeitos de alta prioridade (P1) no SpotBugs;
-  * Hard Gate 3: 100% de sucesso nos 386 testes unitários do Surefire;
-  * Hard Gate 4: 100% de sucesso nos 44 testes de integração do Failsafe;
-  * Hard Gate 5: Eficácia de testes comprovada com score de mutação PITest $\ge 30\%$;
-  * Hard Gate 6: Prontidão operacional confirmada por smoke test contratual em $\le 60$ segundos.
-* **Justificação:** Impede a propagação de código com defeitos para os estágios seguintes (*Stop-the-line principle*).
-
-#### 5. "Keep Everything Under Version Control (VCS)"
-* **Aplicação Prática:** O repositório Git contém rigorosamente todos os elementos necessários para construir, testar e operar a solução: código aplicacional, suíte de 430 testes, scripts de provisionamento de infraestrutura (`deploy/setup-environments.sh`), configuração de serviços systemd (`deploy/psoft-g1@.service`), regras de permissões (`deploy/psoft-g1.sudoers`), scripts de smoke test (`deploy/smoke-test.sh`), ficheiros de pipeline (`.Jenkinsfile*`) e modelos de configuração (`.env.example`).
-* **Justificação:** Permite auditar exatamente quem alterou o quê e restabelecer qualquer versão anterior da infraestrutura com fidelidade absoluta.
-
----
-
-### 4.2. Fundamentação nas Boas Práticas de CI/CD
-* **"Always run commit tests locally before committing" (Regra 1):** Os 386 testes unitários Surefire foram arquitetados com *Test Doubles* e executam em ~14 segundos na máquina do programador antes de ser efetuado o `git push`.
-* **"Wait for the results! Don't go anywhere. Just wait!" (Regra 2):** Graças ao túnel de Webhook Relay, a pipeline inicia em menos de 5 segundos após o push e fornece feedback completo ao autor do commit.
-* **"Fix or revert failures within 10 minutes" (Regra 3):** Se um Quality Gate falhar no Jenkins, o commit é imediatamente tratado como prioridade máxima de estabilização.
-* **"If any test fails, it is the responsibility of the committer" (Regra 7):** As propriedades de proveniência (`release.properties`) carimbam o hash Git exato do autor, assegurando total transparência sobre a autoria da alteração.
-
----
-
-### 4.3. Sinergia entre Arquitetura de Software (ARQSOFT) e CI/CD (ODSOFT)
-A arquitetura do software foi desenhada em simbiose direta com as necessidades da esteira de CI/CD:
-1. **Configurabilidade em Setup Time $\leftrightarrow$ Imutabilidade do Binário:** A flexibilidade de selecionar fornecedores bibliográficos externos (Google Books vs Open Library) e canais de notificação (Email, SMS, Webhook) via variáveis de ambiente permite que o **mesmo ficheiro `app.jar`** funcione em DEV, UAT e PROD sem necessidade de recompilar código para alterar configurações.
-2. **Padrões de Desenho (Gateway, Adapter, Composite) $\leftrightarrow$ Testabilidade Rápida:** Ao desacoplar dependências externas através de interfaces, os 430 testes executam de forma hermética, determinística e sem dependência de internet ou serviços de terceiros, garantindo estabilidade absoluta à esteira de CI.
-3. **Isolamento de Falhas com `@TransactionalEventListener` $\leftrightarrow$ Resiliência Operacional:** A emissão de eventos assíncronos garante que falhas em serviços externos de notificação nunca provocam rollback de transações de negócio, mantendo o sistema em estado operacional comprovado pelos testes de integração Failsafe (`LendingNotificationIntegrationIT`).
+### 4.2. Sinergia entre Arquitetura de Software (ARQSOFT) e CI/CD (ODSOFT)
+1. **Configurabilidade em *Setup Time* $\leftrightarrow$ Imutabilidade do Binário:** A seleção de fornecedores bibliográficos (`Google Books`, `Open Library`, `CrossRef`) e canais de notificação (`Email`, `SMS`, `Webhook`) via propriedades/variáveis de ambiente permite promover **o mesmo ficheiro `app.jar`** de `DEV` para `UAT` e `PROD` sem recompilação.
+2. **Padrões *Gateway*, *Adapter* e *Composite* $\leftrightarrow$ Testes Determinísticos no Pipeline:** O desacoplamento de APIs externas através de interfaces permite que os **433 testes no Jenkins** corram de forma determinística e sem dependência de conectividade externa.
+3. **Isolamento de Falhas com `@TransactionalEventListener` $\leftrightarrow$ Estabilidade Operacional:** Os testes de integração (`LendingNotificationIntegrationIT`) verificam na fase `verify` que falhas num canal de notificação externo não provocam *rollback* das transações de empréstimo.
 
 ---
 
 ## 5. Propostas de Melhoria Contínua (*Continuous Improvement*)
 
-Com base nas limitações e oportunidades de evolução identificadas, destacam-se os seguintes eixos de melhoria técnica para iterações futuras do sistema:
-
-1. **Contentorização Docker em Produção:**  
-   Evoluir no futuro da execução direta por `systemd` para imagens OCI com `Spring Boot layertools` em ambientes cloud com suporte nativo a contentores. Isto permitirá beneficiar do empacotamento em camadas (*layer caching*), reduzindo o payload de rede nas atualizações de ~72MB para menos de ~5MB.
-2. **Gestão Evolutiva de Esquemas de Base de Dados (Flyway ou Liquibase):**  
-   Implementar migrações versionadas de esquema de dados na esteira Maven (`mvn compile flyway:migrate`), viabilizando transições suaves de dados em bases de dados relacionais persistentes externas.
-3. **Segurança Dinâmica (DAST) e Testes de Carga na Fase de Staging:**  
-   Integrar o OWASP ZAP no Job de UAT para deteção dinâmica de vulnerabilidades em runtime e ferramentas de carga como k6 ou JMeter para validação de capacidade antes da promoção para Produção.
-4. **Desdobramento de Blue-Green ou Canary Releases:**  
-   Evoluir a topologia de implantação em Produção para dois ambientes ativos (*Blue-Green Deployment*), eliminando qualquer interrupção momentânea durante a atualização e permitindo rollback instantâneo através da comutação do balanceador de carga.
-
----
-
-## 6. Conclusão e Síntese de Valor Criado
-
-A transformação do processo de desenvolvimento e entrega do LMS (`psoft-g1`) substituiu um fluxo manual arcaico, frágil e sem garantias de qualidade por um **ecossistema de Continuous Delivery automatizado, rigoroso e auditável**:
-
-1. **Repetibilidade e Confiança:** O processo é 100% repetível, auditável e imutável. A certeza de que o que corre em Produção é exatamente o que foi aprovado em UAT é matematicamente garantida pelo *Single-Build Immutable Artifact Pattern*.
-2. **Eficácia de Testes Comprovada:** O crescimento da suite de testes para 402 casos e a obtenção de **84% de Test Strength no PITest** e **0 defeitos P1 no SpotBugs** transformaram uma base de testes ilusória (onde 78% dos mutantes sobreviviam) numa barreira sólida de deteção precoce de defeitos.
-3. **Observabilidade e Contrato de Prontidão:** A introdução do Spring Boot Actuator aliada ao script contratual de smoke test estabeleceu uma fronteira clara e objetiva de aceitação operacional em todos os ambientes.
-4. **Alinhamento com a Teoria:** Todas as decisões de arquitetura e automação encontram respaldo direto na literatura de referência (Humble & Farley, Martin Fowler, DORA) e na matéria lecionada na unidade curricular de ODSOFT.
+1. **Migrações Versionadas de Base de Dados (Flyway / Liquibase):** Integrar migrações incrementais de esquema na fase de arranque/deploy para suportar bases de dados relacionais persistentes (PostgreSQL) em Produção sem perda de dados.
+2. **Contentorização OCI em Camadas (`Spring Boot Layertools`):** Em infraestruturas sem as restrições de virtualização aninhada LXD do DEI, empacotar a aplicação em imagens Docker multi-camada (separando `dependencies` de `application`), reduzindo a transferência de rede em cada deploy de ~72 MB para < 1 MB.
+3. **Testes Dinâmicos de Segurança (DAST) e Carga em UAT:** Automatizar a execução de testes de carga (k6 / JMeter) e varrimento dinâmico (OWASP ZAP) contra a instância `vs806:8082` antes de abrir o portão humano `input` em `lms-uat`.
+4. **Implantação Blue-Green em Produção:** Manter duas instâncias systemd (`prod-blue` na porta 8080 e `prod-green` na porta 8083) atrás de um reverse proxy Nginx em `vs336`, comutando o tráfego apenas após o `smoke-test.sh` passar na instância inativa (*zero-downtime deployment*).
